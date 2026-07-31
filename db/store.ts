@@ -7,7 +7,9 @@ import type {
   GeneratedMaterial,
   ReviewLog,
   ReviewRating,
+  BinaryReviewRating,
 } from "../lib/types";
+import { scheduleBinaryReview } from "../lib/review";
 
 type RuntimeEnv = {
   DB?: D1Database;
@@ -231,48 +233,29 @@ export async function saveGeneratedSet(userId: string, material: GeneratedMateri
   return setId;
 }
 
-export async function reviewCard(userId: string, cardId: string, rating: ReviewRating, responseMs: number): Promise<void> {
+export async function reviewCard(userId: string, cardId: string, rating: BinaryReviewRating, responseMs: number): Promise<void> {
   await ensureDatabase();
   const db = database();
   const card = await db.prepare("SELECT * FROM cards WHERE id = ? AND user_id = ?").bind(cardId, userId).first<Record<string, unknown>>();
   if (!card) throw new Error("CARD_NOT_FOUND");
 
-  const currentInterval = Number(card.interval_days || 0);
-  let intervalDays = 0;
-  let dueAt = new Date();
-  let status: Card["status"] = "復習待ち";
-  let correctDelta = 0;
-  if (rating === "again") {
-    dueAt = new Date(Date.now() + 10 * 60 * 1000);
-    status = "苦手";
-  } else if (rating === "hard") {
-    intervalDays = Math.max(1, Math.round(currentInterval * 1.2) || 1);
-    dueAt = new Date(Date.now() + intervalDays * 86400000);
-    status = "復習待ち";
-  } else if (rating === "good") {
-    intervalDays = Math.max(3, Math.round(currentInterval * 2) || 3);
-    dueAt = new Date(Date.now() + intervalDays * 86400000);
-    status = "定着中";
-    correctDelta = 1;
-  } else {
-    intervalDays = Math.max(7, Math.round(currentInterval * 3) || 7);
-    dueAt = new Date(Date.now() + intervalDays * 86400000);
-    status = "定着中";
-    correctDelta = 1;
-  }
-  const now = new Date().toISOString();
+  const reviewedAtMs = Date.now();
+  const now = new Date(reviewedAtMs).toISOString();
+  const schedule = scheduleBinaryReview(rating, Number(card.interval_days || 0), reviewedAtMs);
+  const dueAt = new Date(schedule.dueAtMs);
+  const safeResponseMs = Number.isFinite(responseMs) ? Math.max(0, Math.min(responseMs, 3_600_000)) : 0;
   const setId = String(card.set_id);
   await db.batch([
     db.prepare(`UPDATE cards SET status = ?, due_at = ?, interval_days = ?,
       review_count = review_count + 1, correct_count = correct_count + ?, updated_at = ?
       WHERE id = ? AND user_id = ?`)
-      .bind(status, dueAt.toISOString(), intervalDays, correctDelta, now, cardId, userId),
+      .bind(schedule.status, dueAt.toISOString(), schedule.intervalDays, schedule.correctDelta, now, cardId, userId),
     db.prepare("INSERT INTO review_logs (id,user_id,card_id,rating,response_ms,reviewed_at) VALUES (?,?,?,?,?,?)")
-      .bind(id("review"), userId, cardId, rating, Math.max(0, Math.min(responseMs, 3600000)), now),
+      .bind(id("review"), userId, cardId, rating, safeResponseMs, now),
     db.prepare("UPDATE card_sets SET last_studied_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
       .bind(now, now, setId, userId),
   ]);
-  const next = await db.prepare("SELECT MIN(due_at) AS next_due FROM cards WHERE set_id = ? AND user_id = ?")
+  const next = await db.prepare("SELECT MIN(due_at) AS next_due FROM cards WHERE set_id = ? AND user_id = ? AND status <> 'アーカイブ'")
     .bind(setId, userId).first<{ next_due: string }>();
   await db.prepare("UPDATE card_sets SET next_review_at = ? WHERE id = ? AND user_id = ?")
     .bind(next?.next_due || dueAt.toISOString(), setId, userId).run();
@@ -295,4 +278,3 @@ export async function saveChatPair(
       .bind(id("msg"), userId, setId, cardId, "assistant", answer, new Date(now + 1).toISOString()),
   ]);
 }
-

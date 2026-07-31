@@ -1,5 +1,6 @@
 export type CardStatus = "未学習" | "復習待ち" | "定着中" | "苦手" | "アーカイブ";
 export type ReviewRating = "again" | "hard" | "good" | "easy";
+export type BinaryReviewRating = Extract<ReviewRating, "again" | "good">;
 
 export type Card = {
   id: string;

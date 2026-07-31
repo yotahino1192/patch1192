@@ -6,8 +6,8 @@ import type {
   Card,
   ChatMessage,
   GeneratedMaterial,
-  ReviewRating,
 } from "../lib/types";
+import { advanceLessonQueue, type LessonVerdict } from "../lib/review";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "ai" | "records";
 type DraftMaterial = GeneratedMaterial & { sourceContent: string };
@@ -52,6 +52,14 @@ const tokyoShort = new Intl.DateTimeFormat("ja-JP", {
 });
 const tokyoTime = new Intl.DateTimeFormat("ja-JP", {
   timeZone: "Asia/Tokyo",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const tokyoReviewTime = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  month: "long",
+  day: "numeric",
+  weekday: "short",
   hour: "2-digit",
   minute: "2-digit",
 });
@@ -159,10 +167,12 @@ function Home({ data, now, startStudy, setScreen, selectSet }: {
   selectSet: (id: string) => void;
 }) {
   const allCards = data.sets.flatMap((set) => set.cards);
-  const dueCards = allCards.filter((card) => isDue(card, now));
+  const activeCards = allCards.filter((card) => card.status !== "アーカイブ");
+  const dueCards = activeCards.filter((card) => isDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
   const todayReviews = data.reviews.filter((review) => dayKey(new Date(review.reviewedAt)) === dayKey(now));
-  const denominator = todayReviews.length + dueCards.length;
-  const progress = denominator ? Math.round((todayReviews.length / denominator) * 100) : 100;
+  const todayCorrect = new Set(todayReviews.filter((review) => ["good", "easy"].includes(review.rating)).map((review) => review.cardId));
+  const nextCard = dueCards[0] || activeCards.filter((card) => !isDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())[0];
+  const nextSet = data.sets.find((set) => set.id === nextCard?.setId);
   const focus = dueCards[0] || allCards[0];
   const focusSet = data.sets.find((set) => set.id === focus?.setId);
   return (
@@ -176,16 +186,23 @@ function Home({ data, now, startStudy, setScreen, selectSet }: {
         </div>
       </section>
 
-      <section className="review-card">
-        <div className="progress-ring" style={{ "--progress": `${progress}%` } as React.CSSProperties} role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
-          <strong>{progress}</strong><span>%</span><small>完了</small>
-        </div>
+      <section className={`review-card ${dueCards.length ? "is-due" : "is-planned"}`}>
+        <div className="review-clock" aria-hidden="true">{dueCards.length ? "↻" : "◷"}</div>
         <div className="review-copy">
-          <p className="accent-label">↻ 今日の復習</p>
-          <h2>{dueCards.length ? <>{dueCards.length}枚のカードが<br />復習を待っています</> : <>今日の復習は<br />完了しました</>}</h2>
-          <p className="muted">◷ 所要時間の目安：{Math.max(1, Math.ceil(dueCards.length * 0.8))}分</p>
+          <p className="accent-label">{dueCards.length ? "今が復習タイミング" : "次のおすすめ復習"}</p>
+          <h2>{dueCards.length ? `${dueCards.length}枚を復習しましょう` : nextCard ? relativeDate(nextCard.dueAt, now) : "復習予定はありません"}</h2>
+          <p className="muted">{nextCard && nextSet ? `${nextSet.title} ・ ${tokyoReviewTime.format(new Date(nextCard.dueAt))}` : "新しい教材を追加して学習を始めましょう"}</p>
+          {todayCorrect.size > 0 && <p className="today-result">✓ 今日は{todayCorrect.size}枚を正解しました</p>}
         </div>
-        <button className="circle-arrow" onClick={() => startStudy()} aria-label="今日の復習を始める" disabled={!allCards.length}>›</button>
+        <button className="review-cta" onClick={() => {
+          if (dueCards.length) startStudy(nextSet?.id);
+          else if (nextSet) { selectSet(nextSet.id); setScreen("sets"); }
+        }} disabled={!nextCard}>{dueCards.length ? "復習する" : "確認する"}</button>
+        <div className="spacing-guide">
+          <span>忘れる前の復習ペース</span>
+          <strong>1日 → 3日 → 7日 → 14日 → 30日…</strong>
+          <small>エビングハウスの忘却曲線を参考に、学習履歴から調整します。</small>
+        </div>
       </section>
 
       {focus && focusSet && (
@@ -365,68 +382,156 @@ function SetDetail({ data, selectedSetId, selectSet, startStudy, now }: {
   );
 }
 
-function Study({ data, queue, index, flipped, setFlipped, setIndex, setQueue, sessionDone, setSessionDone, startStudy, setData, openAi, backToSets }: {
+function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSessionDone, sessionSetId, sessionTotal, sessionMistakes, setSessionMistakes, startStudy, setData, openAi, backToSets, goHome, now }: {
   data: AppData;
   queue: string[];
-  index: number;
   flipped: boolean;
   setFlipped: (value: boolean) => void;
-  setIndex: (value: number) => void;
   setQueue: (value: string[]) => void;
   sessionDone: boolean;
   setSessionDone: (value: boolean) => void;
+  sessionSetId: string | null;
+  sessionTotal: number;
+  sessionMistakes: number;
+  setSessionMistakes: React.Dispatch<React.SetStateAction<number>>;
   startStudy: (setId?: string) => void;
   setData: (data: AppData) => void;
   openAi: (cardId: string) => void;
   backToSets: () => void;
+  goHome: () => void;
+  now: Date;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [dragX, setDragX] = useState(0);
+  const [gestureMessage, setGestureMessage] = useState("カードをタップして回答を確認してください。");
   const shownAt = useRef(0);
-  const card = data.sets.flatMap((set) => set.cards).find((item) => item.id === queue[index]);
-  const set = data.sets.find((item) => item.id === card?.setId);
-  useEffect(() => { shownAt.current = Date.now(); }, [index]);
-  const rate = async (rating: ReviewRating) => {
+  const busyRef = useRef(false);
+  const dragOrigin = useRef<{ x: number; y: number; moved: boolean; horizontal: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  const card = data.sets.flatMap((set) => set.cards).find((item) => item.id === queue[0]);
+  const set = data.sets.find((item) => item.id === card?.setId) || data.sets.find((item) => item.id === sessionSetId);
+  useEffect(() => {
+    shownAt.current = Date.now();
+  }, [card?.id]);
+
+  const submitVerdict = async (verdict: LessonVerdict) => {
     if (!card || !flipped || busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true); setError("");
     try {
       const result = await api<{ data: AppData }>("/api/data", {
         method: "POST",
-        body: JSON.stringify({ action: "reviewCard", cardId: card.id, rating, responseMs: Date.now() - shownAt.current }),
+        body: JSON.stringify({ action: "reviewCard", cardId: card.id, rating: verdict === "correct" ? "good" : "again", responseMs: Date.now() - shownAt.current }),
       });
       setData(result.data);
-      const nextQueue = rating === "again" && queue.filter((id) => id === card.id).length < 2 ? [...queue, card.id] : queue;
-      if (nextQueue !== queue) setQueue(nextQueue);
-      if (index + 1 >= nextQueue.length) setSessionDone(true);
-      else { setIndex(index + 1); setFlipped(false); }
+      const nextQueue = advanceLessonQueue(queue, verdict);
+      setQueue(nextQueue);
+      if (verdict === "incorrect") {
+        setSessionMistakes((count) => count + 1);
+        setGestureMessage("不正解。カードを列の後ろへ戻しました。");
+      } else {
+        setGestureMessage(nextQueue.length ? `正解。残り${nextQueue.length}枚です。` : "すべてのカードに正解しました。");
+      }
+      setFlipped(false);
+      shownAt.current = Date.now();
+      if (verdict === "correct" && nextQueue.length === 0) setSessionDone(true);
     } catch (e) { setError(e instanceof Error ? e.message : "評価を保存できませんでした。"); }
-    finally { setBusy(false); }
+    finally {
+      busyRef.current = false;
+      setBusy(false);
+      setDragX(0);
+    }
   };
-  if (!queue.length || !card || !set) return <div className="page empty-panel"><h1>学習するカードがありません</h1><p>カードセットを作るか、セット画面から学習を開始してください。</p></div>;
+
+  const beginDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (busy) return;
+    dragOrigin.current = { x: event.clientX, y: event.clientY, moved: false, horizontal: false };
+    suppressClick.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const origin = dragOrigin.current;
+    if (!origin || busy) return;
+    const dx = event.clientX - origin.x;
+    const dy = event.clientY - origin.y;
+    if (Math.abs(dx) > 7 || Math.abs(dy) > 7) origin.moved = true;
+    if (!origin.horizontal && Math.abs(dx) > Math.abs(dy) + 8) origin.horizontal = true;
+    if (origin.horizontal && flipped) setDragX(Math.max(-180, Math.min(180, dx)));
+  };
+  const finishDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const origin = dragOrigin.current;
+    if (!origin) return;
+    const dx = event.clientX - origin.x;
+    suppressClick.current = origin.moved;
+    dragOrigin.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setDragX(0);
+    if (origin.horizontal && flipped && Math.abs(dx) >= 80) {
+      void submitVerdict(dx > 0 ? "correct" : "incorrect");
+    } else if (origin.moved && !flipped) {
+      setGestureMessage("まずカードをタップして回答を確認してください。");
+    }
+  };
+  const cancelDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    suppressClick.current = Boolean(dragOrigin.current?.moved);
+    dragOrigin.current = null;
+    setDragX(0);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const toggleCard = () => {
+    if (suppressClick.current) { suppressClick.current = false; return; }
+    if (busy) return;
+    const next = !flipped;
+    setFlipped(next);
+    setGestureMessage(next ? "左へ不正解、右へ正解としてスワイプします。" : "カードをタップして回答を確認してください。");
+  };
+
   if (sessionDone) return (
     <div className="page session-complete">
-      <span>✓</span><h1>今回の学習が完了しました</h1><p>{queue.length}問の復習結果を保存し、次回の復習日を更新しました。</p>
-      <button className="primary" onClick={() => startStudy(set.id)}>もう一度学習する</button>
+      <span>✓</span><p className="completion-label">COMPLETE</p><h1>レッスンが終了しました</h1>
+      <p>{sessionTotal}枚すべてに正解しました。学習記録と復習スケジュールを更新しました。</p>
+      <div className="lesson-result"><div><small>定着したカード</small><strong>{sessionTotal}枚</strong></div><div><small>もう一度</small><strong>{sessionMistakes}回</strong></div></div>
+      {set?.nextReviewAt && <div className="completion-review"><span>◷ 次のおすすめ復習</span><strong>{relativeDate(set.nextReviewAt, now)}</strong><small>{tokyoReviewTime.format(new Date(set.nextReviewAt))}<br />忘却曲線を参考にした復習タイミングです。</small></div>}
+      <div className="completion-actions"><button className="primary" onClick={goHome}>ホームで確認</button>{set && <button className="secondary" onClick={() => startStudy(set.id)}>もう一度学習</button>}</div>
     </div>
   );
+  if (!queue.length || !card || !set) return <div className="page empty-panel"><h1>学習するカードがありません</h1><p>カードセットを作るか、セット画面から学習を開始してください。</p></div>;
+  const completed = Math.max(0, sessionTotal - queue.length);
+  const progress = sessionTotal ? Math.round((completed / sessionTotal) * 100) : 0;
   return (
     <div className="page study-page">
       <div className="study-header"><button aria-label="セットへ戻る" onClick={backToSets}>‹</button><h1>{set.category} / {set.title}</h1><button aria-label="その他">•••</button></div>
-      <div className="study-progress" role="progressbar" aria-valuemin={1} aria-valuemax={queue.length} aria-valuenow={index + 1}><span style={{ width: `${((index + 1) / queue.length) * 100}%` }} /><b>{index + 1} / {queue.length}</b></div>
-      <button className={`flashcard ${flipped ? "flipped" : ""}`} onClick={() => setFlipped(!flipped)} aria-pressed={flipped}>
+      <div className="study-progress" role="progressbar" aria-valuemin={0} aria-valuemax={sessionTotal} aria-valuenow={completed}><span style={{ width: `${progress}%` }} /><b>残り {queue.length}枚</b></div>
+      <button
+        className={`flashcard ${flipped ? "flipped" : ""} ${dragX > 8 ? "swiping-right" : ""} ${dragX < -8 ? "swiping-left" : ""}`}
+        style={{ transform: `translateX(${dragX}px) rotate(${Math.max(-4, Math.min(4, dragX / 35))}deg)` }}
+        onPointerDown={beginDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={finishDrag}
+        onPointerCancel={cancelDrag}
+        onClick={toggleCard}
+        onKeyDown={(event) => {
+          if (!flipped || busy) return;
+          if (event.key === "ArrowLeft") { event.preventDefault(); void submitVerdict("incorrect"); }
+          if (event.key === "ArrowRight") { event.preventDefault(); void submitVerdict("correct"); }
+        }}
+        aria-pressed={flipped}
+        aria-label={flipped ? "回答。左へスワイプで不正解、右へスワイプで正解" : "質問。タップして回答を表示"}
+      >
+        <span className="swipe-stamp wrong">不正解</span><span className="swipe-stamp correct">正解</span>
         <span className="chip blue">{flipped ? "✦ 回答" : "✦ 質問"}</span>
         <strong aria-live="polite">{flipped ? card.answer : card.question}</strong>
-        <small>{flipped ? "回答を確認したら、理解度を選んでください" : "☝ タップで回答を表示"}</small>
+        <small>{flipped ? "← 不正解　｜　正解 →" : "タップで回答を表示"}</small>
       </button>
-      <p className="rating-hint" aria-live="polite">{flipped ? "理解度を選ぶと、結果を保存して次の問題へ進みます。" : "回答を表示すると理解度を選べます。"}</p>
-      <div className="rating-grid">
-        <button disabled={!flipped || busy} onClick={() => rate("again")}><b className="red">↻</b><strong>もう一度</strong><small>10分後に復習</small></button>
-        <button disabled={!flipped || busy} onClick={() => rate("hard")}><b>?</b><strong>むずかしい</strong><small>明日から再確認</small></button>
-        <button disabled={!flipped || busy} onClick={() => rate("good")}><b className="teal">✓</b><strong>わかった</strong><small>間隔を広げる</small></button>
-        <button disabled={!flipped || busy} onClick={() => rate("easy")}><b className="blue-text">★</b><strong>覚えた</strong><small>1週間後から</small></button>
+      <p className="gesture-message" aria-live="polite">{busy ? "学習記録を保存しています…" : gestureMessage}</p>
+      <div className="swipe-actions" aria-label="回答を評価">
+        <button className="incorrect" disabled={!flipped || busy} onClick={() => submitVerdict("incorrect")}><b>←</b><span><strong>不正解</strong><small>後ろでもう一度</small></span></button>
+        <button className="correct" disabled={!flipped || busy} onClick={() => submitVerdict("correct")}><span><strong>正解</strong><small>このカードは完了</small></span><b>→</b></button>
       </div>
       {error && <p className="inline-error" role="alert">{error}</p>}
-      <div className="study-tools"><button onClick={() => openAi(card.id)}>✦ AIに聞く</button><button onClick={() => setFlipped(!flipped)}>↺ 質問と回答を切替</button></div>
+      <div className="study-tools"><button onClick={() => openAi(card.id)}>✦ このカードをAIに聞く</button></div>
     </div>
   );
 }
@@ -536,9 +641,11 @@ export default function App() {
   const [draft, setDraft] = useState<DraftMaterial | null>(null);
   const [lastGeneration, setLastGeneration] = useState<{ text: string; detail: string; style: string; count: number } | null>(null);
   const [queue, setQueue] = useState<string[]>([]);
-  const [studyIndex, setStudyIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [sessionDone, setSessionDone] = useState(false);
+  const [sessionSetId, setSessionSetId] = useState<string | null>(null);
+  const [sessionTotal, setSessionTotal] = useState(0);
+  const [sessionMistakes, setSessionMistakes] = useState(0);
   const [contextCardId, setContextCardId] = useState<string | null>(null);
 
   const reload = async () => {
@@ -580,9 +687,11 @@ export default function App() {
     const cards = due.length ? due : target.cards;
     setSelectedSetId(target.id);
     setQueue(cards.map((card) => card.id));
-    setStudyIndex(0);
     setFlipped(false);
     setSessionDone(false);
+    setSessionSetId(target.id);
+    setSessionTotal(cards.length);
+    setSessionMistakes(0);
     setContextCardId(cards[0]?.id || null);
     setScreen("study");
   };
@@ -622,7 +731,7 @@ export default function App() {
   else if (screen === "import") content = <ImportScreen onGenerate={generate} />;
   else if (screen === "generate") { content = <Generate draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={async () => { if (lastGeneration) await generate(lastGeneration.text, lastGeneration.detail, lastGeneration.style, lastGeneration.count); }} />; title = "要点化とカード生成"; }
   else if (screen === "sets") { content = <SetDetail data={data} selectedSetId={selectedSetId} selectSet={setSelectedSetId} startStudy={startStudy} now={now} />; title = "カードセット"; }
-  else if (screen === "study") content = <Study data={data} queue={queue} index={studyIndex} flipped={flipped} setFlipped={setFlipped} setIndex={setStudyIndex} setQueue={setQueue} sessionDone={sessionDone} setSessionDone={setSessionDone} startStudy={startStudy} setData={setData} openAi={(cardId) => { setContextCardId(cardId); setScreen("ai"); }} backToSets={() => setScreen("sets")} />;
+  else if (screen === "study") content = <Study data={data} queue={queue} flipped={flipped} setFlipped={setFlipped} setQueue={setQueue} sessionDone={sessionDone} setSessionDone={setSessionDone} sessionSetId={sessionSetId} sessionTotal={sessionTotal} sessionMistakes={sessionMistakes} setSessionMistakes={setSessionMistakes} startStudy={startStudy} setData={setData} openAi={(cardId) => { setContextCardId(cardId); setScreen("ai"); }} backToSets={() => setScreen("sets")} goHome={() => setScreen("home")} now={now} />;
   else if (screen === "ai") content = <AiDive data={data} contextCardId={contextCardId} setData={setData} createCards={createCardsFromChat} backToStudy={() => setScreen("study")} />;
   else content = <Records data={data} now={now} />;
   return <Shell screen={screen} setScreen={navigate} title={title}>{content}</Shell>;

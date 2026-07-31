@@ -1,5 +1,5 @@
 import { loadAppData, requestUserId, reviewCard, saveGeneratedSet } from "../../../db/store";
-import type { GeneratedMaterial, ReviewRating } from "../../../lib/types";
+import type { BinaryReviewRating, GeneratedMaterial } from "../../../lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +38,8 @@ export async function POST(request: Request): Promise<Response> {
     }
     if (body.action === "reviewCard") {
       const cardId = String(body.cardId || "");
-      const rating = String(body.rating || "") as ReviewRating;
-      if (!cardId || !["again", "hard", "good", "easy"].includes(rating)) {
+      const rating = String(body.rating || "") as BinaryReviewRating;
+      if (!cardId || !["again", "good"].includes(rating)) {
         return json({ error: "学習評価が正しくありません。" }, 400);
       }
       await reviewCard(userId, cardId, rating, Number(body.responseMs || 0));
@@ -54,4 +54,3 @@ export async function POST(request: Request): Promise<Response> {
     return json({ error: message }, 500);
   }
 }
-
