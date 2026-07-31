@@ -29,6 +29,8 @@ export const cards = sqliteTable("cards", {
   userId: text("user_id").notNull(),
   question: text("question").notNull(),
   answer: text("answer").notNull(),
+  format: text("format").notNull().default("qa"),
+  choices: text("choices").notNull().default("[]"),
   status: text("status").notNull(),
   difficulty: integer("difficulty").notNull(),
   dueAt: text("due_at").notNull(),
@@ -47,12 +49,14 @@ export const reviewLogs = sqliteTable("review_logs", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   cardId: text("card_id").notNull(),
+  sessionId: text("session_id"),
   rating: text("rating").notNull(),
   responseMs: integer("response_ms").notNull(),
   reviewedAt: text("reviewed_at").notNull(),
 }, (table) => [
   index("review_logs_user_idx").on(table.userId),
   index("review_logs_card_idx").on(table.cardId),
+  index("review_logs_session_idx").on(table.sessionId),
 ]);
 
 export const chatMessages = sqliteTable("chat_messages", {
@@ -60,10 +64,12 @@ export const chatMessages = sqliteTable("chat_messages", {
   userId: text("user_id").notNull(),
   setId: text("set_id"),
   cardId: text("card_id"),
+  sessionId: text("session_id"),
   role: text("role").notNull(),
   content: text("content").notNull(),
   createdAt: text("created_at").notNull(),
 }, (table) => [
   index("chat_messages_user_idx").on(table.userId),
   index("chat_messages_card_idx").on(table.cardId),
+  index("chat_messages_session_idx").on(table.sessionId),
 ]);

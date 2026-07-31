@@ -1,4 +1,4 @@
-import { requestUserId, saveChatPair } from "../../../../db/store";
+import { loadAiCardContext, requestUserId, saveChatPair } from "../../../../db/store";
 import { answerQuestion } from "../../../../lib/openai";
 
 export const dynamic = "force-dynamic";
@@ -13,33 +13,31 @@ export async function POST(request: Request): Promise<Response> {
     const question = String(body.question || "").trim();
     if (!question) return json({ error: "質問を入力してください。" }, 400);
     if (question.length > 2000) return json({ error: "質問は2,000文字以内で入力してください。" }, 400);
-    const history = Array.isArray(body.history)
-      ? body.history
-          .filter((item): item is { role: "user" | "assistant"; content: string } =>
-            Boolean(item) && typeof item === "object" &&
-            ["user", "assistant"].includes(String((item as Record<string, unknown>).role)) &&
-            typeof (item as Record<string, unknown>).content === "string")
-          .map((item) => ({ role: item.role, content: item.content.slice(0, 4000) }))
-      : [];
+    const setId = String(body.setId || "").trim();
+    const cardId = String(body.cardId || "").trim();
+    const sessionId = String(body.sessionId || "").trim().slice(0, 120);
+    if (!setId || !cardId || !sessionId) return json({ error: "学習セッションを確認できませんでした。" }, 400);
+    const userId = requestUserId(request);
+    const context = await loadAiCardContext(userId, setId, cardId, sessionId);
     const answer = await answerQuestion({
       question,
       depth: String(body.depth || "かんたん"),
-      cardQuestion: String(body.cardQuestion || ""),
-      cardAnswer: String(body.cardAnswer || ""),
-      sourceContent: String(body.sourceContent || ""),
-      category: String(body.category || ""),
-      history,
+      cardQuestion: context.cardQuestion,
+      cardAnswer: context.cardAnswer,
+      sourceContent: context.sourceContent,
+      category: context.category,
+      history: context.history,
     });
-    const setId = body.setId ? String(body.setId) : null;
-    const cardId = body.cardId ? String(body.cardId) : null;
-    await saveChatPair(requestUserId(request), setId, cardId, question, answer);
+    await saveChatPair(userId, context.setId, context.cardId, sessionId, question, answer);
     return json({ answer });
   } catch (error) {
     console.error("AI chat failed", error);
     if (error instanceof Error && error.message === "AI_NOT_CONFIGURED") {
       return json({ error: "OpenAI APIの設定がまだ完了していません。管理者がAPIキーを設定すると利用できます。", code: "AI_NOT_CONFIGURED" }, 503);
     }
+    if (error instanceof Error && error.message === "CARD_NOT_FOUND") {
+      return json({ error: "このカードの学習データを確認できませんでした。" }, 404);
+    }
     return json({ error: "AIから回答を受け取れませんでした。少し待ってからもう一度お試しください。" }, 502);
   }
 }
-

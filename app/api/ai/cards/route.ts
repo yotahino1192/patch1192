@@ -10,14 +10,16 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const body = await request.json() as Record<string, unknown>;
     const text = String(body.text || "").trim();
-    if (text.length < 80) return json({ error: "カードを作るには、80文字以上の文章を入力してください。" }, 400);
+    const mode = body.mode === "lesson_summary" ? "lesson_summary" : "source";
+    const minimumLength = mode === "lesson_summary" ? 20 : 80;
+    if (text.length < minimumLength) return json({ error: mode === "lesson_summary" ? "要約するAI解説が不足しています。" : "カードを作るには、80文字以上の文章を入力してください。" }, 400);
     if (text.length > 30000) return json({ error: "一度に解析できる文章は30,000文字までです。" }, 400);
     const material = await generateMaterial({
       text,
       detail: String(body.detail || "標準"),
       style: String(body.style || "一問一答"),
-      count: Number(body.count || 6),
       category: String(body.category || ""),
+      mode,
     });
     return json(material);
   } catch (error) {
@@ -28,4 +30,3 @@ export async function POST(request: Request): Promise<Response> {
     return json({ error: "AIがカードを生成できませんでした。少し待ってからもう一度お試しください。" }, 502);
   }
 }
-
