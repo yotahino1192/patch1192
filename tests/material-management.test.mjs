@@ -21,7 +21,7 @@ const db = {
 globalThis.__testD1 = db;
 registerHooks({
   resolve(specifier, context, next) {
-    if (specifier === "cloudflare:workers") return { url: 'data:text/javascript,export const env = { DB: globalThis.__testD1 };', shortCircuit: true };
+    if (specifier === "./client") return { url: 'data:text/javascript,export function database() { return globalThis.__testD1; } export async function initializeDatabase() {}', shortCircuit: true };
     if (specifier === "../lib/daily-review") return next(new URL("../lib/daily-review.ts", context.parentURL).href, context);
     if (specifier === "../lib/review") return next(new URL("../lib/review.ts", context.parentURL).href, context);
     return next(specifier, context);

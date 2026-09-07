@@ -1,97 +1,76 @@
-# vinext-starter
+# Loop
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+教材からカードを作り、復習・AI解説・学習記録を使えるNext.jsアプリです。
+UIと学習の仕様は従来のまま、VercelのNode.js実行環境に対応しています。
 
-## Prerequisites
+## ローカルで起動
 
-- Node.js `>=22.13.0`
+Node.js 22系を使います。
 
-## Quick Start
-
-```bash
-npm install
+```sh
+npm ci
+cp .env.example .env
+# .env の OPENAI_API_KEY を設定
 npm run dev
-npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+http://localhost:3001/ を開きます。
+TURSO_DATABASE_URLを未設定にすると、ローカル専用の `.data/loop.db` を使います。
+データベースのテーブルは初回接続時に自動作成されます。
+`.env` と `.data/` はGitに含まれません。
 
-## Included Shape
+### 従来のCloudflareローカルデータを引き継ぐ
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `drizzle.config.ts` supports local migration generation when needed
+新しいアプリを初めて起動する前に実行してください。
 
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```sh
+npm run db:import-local
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+`.wrangler/state` のSQLiteデータを `.data/loop.db` にコピーします。
+元データは削除せず、既存の移行先ファイルも上書きしません。
+ローカルデータはGitHubへのpushだけでは公開データベースに転送されません。
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+## Vercelからデプロイ
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+1. Tursoでホスト型libSQLデータベースを作成し、接続URLと認証トークンを取得します。
+2. Vercelの「Add New → Project」で `yotahino1192/patch1192` をImportします。
+3. Framework Presetは **Next.js**、Root Directoryはリポジトリのルートです。
+   ビルドコマンドは `npm run build`、Output Directoryはデフォルトのままにします。
+4. 以下の環境変数をVercelのProject Settings → Environment Variablesに設定します。
+   利用するProduction/Preview環境それぞれに設定してください。
+5. Deployします。以降mainへのpushで、連携されたVercelプロジェクトが再デプロイされます。
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+| 環境変数 | 必須 | 値 |
+| --- | --- | --- |
+| `TURSO_DATABASE_URL` | Vercelで必須 | `libsql://...` など、Tursoが発行する接続URL |
+| `TURSO_AUTH_TOKEN` | 認証付きDBで必須 | 上記DBの読み書き用トークン |
+| `OPENAI_API_KEY` | AI機能に必須 | OpenAIのAPIキー |
+| `OPENAI_CARD_MODEL` | 任意 | カード生成モデル。未設定は `gpt-5-nano` |
+| `OPENAI_CHAT_MODEL` | 任意 | AI解説モデル。未設定は `gpt-5-nano` |
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+秘密情報に `NEXT_PUBLIC_` は付けないでください。`.env` をGitHubに追加する必要はありません。
+Vercelでは `file:` のDBは使用できません。環境変数が未設定でもビルドはできますが、教材の保存・読み込みにはホスト型DBの設定が必要です。
+APIはNode.jsで動作し、実行時間上限は60秒に設定しています。
+PDFのWorkerと日本語文字マップはprebuild/predevで同じ依存パッケージからコピーされます。
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+### データ・アクセスの扱い
 
-## Useful Commands
+既存仕様を保ち、この版にはログインや利用者別データ分離を追加していません。
+利用者は同じ教材・記録を共有し、AI利用は設定したAPIキーに課金されます。
+限定利用する場合はVercel側のDeployment Protectionなどでアクセス範囲を設定してください。
+Cloudflare専用の認証ヘッダーはVercelでは信頼せず、従来のローカル利用者 `loop-owner` を使用します。
 
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+## データベースと確認
 
-## Learn More
+- スキーマ: `db/schema.ts`
+- マイグレーション: `drizzle/*.sql`
+- 接続・自動マイグレーション: `db/client.ts`
+- 保存と復習の処理: `db/store.ts`
+- `npm run db:generate`: スキーマ変更時のSQL生成
+- `npm test`: 本番ビルドと自動テスト
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+初回接続時、SQLをトランザクション内で順に適用します。適用履歴は `_loop_migrations` に保存します。
+既存のCloudflareローカルDBをコピーした場合も、既に存在するテーブルや列は維持します。
+
+参考: [VercelのNext.js対応](https://vercel.com/docs/frameworks/full-stack/nextjs) · [Turso TypeScriptクライアント](https://docs.turso.tech/sdk/ts/reference)

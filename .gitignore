@@ -42,3 +42,7 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# Local learning database and generated PDF worker
+/.data/
+/public/pdfjs/pdf.worker.min.mjs

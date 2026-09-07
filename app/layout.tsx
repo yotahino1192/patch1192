@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3001"),
   title: "Loop — 知識を小さくして覚え、深く理解する",
   description: "AIで情報をカードに変え、学習・深掘り・復習までをひとつにつなぐ個人知識学習アプリ。",
   openGraph: {

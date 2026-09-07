@@ -2,6 +2,8 @@ import { loadAiCardContext, requestUserId, saveChatPair } from "../../../../db/s
 import { answerQuestion } from "../../../../lib/openai";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });

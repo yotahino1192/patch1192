@@ -27,15 +27,7 @@ test('documents with entities or no supported content are rejected', () => {
   assert.throws(() => extractOfficeText(zip({'misc.txt':'text'}),'pptx'), /形式/);
 });
 
-// Use the same PDF worker through a file URL in Node; Vite emits a URL in the app.
-const { registerHooks } = await import('node:module');
-registerHooks({ resolve(specifier, context, next) {
-  if (specifier === 'pdfjs-dist/build/pdf.worker.min.mjs?url') {
-    const worker = new URL('../node_modules/pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
-    return { url: `data:text/javascript,export default ${JSON.stringify(worker)}`, shortCircuit: true };
-  }
-  return next(specifier, context);
-}});
+const pdfOptions = { workerSrc: new URL("../node_modules/pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).href };
 function pdfFile(text) {
   const stream = `BT /F1 12 Tf 72 720 Td (${text}) Tj ET`;
   const objects = [
@@ -54,8 +46,8 @@ function pdfFile(text) {
   return new File([pdf], 'lesson.pdf');
 }
 test('PDF extracts embedded text and reports documents with no readable text', async () => {
-  assert.equal(await extractDocument(pdfFile('Learning from a PDF document')), 'Learning from a PDF document');
-  await assert.rejects(extractDocument(pdfFile('')), /文章を読み取れません/);
+  assert.equal(await extractDocument(pdfFile('Learning from a PDF document'), pdfOptions), 'Learning from a PDF document');
+  await assert.rejects(extractDocument(pdfFile(''), pdfOptions), /文章を読み取れません/);
 });
 
 test('PowerPoint respects reordered slides from its presentation manifest', () => {

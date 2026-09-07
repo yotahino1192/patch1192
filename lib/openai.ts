@@ -1,4 +1,3 @@
-import { env } from "cloudflare:workers";
 import type { CardFormat, GeneratedMaterial } from "./types";
 
 type RuntimeEnv = {
@@ -8,7 +7,7 @@ type RuntimeEnv = {
 };
 
 function runtime(): RuntimeEnv {
-  return env as unknown as RuntimeEnv;
+  return process.env as RuntimeEnv;
 }
 
 function apiKey(): string {

@@ -51,7 +51,7 @@ export function extractOfficeText(bytes: Uint8Array, extension: "docx" | "pptx")
   return checkedText(paragraphs.join("\n"));
 }
 
-export async function extractDocument(file: File): Promise<string> {
+export async function extractDocument(file: File, options: { workerSrc?: string } = {}): Promise<string> {
   if (file.size > MAX_DOCUMENT_BYTES) throw new Error("ファイルは1つ10MB以内にしてください。");
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (["txt", "md", "csv"].includes(extension || "")) {
@@ -68,8 +68,7 @@ export async function extractDocument(file: File): Promise<string> {
   if (extension === "docx" || extension === "pptx") return extractOfficeText(new Uint8Array(await file.arrayBuffer()), extension);
   if (extension !== "pdf") throw new Error("PDF・Word（.docx）・PowerPoint（.pptx）・TXT・Markdown・CSVに対応しています。");
   const pdfjs = await import("pdfjs-dist");
-  const { default: workerUrl } = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  pdfjs.GlobalWorkerOptions.workerSrc = options.workerSrc || "/pdfjs/pdf.worker.min.mjs";
   const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), useSystemFonts: true, cMapUrl: "/pdfjs/cmaps/", cMapPacked: true });
   try {
     const pdf = await task.promise;

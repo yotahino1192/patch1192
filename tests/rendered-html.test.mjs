@@ -27,7 +27,7 @@ test("keeps OpenAI secrets server-side and enables durable product data", async 
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/openai.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/review.ts", import.meta.url), "utf8"),
-    readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
+    readFile(new URL("../vercel.json", import.meta.url), "utf8"),
     readFile(new URL("../.env.example", import.meta.url), "utf8"),
   ]);
   assert.match(page, /\/api\/ai\/cards/);
@@ -51,6 +51,6 @@ test("keeps OpenAI secrets server-side and enables durable product data", async 
   assert.match(openai, /maxItems: maxCards/);
   assert.match(review, /\[1, 3, 7, 14, 30, 60, 120, 180, 365\]/);
   assert.match(review, /verdict === "correct" \? remaining : \[\.\.\.remaining, current\]/);
-  assert.equal(JSON.parse(hosting).d1, "DB");
+  assert.equal(JSON.parse(hosting).framework, "nextjs");
   assert.match(envExample, /^OPENAI_API_KEY=$/m);
 });

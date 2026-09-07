@@ -2,6 +2,8 @@ import { organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, 
 import type { BinaryReviewRating, GeneratedCard, GeneratedMaterial } from "../../../lib/types";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 60;
 
 function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });

@@ -1,6 +1,6 @@
 import { studyDayBounds, streakLength } from "../lib/daily-review";
 import type { DailyReview } from "../lib/types";
-import { env } from "cloudflare:workers";
+import { database, initializeDatabase } from "./client";
 import type {
   AppData,
   Card,
@@ -14,106 +14,13 @@ import type {
 } from "../lib/types";
 import { scheduleBinaryReview } from "../lib/review";
 
-type RuntimeEnv = {
-  DB?: D1Database;
-};
 
-function database(): D1Database {
-  const db = (env as unknown as RuntimeEnv).DB;
-  if (!db) throw new Error("DATABASE_NOT_CONFIGURED");
-  return db;
-}
-
-export function requestUserId(request: Request): string {
-  return request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() || "loop-owner";
+export function requestUserId(_request: Request): string {
+  return "loop-owner";
 }
 
 export async function ensureDatabase(): Promise<void> {
-  const db = database();
-  await db.batch([
-    db.prepare(`CREATE TABLE IF NOT EXISTS sources (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )`),
-    db.prepare("CREATE INDEX IF NOT EXISTS sources_user_idx ON sources(user_id)"),
-    db.prepare(`CREATE TABLE IF NOT EXISTS card_sets (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      category TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      key_points TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      last_studied_at TEXT,
-      next_review_at TEXT
-    )`),
-    db.prepare("CREATE INDEX IF NOT EXISTS card_sets_user_idx ON card_sets(user_id)"),
-    db.prepare(`CREATE TABLE IF NOT EXISTS cards (
-      id TEXT PRIMARY KEY,
-      set_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      question TEXT NOT NULL,
-      answer TEXT NOT NULL,
-      format TEXT NOT NULL DEFAULT 'qa',
-      choices TEXT NOT NULL DEFAULT '[]',
-      status TEXT NOT NULL,
-      difficulty INTEGER NOT NULL DEFAULT 2,
-      due_at TEXT NOT NULL,
-      interval_days INTEGER NOT NULL DEFAULT 0,
-      review_count INTEGER NOT NULL DEFAULT 0,
-      correct_count INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )`),
-    db.prepare("CREATE INDEX IF NOT EXISTS cards_user_idx ON cards(user_id)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS cards_set_idx ON cards(set_id)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS cards_due_idx ON cards(due_at)"),
-    db.prepare(`CREATE TABLE IF NOT EXISTS review_logs (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      card_id TEXT NOT NULL,
-      session_id TEXT,
-      rating TEXT NOT NULL,
-      response_ms INTEGER NOT NULL,
-      reviewed_at TEXT NOT NULL
-    )`),
-    db.prepare("CREATE INDEX IF NOT EXISTS review_logs_user_idx ON review_logs(user_id)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS review_logs_card_idx ON review_logs(card_id)"),
-    db.prepare(`CREATE TABLE IF NOT EXISTS chat_messages (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      set_id TEXT,
-      card_id TEXT,
-      session_id TEXT,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    )`),
-    db.prepare("CREATE INDEX IF NOT EXISTS chat_messages_user_idx ON chat_messages(user_id)"),
-    db.prepare("CREATE INDEX IF NOT EXISTS chat_messages_card_idx ON chat_messages(card_id)"),
-  ]);
-  const cardColumns = await db.prepare("PRAGMA table_info(cards)").all<{ name: string }>();
-  const columnNames = new Set((cardColumns.results || []).map((column) => String(column.name)));
-  const upgrades = [];
-  if (!columnNames.has("format")) upgrades.push(db.prepare("ALTER TABLE cards ADD COLUMN format TEXT NOT NULL DEFAULT 'qa'"));
-  if (!columnNames.has("choices")) upgrades.push(db.prepare("ALTER TABLE cards ADD COLUMN choices TEXT NOT NULL DEFAULT '[]'"));
-  if (upgrades.length) await db.batch(upgrades);
-  const reviewColumns = await db.prepare("PRAGMA table_info(review_logs)").all<{ name: string }>();
-  if (!(reviewColumns.results || []).some((column) => String(column.name) === "session_id")) {
-    await db.prepare("ALTER TABLE review_logs ADD COLUMN session_id TEXT").run();
-  }
-  await db.prepare("CREATE INDEX IF NOT EXISTS review_logs_session_idx ON review_logs(session_id)").run();
-  const chatColumns = await db.prepare("PRAGMA table_info(chat_messages)").all<{ name: string }>();
-  if (!(chatColumns.results || []).some((column) => String(column.name) === "session_id")) {
-    await db.prepare("ALTER TABLE chat_messages ADD COLUMN session_id TEXT").run();
-  }
-  await db.prepare("CREATE INDEX IF NOT EXISTS chat_messages_session_idx ON chat_messages(session_id)").run();
+  await initializeDatabase();
 }
 
 function id(prefix: string): string {
