@@ -15,6 +15,7 @@ export async function POST(request: Request): Promise<Response> {
     if (text.length < minimumLength) return json({ error: mode === "lesson_summary" ? "要約するAI解説が不足しています。" : "カードを作るには、80文字以上の文章を入力してください。" }, 400);
     if (text.length > 30000) return json({ error: "一度に解析できる文章は30,000文字までです。" }, 400);
     const material = await generateMaterial({
+      language: body.language === "en" ? "en" : "ja",
       text,
       detail: String(body.detail || "標準"),
       style: String(body.style || "一問一答"),

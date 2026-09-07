@@ -10,7 +10,7 @@ test("server-renders the Loop application shell", async () => {
   assert.match(layout, /title:\s*"Loop/);
   assert.match(page, /学習データを準備しています/);
   assert.match(page, /メインナビゲーション/);
-  assert.match(page, /左で「もう一度」、右で「できた」/);
+  assert.match(page, /左で「まだ覚えていない」、右で「覚えていた」/);
   assert.match(page, /レッスンが終了しました/);
   assert.match(page, /エビングハウスの忘却曲線/);
   assert.match(page, /AIに解説してもらう/);
@@ -37,7 +37,7 @@ test("keeps OpenAI secrets server-side and enables durable product data", async 
   assert.doesNotMatch(nav, /id: "ai"|label: "AI"/);
   assert.doesNotMatch(page, /setScreen\("ai"\)|screen === "ai"/);
   assert.doesNotMatch(page, /id="card-count"|type="range"|生成する枚数/);
-  for (const format of ["一問一答", "4択問題", "自分で解説"]) assert.match(page, new RegExp(format));
+  for (const format of ["一問一答", "4択問題"]) assert.match(page, new RegExp(format));
   assert.match(page, /card\.format === "multiple_choice"/);
   assert.match(page, /card\.choices\.map/);
   assert.match(page, /const selectedCards = draft\.cards\.filter\(\(card\) => card\.selected\)/);

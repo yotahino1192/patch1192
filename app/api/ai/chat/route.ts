@@ -20,6 +20,7 @@ export async function POST(request: Request): Promise<Response> {
     const userId = requestUserId(request);
     const context = await loadAiCardContext(userId, setId, cardId, sessionId);
     const answer = await answerQuestion({
+      language: body.language === "en" ? "en" : "ja",
       question,
       depth: String(body.depth || "かんたん"),
       cardQuestion: context.cardQuestion,

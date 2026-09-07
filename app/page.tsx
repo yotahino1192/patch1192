@@ -1,6 +1,14 @@
 "use client";
 
+import { useLanguage, LanguageProvider, translate, type Language } from "./language";
+
 import { useEffect, useRef, useState } from "react";
+import { SetLibrary, folderPath } from "./set-library";
+import { DocumentAttachments, type Attachment } from "./document-attachments";
+import { Dropdown } from "./dropdown";
+import { isLongTermDue } from "../lib/long-term-review";
+import { DailyReviewRail } from "./daily-review";
+import { MaterialManager } from "./material-manager";
 import type {
   AppData,
   Card,
@@ -8,7 +16,7 @@ import type {
   GeneratedCard,
   GeneratedMaterial,
 } from "../lib/types";
-import { advanceLessonQueue, type LessonVerdict } from "../lib/review";
+import { scheduleBinaryReview, advanceLessonQueue, type LessonVerdict } from "../lib/review";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
 type DraftCard = GeneratedCard & { draftId: string; selected: boolean };
@@ -40,31 +48,15 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
   return body;
 }
 
-const tokyoDateTime = new Intl.DateTimeFormat("ja-JP", {
-  timeZone: "Asia/Tokyo",
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-  weekday: "long",
-});
-const tokyoShort = new Intl.DateTimeFormat("ja-JP", {
-  timeZone: "Asia/Tokyo",
-  month: "short",
-  day: "numeric",
-});
-const tokyoTime = new Intl.DateTimeFormat("ja-JP", {
-  timeZone: "Asia/Tokyo",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-const tokyoReviewTime = new Intl.DateTimeFormat("ja-JP", {
-  timeZone: "Asia/Tokyo",
-  month: "long",
-  day: "numeric",
-  weekday: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+function formatDate(value: Date, locale: string, kind: "full" | "short" | "time" | "review"): string {
+  const formats: Record<string, Intl.DateTimeFormatOptions> = {
+    full: { year: "numeric", month: "long", day: "numeric", weekday: "long" },
+    short: { month: "short", day: "numeric" },
+    time: { hour: "2-digit", minute: "2-digit" },
+    review: { month: "long", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit" },
+  };
+  return new Intl.DateTimeFormat(locale, { timeZone: "Asia/Tokyo", ...formats[kind] }).format(value);
+}
 
 function useClock(): Date {
   const [now, setNow] = useState(() => new Date());
@@ -102,21 +94,17 @@ function dayKey(date: Date): string {
   return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
-function relativeDate(value: string | null, now: Date): string {
-  if (!value) return "未学習";
+function relativeDate(value: string | null, now: Date, language: Language): string {
+  const locale = language === "en" ? "en-US" : "ja-JP";
+  if (!value) return translate(language, "未学習");
   const date = new Date(value);
   const diff = date.getTime() - now.getTime();
-  if (Math.abs(diff) < 60000) return "いま";
-  if (diff > 0 && diff < 3600000) return `${Math.max(1, Math.round(diff / 60000))}分後`;
-  if (diff < 0 && diff > -3600000) return `${Math.max(1, Math.round(-diff / 60000))}分前`;
-  const today = dayKey(now);
-  const target = dayKey(date);
-  if (today === target) return diff >= 0 ? `今日 ${tokyoTime.format(date)}` : "今日";
-  const tomorrow = dayKey(new Date(now.getTime() + 86400000));
-  const yesterday = dayKey(new Date(now.getTime() - 86400000));
-  if (target === tomorrow) return `明日 ${tokyoTime.format(date)}`;
-  if (target === yesterday) return "昨日";
-  return tokyoShort.format(date);
+  if (Math.abs(diff) < 60000) return translate(language, "いま");
+  if (Math.abs(diff) < 3600000) return new Intl.RelativeTimeFormat(locale).format(Math.sign(diff) * Math.max(1, Math.round(Math.abs(diff) / 60000)), "minute");
+  if (dayKey(now) === dayKey(date)) return translate(language, "今日") + (diff >= 0 ? ` ${formatDate(date, locale, "time")}` : "");
+  if (dayKey(new Date(now.getTime() + 86400000)) === dayKey(date)) return `${translate(language, "明日")} ${formatDate(date, locale, "time")}`;
+  if (dayKey(new Date(now.getTime() - 86400000)) === dayKey(date)) return translate(language, "昨日");
+  return formatDate(date, locale, "short");
 }
 
 function greeting(now: Date): string {
@@ -126,12 +114,17 @@ function greeting(now: Date): string {
   return "こんばんは";
 }
 
+function isActiveCard(card: Card): boolean {
+  return !["アーカイブ", "削除済み"].includes(card.status);
+}
+
 function isDue(card: Card, now: Date): boolean {
-  return new Date(card.dueAt).getTime() <= now.getTime() && card.status !== "アーカイブ";
+  return new Date(card.dueAt).getTime() <= now.getTime() && isActiveCard(card);
 }
 
 function IconButton({ children, label, onClick }: { children: React.ReactNode; label: string; onClick?: () => void }) {
-  return <button className="icon-button" aria-label={label} onClick={onClick}>{children}</button>;
+  const { t, language, locale, setLanguage } = useLanguage();
+  return <button className="icon-button" aria-label={t(label)} onClick={onClick}>{children}</button>;
 }
 
 function Shell({ screen, setScreen, children, title }: {
@@ -140,19 +133,20 @@ function Shell({ screen, setScreen, children, title }: {
   children: React.ReactNode;
   title?: string;
 }) {
+  const { t, language, locale, setLanguage } = useLanguage();
   const mainRef = useRef<HTMLElement>(null);
   useEffect(() => {
     mainRef.current?.focus();
   }, [screen]);
   return (
     <div className="app-shell">
-      <header className="topbar">
-        {title ? <IconButton label="ホームへ戻る" onClick={() => setScreen("home")}>‹</IconButton> : <span className="wordmark">Loop</span>}
-        {title && <h1 className="screen-title">{title}</h1>}
-        <span className="notification-indicator" aria-label="新しい通知はありません">♢</span>
+      <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
+        {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}>‹</IconButton>}
+        {title && <h1 className="screen-title">{t(title)}</h1>}
+        <Dropdown className="language-selector" label={t("言語")} value={language} onChange={(value) => setLanguage(value === "en" ? "en" : "ja")} options={[{ value: "ja", label: "日本語", flag: "🇯🇵" }, { value: "en", label: "English", flag: "🇺🇸" }]} />
       </header>
       <main ref={mainRef} tabIndex={-1}>{children}</main>
-      <nav className="bottom-nav" aria-label="メインナビゲーション">
+      <nav className="bottom-nav" aria-label={t("メインナビゲーション")}>
         {navItems.map((item) => {
           const active = item.id === screen || (item.id === "import" && screen === "generate");
           return (
@@ -162,8 +156,8 @@ function Shell({ screen, setScreen, children, title }: {
             aria-current={active ? "page" : undefined}
             onClick={() => { if (!active) setScreen(item.id); }}
           >
-            <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-            <span>{item.label}</span>
+            <span className="nav-icon nav-image" aria-hidden="true"><img src={`/nav-icons/${item.id}.png`} width={1254} height={1254} alt="" /></span>
+            <span>{t(item.label)}</span>
           </button>
           );
         })}
@@ -172,171 +166,139 @@ function Shell({ screen, setScreen, children, title }: {
   );
 }
 
-function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft }: {
+function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, onSample }: {
   data: AppData;
   now: Date;
   startStudy: (setId?: string) => void;
   setScreen: (screen: Screen) => void;
   selectSet: (id: string) => void;
   resumeDraft?: () => void;
+  onSample: () => Promise<void>;
 }) {
+  const { t, language, locale, setLanguage } = useLanguage();
+  const [sampleBusy, setSampleBusy] = useState(false);
+  const [sampleError, setSampleError] = useState("");
   const allCards = data.sets.flatMap((set) => set.cards);
-  const activeCards = allCards.filter((card) => card.status !== "アーカイブ");
+  const activeCards = allCards.filter(isActiveCard);
   const dueCards = activeCards.filter((card) => isDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
-  const todayReviews = data.reviews.filter((review) => dayKey(new Date(review.reviewedAt)) === dayKey(now));
-  const todayCorrect = new Set(todayReviews.filter((review) => ["good", "easy"].includes(review.rating)).map((review) => review.cardId));
-  const nextCard = dueCards[0] || activeCards.filter((card) => !isDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())[0];
-  const nextSet = data.sets.find((set) => set.id === nextCard?.setId);
-  const focus = dueCards[0] || allCards[0];
-  const focusSet = data.sets.find((set) => set.id === focus?.setId);
+  const planPending = new Set(data.dailyReview.cardIds.filter((id) => !data.dailyReview.completedCardIds.includes(id)));
+  const memorySets = data.sets.map((set) => ({ set, cards: set.cards.filter((card) => isLongTermDue(card, now)) })).filter(({ cards }) => cards.length);
   return (
     <div className="page home-page">
-      <section className="hero">
-        <div className="spark" aria-hidden="true">✦</div>
-        <div>
-          <time className="eyebrow" dateTime={now.toISOString()}>{tokyoDateTime.format(now)}</time>
-          <h1>{greeting(now)}、Yota</h1>
-          <p>今日も知識のループを回して、理解を深めよう。</p>
+      <section className="hero companion-greeting" aria-label={t("キャラクターからのあいさつ")}>
+        <img className="home-landscape" src="/home-landscape.png" width={1672} height={941} alt="" fetchPriority="high" aria-hidden="true" />
+        <div className="companion-bubble">
+          <h1>{t(greeting(now))}{t("、Yota")}</h1>
+          <p>{!data.sets.length ? t("まずはサンプルで、一緒に学んでみよう！") : planPending.size ? t("今日は{0}枚、一緒に復習しよう！", planPending.size) : data.dailyReview.completed ? t("今日の復習はできたね。おつかれさま！") : t("次の復習までひと休み。新しい文章からも学べるよ！")}</p>
         </div>
       </section>
 
-      <section className={`review-card ${dueCards.length ? "is-due" : "is-planned"}`}>
-        <div className="review-clock" aria-hidden="true">{dueCards.length ? "↻" : "◷"}</div>
-        <div className="review-copy">
-          <p className="accent-label">{dueCards.length ? "今が復習タイミング" : "次のおすすめ復習"}</p>
-          <h2>{dueCards.length ? `${dueCards.length}枚を復習しましょう` : nextCard ? relativeDate(nextCard.dueAt, now) : "復習予定はありません"}</h2>
-          <p className="muted">{nextCard && nextSet ? `${nextSet.title} ・ ${tokyoReviewTime.format(new Date(nextCard.dueAt))}` : "新しい教材を追加して学習を始めましょう"}</p>
-          {todayCorrect.size > 0 && <p className="today-result">✓ 今日は{todayCorrect.size}枚を正解しました</p>}
-        </div>
-        <button className="review-cta" onClick={() => {
-          if (dueCards.length) startStudy(nextSet?.id);
-          else if (nextSet) { selectSet(nextSet.id); setScreen("sets"); }
-        }} disabled={!nextCard}>{dueCards.length ? "復習する" : "確認する"}</button>
-        <div className="spacing-guide">
-          <span>忘れる前の復習ペース</span>
-          <strong>1日 → 3日 → 7日 → 14日 → 30日…</strong>
-          <small>エビングハウスの忘却曲線を参考に、学習履歴から調整します。</small>
-        </div>
+      {!data.sets.length ? <section className="panel first-lesson">
+        <h2>{t("最初の学習を始めよう")}</h2>
+        <button className="primary wide" disabled={sampleBusy} onClick={async () => { setSampleBusy(true); setSampleError(""); try { await onSample(); } catch (e) { setSampleError(e instanceof Error ? e.message : t("サンプルを準備できませんでした。")); } finally { setSampleBusy(false); } }}>{sampleBusy ? t("準備しています…") : t("サンプルで学習 · 3枚")}</button>
+        <button className="secondary wide" onClick={() => setScreen("import")}>{t("自分の文章から作る")}</button>
+        {sampleError && <p role="alert" className="inline-error">{t(sampleError)}</p>}
+      </section> : null}
+      <DailyReviewRail data={data} now={now} onStudy={startStudy} />
+
+      <section className="long-term-review">
+        <div className="section-row"><h2>{t("久しぶりに思い出す")}</h2></div>
+        {memorySets.length ? <div className="recommend-card-grid">{memorySets.map(({ set, cards }, index) => <button key={set.id} className={`recommend-card ${["blue-set", "green-set", "violet-set"][index % 3]}`} onClick={() => startStudy(`__memory__:${set.id}`)}>
+          <strong>{set.title}</strong><span className="recommend-number">{t("{0}枚", cards.length)}</span><small>{t("間隔をあけて、長期記憶を確認しましょう。")}</small><span className="recommend-link">{t("復習を始める")} <b aria-hidden="true">↗</b></span>
+        </button>)}</div> : <div className="memory-empty"><img src="/review-empty.png" width={1454} height={1080} alt="" /><div><strong>{t("今は復習待ちのカードはありません")}</strong><p>{t("次の復習まで少し休憩しましょう。")}</p><button className="primary" onClick={() => setScreen("import")}>{t("＋ 教材を追加する")}</button></div></div>}
       </section>
 
-      {focus && focusSet && (
-        <section className="focus-card">
-          <div className="section-row"><h2>今日のフォーカス</h2><span className="muted">{focus.status}</span></div>
-          <button className="focus-content" onClick={() => startStudy(focusSet.id)}>
-            <span className="chip blue">✦ 理解を深める</span>
-            <strong>{focus.question}</strong>
-            <span><i>{focusSet.category}</i> 思考レベル：{"★".repeat(focus.difficulty)}{"☆".repeat(3 - focus.difficulty)}</span>
-            <b>›</b>
-          </button>
-        </section>
-      )}
-
-      <section>
-        <div className="section-row"><h2>最近のセット</h2><button onClick={() => setScreen("sets")}>すべて見る</button></div>
-        <div className="set-grid">
-          {data.sets.slice(0, 3).map((set, index) => (
-            <button key={set.id} className={`set-tile ${["blue-set", "green-set", "violet-set"][index % 3]}`} onClick={() => { selectSet(set.id); setScreen("sets"); }}>
-              <span aria-hidden="true">{["⌘", "⌂", "⌁"][index % 3]}</span>
-              <strong>{set.title}</strong>
-              <small>{set.cards.length}枚のカード</small>
-              <em>最終学習：{relativeDate(set.lastStudiedAt, now)}　●</em>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <div className="section-row"><h2>おすすめの次の学習</h2></div>
-        <div className="recommend-list">
-          {data.sets.slice(0, 4).map((set) => {
-            const due = set.cards.filter((card) => isDue(card, now)).length;
-            return <button key={set.id} onClick={() => startStudy(set.id)}><span>↻</span><strong>{set.title}</strong><i>{set.category}</i><em>{due ? `残り ${due}枚` : "自由学習"}　›</em></button>;
-          })}
-        </div>
-      </section>
-
-      {resumeDraft && <button className="resume-draft" onClick={resumeDraft}>編集中のカード候補に戻る <span>›</span></button>}
-      <button className="floating-add" onClick={() => setScreen("import")}><span>＋</span> 新しい教材を追加</button>
+      {resumeDraft && <button className="resume-draft" onClick={resumeDraft}>{t("編集中のカード候補に戻る")}<span>›</span></button>}
+      <button className="floating-add" onClick={() => setScreen("import")}><span>＋</span>{t("新しい教材を追加")}</button>
     </div>
   );
 }
 
-function ImportScreen({ onGenerate }: { onGenerate: (text: string, detail: string, style: string) => Promise<void> }) {
-  const [source, setSource] = useState("ChatGPT");
+function DestinationPicker({ data, value, onChange, disabled = false }: { data: AppData; value: string; onChange: (value: string) => void; disabled?: boolean }) {
+  const { t } = useLanguage();
+  return <div className="destination-picker"><Dropdown label={t("保存先")} value={value} onChange={onChange} disabled={disabled} options={[
+    { value: "root", label: t("すべての教材") },
+    ...data.folders.map((folder) => ({ value: `folder:${folder.id}`, label: t("フォルダ：{0}", folderPath(data.folders, folder.id).map((f) => f.name).join(" / ")) })),
+    ...data.sets.map((set) => ({ value: `set:${set.id}`, label: t("セットに追加：{0}", [...folderPath(data.folders, set.folderId).map((f) => f.name), set.title].join(" / ")) })),
+  ]} /><p className="attachment-hint">{t(value.startsWith("set:") ? "選んだセットにカードを追加します。" : "選んだ場所に新しいセットを作成します。")}</p></div>;
+}
+
+function ImportScreen({ onGenerate, data, destination, setDestination }: { onGenerate: (text: string, detail: string, style: string) => Promise<void>; data: AppData; destination: string; setDestination: (value: string) => void }) {
+  const { t, language, locale, setLanguage } = useLanguage();
+  const [showImportHelp, setShowImportHelp] = useState(false);
   const [detail, setDetail] = useState("標準");
   const [style, setStyle] = useState("一問一答");
   const [text, setText] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [reading, setReading] = useState(false);
+  const source = [text.trim(), ...attachments.map((file) => file.text)].filter(Boolean).join("\n\n");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const submit = async () => {
-    if (text.trim().length < 80) {
-      setError("カードを作るには80文字以上の文章を貼り付けてください。");
+    if (source.length < 80 || source.length > 30000) {
+      setError("文章と添付資料の合計を80〜30,000文字にしてください。");
       return;
     }
     setBusy(true);
     setError("");
-    try { await onGenerate(text.trim(), detail, style); }
+    try { await onGenerate(source, detail, style); }
     catch (e) { setError(e instanceof Error ? e.message : "解析できませんでした。"); }
     finally { setBusy(false); }
   };
   return (
     <div className="page import-page">
-      <div className="page-heading"><div><h1>教材を追加</h1><p>文章を貼り付けると、AIが学びやすいカードへ整理します。</p></div><span className="help" title="文章を貼り付けてAIでカードに変換します">?</span></div>
-      <h2>情報のソースを選ぶ</h2>
-      <div className="source-grid" role="radiogroup" aria-label="情報のソース">
-        {[["ChatGPT", "✺", "ChatGPTの会話"], ["Web記事", "◎", "Web記事"], ["ノート", "▤", "ノート"], ["その他", "▧", "その他の文章"]].map(([id, icon, label]) =>
-          <button key={id} role="radio" aria-checked={source === id} className={source === id ? "selected" : ""} onClick={() => setSource(id)}><span>{icon}</span>{label}</button>)}
-      </div>
-      <label className="field-label" htmlFor="source-text">内容を貼り付ける</label>
-      <textarea id="source-text" value={text} onChange={(e) => setText(e.target.value)} placeholder="ここに文章を貼り付けてください…&#10;例）ChatGPTとの会話、記事の本文、授業ノートなど" maxLength={30000} />
-      <p className="counter">{text.length.toLocaleString()} / 30,000</p>
-      <h2>取り込み設定</h2>
-      <OptionGroup label="情報の粒度" values={["要点のみ", "標準", "詳しく"]} value={detail} setValue={setDetail} />
+      <div className="page-heading import-heading"><h1>{t("教材を追加")}</h1><button type="button" className="help info-button" aria-label={t("教材追加の説明")} aria-expanded={showImportHelp} aria-controls="import-help" onClick={() => setShowImportHelp(!showImportHelp)}>?</button></div>
+      {showImportHelp && <div className="inline-help" id="import-help"><p>{t("文章を貼り付けると、AIが学びやすいカードへ整理します。")}</p><p>{t("文章の貼り付けと資料の添付を組み合わせて使えます。画像だけのPDFや旧形式の.doc・.pptには対応していません。URLの自動取り込みはできません。")}</p></div>}
+      <textarea aria-label={t("教材にする文章")} disabled={busy || reading} id="source-text" value={text} onChange={(e) => setText(e.target.value)} placeholder={t("ここに文章を貼り付けてください…\n例）ChatGPTとの会話、記事の本文、授業ノートなど")} maxLength={30000} />
+      <DocumentAttachments files={attachments} onChange={setAttachments} onBusy={setReading} disabled={busy} />
+      <p className={`counter ${source.length > 30000 ? "over-limit" : ""}`}>{source.length.toLocaleString()} / 30,000 {attachments.length > 0 && t("（添付資料を含む）")}</p>
+      {source.length > 30000 && <p className="inline-error" role="alert">{t("文章と添付資料の合計を80〜30,000文字にしてください。")}</p>}
+      <OptionGroup label={t("情報の粒度")} values={["要点のみ", "標準", "詳しく"]} value={detail} setValue={setDetail} help={t("要点のみ：重要なポイントに絞ります。標準：要点と関連知識をバランスよく。詳しく：細かな内容までカードにします。")} />
       <fieldset className="format-group">
-        <legend>学習形式</legend>
+        <legend>{t("学習形式")}</legend>
         <div className="format-grid">
           {[
             ["一問一答", "Q", "質問を見て、答えを思い出す"],
             ["4択問題", "4", "4つの選択肢から正解を選ぶ"],
-            ["自分で解説", "話", "自分の言葉で説明して理解を確認"],
           ].map(([name, icon, description]) => (
             <button
               type="button"
-              key={name}
+              key={t(name)}
               aria-pressed={style === name}
               className={`format-option ${style === name ? "selected" : ""}`}
               onClick={() => setStyle(name)}
             >
               <span>{icon}</span>
-              <strong>{name}</strong>
-              <small>{description}</small>
-              {name === "自分で解説" && <em>準備中</em>}
+              <strong>{t(name)}</strong>
+              <small>{t(description)}</small>
             </button>
           ))}
         </div>
       </fieldset>
-      <div className="auto-count-note"><span>✦</span><div><strong>カード枚数はAIが自動で決定</strong><small>教材の長さと論点数を分析し、必要十分な枚数を提案します。</small></div></div>
-      {style === "自分で解説" && <p className="coming-soon-note">「自分で解説」は近日対応予定です。導線を先に用意しています。</p>}
-      {error && <p className="inline-error" role="alert">{error}</p>}
-      <button className="primary wide" onClick={submit} disabled={busy || text.trim().length < 80 || style === "自分で解説"} aria-busy={busy}>{busy ? "教材を分析して、カード枚数を決めています…" : style === "自分で解説" ? "自分で解説は準備中です" : "✦ AIでカードを作る"}</button>
-      <p className="secure">♙ APIキーはサーバー側で安全に管理されます</p>
+      <DestinationPicker data={data} value={destination} onChange={setDestination} disabled={busy || reading} />
+      {error && <p className="inline-error" role="alert">{t(error)}</p>}
+      <button className="primary wide" onClick={submit} disabled={busy || reading || source.length < 80 || source.length > 30000} aria-busy={busy}>{busy ? t("教材を分析して、カード枚数を決めています…") : t("✦ AIでカードを作る")}</button>
     </div>
   );
 }
 
-function OptionGroup({ label, values, value, setValue }: { label: string; values: string[]; value: string; setValue: (value: string) => void }) {
-  return <fieldset className="option-group"><legend>{label}</legend><div>{values.map((v) => <button type="button" key={v} aria-pressed={v === value} className={v === value ? "selected" : ""} onClick={() => setValue(v)}>{v}</button>)}</div></fieldset>;
+function OptionGroup({ label, values, value, setValue, help }: { label: string; values: string[]; value: string; setValue: (value: string) => void; help?: string }) {
+  const { t } = useLanguage();
+  const [open, setOpen] = useState(false);
+  return <fieldset className="option-group"><legend>{t(label)} {help && <button type="button" className="info-button" aria-label={t("情報の粒度の説明")} aria-expanded={open} aria-controls="detail-help" onClick={() => setOpen(!open)}>i</button>}</legend>{open && <p className="inline-help" id="detail-help">{help}</p>}<div>{values.map((v) => <button type="button" key={v} aria-pressed={v === value} className={v === value ? "selected" : ""} onClick={() => setValue(v)}>{t(v)}</button>)}</div></fieldset>;
 }
 
-function Generate({ draft, setDraft, onSave, onRegenerate }: {
+function Generate({ draft, setDraft, onSave, onRegenerate, data, destination, setDestination }: {
+  data: AppData; destination: string; setDestination: (value: string) => void;
   draft: DraftMaterial | null;
   setDraft: (draft: DraftMaterial) => void;
   onSave: () => Promise<void>;
   onRegenerate: () => Promise<void>;
 }) {
+  const { t, language, locale, setLanguage } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  if (!draft) return <div className="page empty-panel"><h1>生成する教材がありません</h1><p>「新しい教材を追加」から文章を取り込んでください。</p></div>;
+  if (!draft) return <div className="page empty-panel"><h1>{t("生成する教材がありません")}</h1><p>{t("「新しい教材を追加」から文章を取り込んでください。")}</p></div>;
   const selectedCards = draft.cards.filter((card) => card.selected);
   const allSelected = selectedCards.length === draft.cards.length;
   const updateCard = (draftId: string, key: "question" | "answer", value: string) => {
@@ -374,72 +336,76 @@ function Generate({ draft, setDraft, onSave, onRegenerate }: {
   };
   return (
     <div className="page generation-page">
-      <div className="success-banner"><span>✓</span><div><h2>解析完了</h2><p>要点とカード候補を生成しました。保存前に編集できます。</p></div><b>✦</b></div>
+      <div className="success-banner"><span>✓</span><div><h2>{t("解析完了")}</h2><p>{t("要点とカード候補を生成しました。保存前に編集できます。")}</p></div><b>✦</b></div>
       <section className="panel">
-        <label className="field-label" htmlFor="draft-title">セット名</label>
+        <label className="field-label" htmlFor="draft-title">{t("セット名")}</label>
         <input id="draft-title" className="title-input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-        <h2>抽出された要点</h2>
+        <h2>{t("抽出された要点")}</h2>
         <ul>{draft.keyPoints.map((point, index) => <li key={`${point}-${index}`}>{point}</li>)}</ul>
       </section>
       <section>
-        <div className="section-row"><h2>AIが{draft.cards.length}枚を提案しました</h2><button disabled={busy} onClick={async () => { setBusy(true); setError(""); try { await onRegenerate(); } catch (e) { setError(e instanceof Error ? e.message : "再生成できませんでした。"); } finally { setBusy(false); } }}>↻ 再生成</button></div>
-        <div className="candidate-toolbar"><strong>{selectedCards.length}枚を選択中</strong><span>カードごとに登録する・しないを選べます</span><button type="button" onClick={toggleAll}>{allSelected ? "すべて解除" : "すべて選択"}</button></div>
+        <div className="section-row"><h2>{t("AIが")}{draft.cards.length}{t("枚を提案しました")}</h2><button disabled={busy} onClick={async () => { setBusy(true); setError(""); try { await onRegenerate(); } catch (e) { setError(e instanceof Error ? e.message : t("再生成できませんでした。")); } finally { setBusy(false); } }}>{t("↻ 再生成")}</button></div>
+        <div className="candidate-toolbar"><strong>{selectedCards.length}{t("枚を選択中")}</strong><span>{t("カードごとに登録する・しないを選べます")}</span><button type="button" onClick={toggleAll}>{allSelected ? t("すべて解除") : t("すべて選択")}</button></div>
         <div className="edit-card-list">
           {draft.cards.map((card, index) => (
             <article key={card.draftId} className={card.selected ? "is-selected" : "is-excluded"}>
               <div className="number">{index + 1}</div>
-              <button type="button" className="candidate-toggle" aria-pressed={card.selected} onClick={() => toggleCard(card.draftId)}>{card.selected ? "✓ 登録する" : "登録しない"}</button>
-              <span className="format-badge">{card.format === "multiple_choice" ? "4択問題" : card.format === "self_explain" ? "自分で解説" : "一問一答"}</span>
-              <label>質問<input disabled={!card.selected} value={card.question} onChange={(e) => updateCard(card.draftId, "question", e.target.value)} /></label>
-              <label>答え<textarea disabled={!card.selected} value={card.answer} onChange={(e) => updateCard(card.draftId, "answer", e.target.value)} /></label>
-              {card.format === "multiple_choice" && <div className="choice-editor"><strong>選択肢</strong>{card.choices.map((choice, choiceIndex) => <label key={`${card.draftId}-choice-${choiceIndex}`}><span>{choiceIndex + 1}</span><input disabled={!card.selected} value={choice} onChange={(e) => updateChoice(card.draftId, choiceIndex, e.target.value)} /></label>)}</div>}
+              <button type="button" className="candidate-toggle" aria-pressed={card.selected} onClick={() => toggleCard(card.draftId)}>{card.selected ? t("✓ 登録する") : t("登録しない")}</button>
+              <span className="format-badge">{card.format === "multiple_choice" ? t("4択問題") : card.format === "self_explain" ? t("自分で解説") : t("一問一答")}</span>
+              <label>{t("質問")}<input disabled={!card.selected} value={card.question} onChange={(e) => updateCard(card.draftId, "question", e.target.value)} /></label>
+              <label>{t("答え")}<textarea disabled={!card.selected} value={card.answer} onChange={(e) => updateCard(card.draftId, "answer", e.target.value)} /></label>
+              {card.format === "multiple_choice" && <div className="choice-editor"><strong>{t("選択肢")}</strong>{card.choices.map((choice, choiceIndex) => <label key={`${card.draftId}-choice-${choiceIndex}`}><span>{choiceIndex + 1}</span><input disabled={!card.selected} value={choice} onChange={(e) => updateChoice(card.draftId, choiceIndex, e.target.value)} /></label>)}</div>}
             </article>
           ))}
         </div>
       </section>
-      {error && <p className="inline-error" role="alert">{error}</p>}
+      {error && <p className="inline-error" role="alert">{t(error)}</p>}
+      <DestinationPicker data={data} value={destination} onChange={setDestination} disabled={busy} />
       <div className="sticky-actions">
-        <button className="secondary" onClick={() => setDraft({ ...draft, cards: [...draft.cards, { draftId: crypto.randomUUID(), selected: true, question: "", answer: "", difficulty: 2, format: "qa", choices: [] }] })}>＋ カードを追加</button>
-        <button className="primary" onClick={save} disabled={busy || !selectedCards.length}>{busy ? "保存中…" : `✓ 選択した${selectedCards.length}枚を登録`}</button>
+        <button className="secondary" onClick={() => setDraft({ ...draft, cards: [...draft.cards, { draftId: crypto.randomUUID(), selected: true, question: "", answer: "", difficulty: 2, format: "qa", choices: [] }] })}>{t("＋ カードを追加")}</button>
+        <button className="primary" onClick={save} disabled={busy || !selectedCards.length}>{busy ? t("保存中…") : t("✓ 選択した{0}枚を登録", selectedCards.length)}</button>
       </div>
     </div>
   );
 }
 
-function SetDetail({ data, selectedSetId, selectSet, startStudy, now }: {
+function SetDetail({ data, selectedSetId, selectSet, startStudy, now, onData }: {
   data: AppData;
   selectedSetId: string | null;
   selectSet: (id: string) => void;
   startStudy: (setId: string, startCardId?: string) => void;
   now: Date;
+  onData: (data: AppData) => void;
 }) {
+  const { t, language, locale, setLanguage } = useLanguage();
   const set = data.sets.find((item) => item.id === selectedSetId) || data.sets[0];
-  if (!set) return <div className="page empty-panel"><h1>カードセットがありません</h1><p>文章を取り込んで、最初のセットを作りましょう。</p></div>;
+  if (!set) return <div className="page empty-panel"><h1>{t("カードセットがありません")}</h1><p>{t("文章を取り込んで、最初のセットを作りましょう。")}</p></div>;
+  const activeCards = set.cards.filter(isActiveCard);
   const counts = {
-    due: set.cards.filter((card) => isDue(card, now) && card.status !== "苦手").length,
-    learning: set.cards.filter((card) => card.status === "定着中").length,
-    weak: set.cards.filter((card) => card.status === "苦手").length,
-    new: set.cards.filter((card) => card.status === "未学習").length,
+    due: activeCards.filter((card) => isDue(card, now) && card.status !== "苦手").length,
+    learning: activeCards.filter((card) => card.status === "定着中").length,
+    weak: activeCards.filter((card) => card.status === "苦手").length,
+    new: activeCards.filter((card) => card.status === "未学習").length,
   };
   return (
     <div className="page set-page">
-      <div className="set-selector" aria-label="カードセットを選択">{data.sets.map((item) => <button aria-pressed={item.id === set.id} className={item.id === set.id ? "selected" : ""} key={item.id} onClick={() => selectSet(item.id)}>{item.title}</button>)}</div>
       <section className="set-hero"><span className="big-icon">⌘</span><div><p>{set.category}</p><h1>{set.title}</h1><span>{set.summary}</span></div><b>LOOP</b></section>
-      <div className="set-meta"><span>▧ {set.cards.length}枚のカード</span><span>▣ 最終学習：{relativeDate(set.lastStudiedAt, now)}</span><span>◷ 次の復習：{relativeDate(set.nextReviewAt, now)}</span></div>
+      <div className="set-meta"><span>▧ {activeCards.length}{t("枚のカード")}</span><span>{t("▣ 最終学習：")}{relativeDate(set.lastStudiedAt, now, language)}</span><span>{t("◷ 次の復習：")}{relativeDate(set.nextReviewAt, now, language)}</span></div>
       <section className="memory-panel">
-        <div className="section-row"><h2>記憶の状態</h2><span className="muted">自動更新</span></div>
+        <div className="section-row"><h2>{t("記憶の状態")}</h2><span className="muted">{t("自動更新")}</span></div>
         <div className="memory-grid">
-          {[["復習待ち", counts.due, "blue-dot"], ["定着中", counts.learning, "green-dot"], ["苦手", counts.weak, "orange-dot"], ["未学習", counts.new, "gray-dot"]].map((m) => <div key={m[0] as string}><span className={m[2] as string}>●</span><small>{m[0]}</small><strong>{m[1]}<i>枚</i></strong></div>)}
+          {[["復習待ち", counts.due, "blue-dot"], ["定着中", counts.learning, "green-dot"], ["苦手", counts.weak, "orange-dot"], ["未学習", counts.new, "gray-dot"]].map((m) => <div key={m[0] as string}><span className={m[2] as string}>●</span><small>{t(String(m[0]))}</small><strong>{m[1]}<i>{t("枚")}</i></strong></div>)}
         </div>
-        <p className="memory-tip">✦ <strong>{counts.due + counts.new + counts.weak ? "今復習すると定着しやすいタイミングです" : "次の復習日まで定着を待ちましょう"}</strong><br /><span>学習履歴にもとづくスケジュールです。</span></p>
+        <p className="memory-tip">✦ <strong>{counts.due + counts.new + counts.weak ? t("今復習すると定着しやすいタイミングです") : t("次の復習日まで定着を待ちましょう")}</strong><br /><span>{t("学習履歴にもとづくスケジュールです。")}</span></p>
       </section>
       <section>
-        <div className="section-row"><h2>カード一覧</h2><span className="muted">{set.cards.length}枚</span></div>
+        <div className="section-row"><h2>{t("カード一覧")}</h2><span className="muted">{activeCards.length}{t("枚")}</span></div>
         <div className="topic-list">
-          {set.cards.map((card, index) => <button key={card.id} onClick={() => startStudy(set.id, card.id)}><span>{index + 1}</span><div><strong>{card.question}</strong><small>{card.answer}</small></div><i>{card.status}</i><em>{relativeDate(card.dueAt, now)}　›</em></button>)}
+          {activeCards.map((card, index) => <button key={card.id} onClick={() => startStudy(set.id, card.id)}><span>{index + 1}</span><div><strong>{card.question}</strong><small>{card.answer}</small></div><i>{t(card.status)}</i><em>{relativeDate(card.dueAt, now, language)}　›</em></button>)}
         </div>
       </section>
-      <button className="primary wide" onClick={() => startStudy(set.id)}>▤ このセットを学習<small>{set.cards.filter((card) => isDue(card, now)).length || set.cards.length}枚のカードから開始</small></button>
+      <MaterialManager key={set.id} set={set} onData={onData} />
+      <button className="primary wide" disabled={!activeCards.length} onClick={() => startStudy(set.id)}>{t("▤ このセットを学習")}<small>{activeCards.filter((card) => isDue(card, now)).length || activeCards.length}{t("枚のカードから開始")}</small></button>
     </div>
   );
 }
@@ -463,10 +429,11 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
   goHome: () => void;
   now: Date;
 }) {
+  const { t, language, locale, setLanguage } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dragX, setDragX] = useState(0);
-  const [gestureMessage, setGestureMessage] = useState("カードをタップして回答を確認してください。");
+  const [gestureMessage, setGestureMessage] = useState("");
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiInput, setAiInput] = useState("");
@@ -506,7 +473,7 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
     try {
       const material = await api<GeneratedMaterial>("/api/ai/cards", {
         method: "POST",
-        body: JSON.stringify({ text: transcript, detail: "要点のみ", style: "一問一答", mode: "lesson_summary" }),
+        body: JSON.stringify({ text: transcript, detail: "要点のみ", style: "一問一答", mode: "lesson_summary", language }),
       });
       setSummaryKeyPoints(material.keyPoints);
       setSummaryCards(material.cards.map((item) => ({ ...item, draftId: crypto.randomUUID(), selected: true })));
@@ -542,6 +509,7 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
           sessionId,
           question,
           depth: "かんたん",
+          language,
           setId: set.id,
           cardId: card.id,
         }),
@@ -569,7 +537,7 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
 
   const openAiExplanation = () => {
     setAiOpen(true);
-    if (!cardMessages.length) void askAi("このカードの答えを、理由と具体例を含めてわかりやすく解説してください。");
+    if (!cardMessages.length) void askAi(t("このカードの答えを、理由と具体例を含めてわかりやすく解説してください。"));
   };
 
   const submitVerdict = async (verdict: LessonVerdict) => {
@@ -598,7 +566,7 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
         setSessionMistakes((count) => count + 1);
         setGestureMessage("もう一度学ぶカードとして、列の後ろへ戻しました。");
       } else {
-        setGestureMessage(nextQueue.length ? `このカードは完了。残り${nextQueue.length}枚です。` : "すべてのカードが完了しました。");
+        setGestureMessage(nextQueue.length ? t("このカードは完了。残り{0}枚です。", nextQueue.length) : "すべてのカードが完了しました。");
       }
       setFlipped(false);
       setSelectedChoice(null);
@@ -619,10 +587,10 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
   };
 
   const beginDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (!event.isPrimary || event.button !== 0) return;
     if (busy || aiBusy || (card?.format === "multiple_choice" && selectedChoice)) return;
     dragOrigin.current = { x: event.clientX, y: event.clientY, moved: false, horizontal: false };
     suppressClick.current = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
   };
   const moveDrag = (event: React.PointerEvent<HTMLElement>) => {
     const origin = dragOrigin.current;
@@ -630,7 +598,11 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
     const dx = event.clientX - origin.x;
     const dy = event.clientY - origin.y;
     if (Math.abs(dx) > 7 || Math.abs(dy) > 7) origin.moved = true;
-    if (!origin.horizontal && Math.abs(dx) > Math.abs(dy) + 8) origin.horizontal = true;
+    if (!origin.horizontal && Math.abs(dx) > Math.abs(dy) + 8) {
+      origin.horizontal = true;
+      // Capture only a confirmed swipe so taps still click the inner button.
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
     if (origin.horizontal && flipped) setDragX(Math.max(-180, Math.min(180, dx)));
   };
   const finishDrag = (event: React.PointerEvent<HTMLElement>) => {
@@ -664,7 +636,7 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
     setFlipped(next);
     setSelectedChoice(null);
     setAiOpen(false);
-    setGestureMessage(next ? "左で「もう一度」、右で「できた」としてスワイプします。" : "カードをタップして回答を確認してください。");
+    setGestureMessage(next ? "左で「まだ覚えていない」、右で「覚えていた」としてスワイプします。" : "");
   };
 
   const addSummaryCards = async () => {
@@ -700,35 +672,35 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
     const selectedSummaryCount = summaryCards.filter((item) => item.selected).length;
     return (
       <div className="page session-complete">
-        <span>✓</span><p className="completion-label">COMPLETE</p><h1>レッスンが終了しました</h1>
-        <p>{sessionTotal}枚すべてを完了しました。学習記録と復習スケジュールを更新しました。</p>
-        <div className="lesson-result"><div><small>完了したカード</small><strong>{sessionTotal}枚</strong></div><div><small>もう一度</small><strong>{sessionMistakes}回</strong></div></div>
-        {set?.nextReviewAt && <div className="completion-review"><span>◷ 次のおすすめ復習</span><strong>{relativeDate(set.nextReviewAt, now)}</strong><small>{tokyoReviewTime.format(new Date(set.nextReviewAt))}<br />エビングハウスの忘却曲線を参考にした復習タイミングです。</small></div>}
+        <span>✓</span><p className="completion-label">COMPLETE</p><h1>{t("レッスンが終了しました")}</h1>
+        <p>{sessionTotal}{t("枚すべてを完了しました。学習記録と復習スケジュールを更新しました。")}</p>
+        <div className="lesson-result"><div><small>{t("完了したカード")}</small><strong>{sessionTotal}{t("枚")}</strong></div><div><small>{t("もう一度")}</small><strong>{sessionMistakes}{t("回")}</strong></div></div>
+        {set?.nextReviewAt && <div className="completion-review"><span>{t("◷ 次のおすすめ復習")}</span><strong>{relativeDate(set.nextReviewAt, now, language)}</strong><small>{formatDate(new Date(set.nextReviewAt), locale, "review")}<br />{t("エビングハウスの忘却曲線を参考にした復習タイミングです。")}</small></div>}
         {sessionAiMessages.length > 0 && (
           <section className="lesson-ai-recap">
-            <div className="recap-heading"><span>✦</span><div><h2>このレッスンでAIと深掘りしたこと</h2><p>質問と解説は学習履歴へ自動保存されています。</p></div></div>
-            <div className="recap-thread">{sessionAiMessages.map((message) => <article key={message.id} className={message.role}><small>{message.role === "user" ? "あなた" : "AI解説"}</small><p>{message.content}</p></article>)}</div>
+            <div className="recap-heading"><span>✦</span><div><h2>{t("このレッスンでAIと深掘りしたこと")}</h2><p>{t("質問と解説は学習履歴へ自動保存されています。")}</p></div></div>
+            <div className="recap-thread">{sessionAiMessages.map((message) => <article key={message.id} className={message.role}><small>{message.role === "user" ? t("あなた") : t("AI解説")}</small><p>{message.content}</p></article>)}</div>
             <div className="ai-summary-block">
-              <h3>AIによる学びの要約</h3>
-              {summaryBusy && !summaryCards.length && <p className="summary-status">解説を要約し、新しいカード候補を作っています…</p>}
+              <h3>{t("AIによる学びの要約")}</h3>
+              {summaryBusy && !summaryCards.length && <p className="summary-status">{t("解説を要約し、新しいカード候補を作っています…")}</p>}
               {summaryKeyPoints.length > 0 && <ul>{summaryKeyPoints.map((point, index) => <li key={`${point}-${index}`}>{point}</li>)}</ul>}
-              {summaryCards.length > 0 && <div className="summary-card-list">{summaryCards.map((item) => <button key={item.draftId} type="button" aria-pressed={item.selected} className={item.selected ? "selected" : ""} onClick={() => setSummaryCards((cards) => cards.map((cardItem) => cardItem.draftId === item.draftId ? { ...cardItem, selected: !cardItem.selected } : cardItem))}><span>{item.selected ? "✓ 追加する" : "追加しない"}</span><strong>{item.question}</strong><small>{item.answer}</small></button>)}</div>}
-              {summaryCards.length > 0 && <button className="primary wide" disabled={summaryBusy || summarySaved || !selectedSummaryCount} onClick={addSummaryCards}>{summarySaved ? "✓ 新しいカードを追加しました" : `選択した${selectedSummaryCount}枚をこのセットへ追加`}</button>}
-              {summaryError && <div className="summary-retry"><p className="inline-error" role="alert">{summaryError}</p><button type="button" className="secondary" onClick={retrySummary}>要約を再試行</button></div>}
+              {summaryCards.length > 0 && <div className="summary-card-list">{summaryCards.map((item) => <button key={item.draftId} type="button" aria-pressed={item.selected} className={item.selected ? "selected" : ""} onClick={() => setSummaryCards((cards) => cards.map((cardItem) => cardItem.draftId === item.draftId ? { ...cardItem, selected: !cardItem.selected } : cardItem))}><span>{item.selected ? t("✓ 追加する") : t("追加しない")}</span><strong>{item.question}</strong><small>{item.answer}</small></button>)}</div>}
+              {summaryCards.length > 0 && <button className="primary wide" disabled={summaryBusy || summarySaved || !selectedSummaryCount} onClick={addSummaryCards}>{summarySaved ? t("✓ 新しいカードを追加しました") : t("選択した{0}枚をこのセットへ追加", selectedSummaryCount)}</button>}
+              {summaryError && <div className="summary-retry"><p className="inline-error" role="alert">{t(summaryError)}</p><button type="button" className="secondary" onClick={retrySummary}>{t("要約を再試行")}</button></div>}
             </div>
           </section>
         )}
-        <div className="completion-actions"><button className="primary" onClick={goHome}>ホームで確認</button>{set && <button className="secondary" onClick={() => startStudy(set.id)}>もう一度学習</button>}</div>
+        <div className="completion-actions"><button className="primary" onClick={goHome}>{t("ホームで確認")}</button>{set && <button className="secondary" onClick={() => startStudy(set.id)}>{t("もう一度学習")}</button>}</div>
       </div>
     );
   }
-  if (!queue.length || !card || !set) return <div className="page empty-panel"><h1>学習するカードがありません</h1><p>カードセットを作るか、セット画面から学習を開始してください。</p></div>;
+  if (!queue.length || !card || !set) return <div className="page empty-panel"><h1>{t("学習するカードがありません")}</h1><p>{t("カードセットを作るか、セット画面から学習を開始してください。")}</p></div>;
   const completed = Math.max(0, sessionTotal - queue.length);
   const progress = sessionTotal ? Math.round((completed / sessionTotal) * 100) : 0;
   return (
     <div className="page study-page">
-      <div className="study-header"><button aria-label="セットへ戻る" onClick={backToSets}>‹</button><h1>{set.category} / {set.title}</h1><span /></div>
-      <div className="study-progress" role="progressbar" aria-valuemin={0} aria-valuemax={sessionTotal} aria-valuenow={completed}><span style={{ width: `${progress}%` }} /><b>残り {queue.length}枚</b></div>
+      <div className="study-header"><button aria-label={t("セットへ戻る")} onClick={backToSets}>‹</button><h1>{set.category} / {set.title}</h1><span /></div>
+      <div className="study-progress" role="progressbar" aria-valuemin={0} aria-valuemax={sessionTotal} aria-valuenow={completed}><span style={{ width: `${progress}%` }} /><b>{t("残り")}{queue.length}{t("枚")}</b></div>
       <article
         className={`flashcard ${flipped ? "flipped" : ""} ${dragX > 8 ? "swiping-right" : ""} ${dragX < -8 ? "swiping-left" : ""}`}
         style={{ transform: `translateX(${dragX}px) rotate(${Math.max(-4, Math.min(4, dragX / 35))}deg)` }}
@@ -736,64 +708,69 @@ function Study({ data, queue, flipped, setFlipped, setQueue, sessionDone, setSes
         onPointerMove={moveDrag}
         onPointerUp={finishDrag}
         onPointerCancel={cancelDrag}
+        onPointerLeave={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) cancelDrag(event);
+        }}
         onKeyDown={(event) => {
           if (!flipped || busy || aiBusy || (card.format === "multiple_choice" && selectedChoice)) return;
           if (event.key === "ArrowLeft") { event.preventDefault(); void submitVerdict("incorrect"); }
           if (event.key === "ArrowRight") { event.preventDefault(); void submitVerdict("correct"); }
         }}
       >
-        <button ref={flashcardTapRef} className="flashcard-tap" type="button" onClick={toggleCard} aria-pressed={flipped} aria-label={flipped ? "回答を表示中" : card.format === "multiple_choice" ? "質問。選択肢から回答" : "質問。タップして回答を表示"}>
-          <span className="chip blue">{flipped ? "✦ 回答" : card.format === "multiple_choice" ? "4択問題" : "✦ 質問"}</span>
+        <button ref={flashcardTapRef} className="flashcard-tap" type="button" onClick={toggleCard} aria-pressed={flipped} aria-label={flipped ? t("回答を表示中") : card.format === "multiple_choice" ? t("質問。選択肢から回答") : t("質問。タップして回答を表示")}>
+          <span className="chip blue">{flipped ? t("回答") : card.format === "multiple_choice" ? t("4択問題") : t("質問")}</span>
           <strong aria-live="polite">{flipped ? card.answer : card.question}</strong>
-          <small>{flipped ? "左右にスワイプして学習結果を記録" : card.format === "multiple_choice" ? "答えを1つ選んでください" : "タップで回答を表示"}</small>
+          <small>{flipped ? t("左右にスワイプして学習結果を記録") : card.format === "multiple_choice" ? t("答えを1つ選んでください") : t("タップで回答を表示")}</small>
         </button>
-        {!flipped && card.format === "multiple_choice" && <div className="study-choice-grid">{card.choices.map((choice) => <button key={choice} type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedChoice(choice); setFlipped(true); setGestureMessage("答えを確認し、「選択結果を記録」で次へ進みます。"); }}>{choice}</button>)}</div>}
-        {flipped && selectedChoice && <p role="status" aria-live="polite" className={`choice-feedback ${selectedChoice === card.answer ? "is-correct" : "is-incorrect"}`}>選んだ答え：{selectedChoice}。{selectedChoice === card.answer ? "正解です。" : `正解は「${card.answer}」です。`}</p>}
-        {flipped && <button type="button" className="card-ai-button" onPointerDown={(event) => event.stopPropagation()} onClick={openAiExplanation}>✦ AIに解説してもらう</button>}
+        {!flipped && card.format === "multiple_choice" && <div className="study-choice-grid">{card.choices.map((choice) => <button key={choice} type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedChoice(choice); setFlipped(true); setGestureMessage(t("答えを確認し、「選択結果を記録」で次へ進みます。")); }}>{choice}</button>)}</div>}
+        {flipped && selectedChoice && <p role="status" aria-live="polite" className={`choice-feedback ${selectedChoice === card.answer ? "is-correct" : "is-incorrect"}`}>{t("選んだ答え：")}{selectedChoice}{t("。")}{selectedChoice === card.answer ? t("正解です。") : t("正解は「{0}」です。", card.answer)}</p>}
+        {flipped && <button type="button" className="card-ai-button" onPointerDown={(event) => event.stopPropagation()} onClick={openAiExplanation}>{t("✦ AIに解説してもらう")}</button>}
       </article>
-      <p className="gesture-message" aria-live="polite">{busy ? "学習記録を保存しています…" : aiBusy ? "AIが解説を作成しています…" : gestureMessage}</p>
+      {!flipped && card.format !== "multiple_choice" && <button type="button" className="primary wide reveal-answer" disabled={busy || aiBusy} onClick={() => { suppressClick.current = false; toggleCard(); }}>{t("答えを見る")}</button>}
+      {flipped && <details key={card.id} className="source-details"><summary>{t("元の文章を確認")}</summary><p>{set.sourceContent}</p></details>}
+      {(busy || aiBusy || gestureMessage) && <p className="gesture-message" aria-live="polite">{busy ? t("学習記録を保存しています…") : aiBusy ? t("AIが解説を作成しています…") : t(gestureMessage)}</p>}
       {aiOpen && (
         <section className="inline-ai-panel">
-          <div className="inline-ai-header"><div><span>✦</span><h2>AI解説</h2><small>このカードの文脈を引き継いでいます</small></div><button type="button" aria-label="AI解説を閉じる" disabled={aiBusy} onClick={() => setAiOpen(false)}>×</button></div>
+          <div className="inline-ai-header"><div><span>✦</span><h2>{t("AI解説")}</h2><small>{t("このカードの文脈を引き継いでいます")}</small></div><button type="button" aria-label={t("AI解説を閉じる")} disabled={aiBusy} onClick={() => setAiOpen(false)}>×</button></div>
           <div className="chat-thread" aria-live="polite">
             {cardMessages.map((message) => message.role === "user" ? <div className="user-bubble" key={message.id}>{message.content}</div> : <article className="ai-answer" key={message.id}><span className="ai-spark">✦</span><div className="answer-text">{message.content}</div></article>)}
-            {aiBusy && <article className="ai-answer ai-thinking"><span className="ai-spark">✦</span><p>解説を考えています…</p></article>}
+            {aiBusy && <article className="ai-answer ai-thinking"><span className="ai-spark">✦</span><p>{t("解説を考えています…")}</p></article>}
           </div>
-          {cardMessages.length > 0 && <div className="suggestions">{["もっと簡単に", "具体例を教えて", "なぜ重要？"].map((suggestion) => <button type="button" key={suggestion} onClick={() => setAiInput(suggestion)}>{suggestion}</button>)}</div>}
-          {aiError && <p className="inline-error" role="alert">{aiError}</p>}
-          <div className="chat-input"><input value={aiInput} onChange={(event) => setAiInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) void askAi(aiInput); }} placeholder="追加で質問する…" aria-label="AIへの追加質問" /><button type="button" onClick={() => askAi(aiInput)} disabled={aiBusy || !aiInput.trim()} aria-label="質問を送信">↑</button></div>
-          <p className="auto-save-note">会話はこのレッスンの学習履歴へ自動保存されます。</p>
+          {cardMessages.length > 0 && <div className="suggestions">{["もっと簡単に", "具体例を教えて", "なぜ重要？"].map((suggestion) => <button type="button" key={t(suggestion)} onClick={() => setAiInput(t(suggestion))}>{t(suggestion)}</button>)}</div>}
+          {aiError && <p className="inline-error" role="alert">{t(aiError)}</p>}
+          <div className="chat-input"><input value={aiInput} onChange={(event) => setAiInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) void askAi(aiInput); }} placeholder={t("追加で質問する…")} aria-label={t("AIへの追加質問")} /><button type="button" onClick={() => askAi(aiInput)} disabled={aiBusy || !aiInput.trim()} aria-label={t("質問を送信")}>↑</button></div>
+          <p className="auto-save-note">{t("会話はこのレッスンの学習履歴へ自動保存されます。")}</p>
         </section>
       )}
       {card.format === "multiple_choice" && selectedChoice ? (
-        <button className="primary wide record-choice" disabled={busy || aiBusy} onClick={() => submitVerdict(selectedChoice === card.answer ? "correct" : "incorrect")}>{selectedChoice === card.answer ? "✓ 選択結果を記録して次へ" : "↻ 選択結果を記録して後でもう一度"}</button>
+        <button className="primary wide record-choice" disabled={busy || aiBusy} onClick={() => submitVerdict(selectedChoice === card.answer ? "correct" : "incorrect")}>{selectedChoice === card.answer ? t("✓ 選択結果を記録して次へ") : t("↻ 選択結果を記録して後でもう一度")}</button>
       ) : (
-        <div className="swipe-actions compact" aria-label="スワイプ操作の代替ボタン">
-          <button className="incorrect" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("incorrect")}><b>←</b><span><strong>後でもう一度</strong><small>列の後ろへ戻す</small></span></button>
-          <button className="correct" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("correct")}><span><strong>このカードを完了</strong><small>次のカードへ</small></span><b>→</b></button>
+        <div className="swipe-actions compact" aria-label={t("スワイプ操作の代替ボタン")}>
+          <button className="incorrect" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("incorrect")}><b>←</b><span><strong>{t("まだ覚えていない")}</strong></span></button>
+          <button className="correct" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("correct")}><span><strong>{t("覚えていた")}</strong></span><b>→</b></button>
         </div>
       )}
-      {error && <p className="inline-error" role="alert">{error}</p>}
+      {error && <p className="inline-error" role="alert">{t(error)}</p>}
     </div>
   );
 }
 
 function Records({ data, now, startStudy }: { data: AppData; now: Date; startStudy: (setId: string, startCardId?: string) => void }) {
+  const { t, language, locale, setLanguage } = useLanguage();
   const days = Array.from({ length: 7 }, (_, index) => new Date(now.getTime() - (6 - index) * 86400000));
   const dayData = days.map((date) => {
     const reviews = data.reviews.filter((review) => dayKey(new Date(review.reviewedAt)) === dayKey(date));
     const minutes = Math.round(reviews.reduce((sum, review) => sum + review.responseMs, 0) / 60000);
     return { date, count: reviews.length, minutes };
   });
+  const maxDailyReviews = Math.max(1, ...dayData.map((day) => day.count));
   const weekReviews = dayData.reduce((sum, day) => sum + day.count, 0);
-  const positive = data.reviews.filter((review) => ["good", "easy"].includes(review.rating)).length;
-  const accuracy = data.reviews.length ? Math.round((positive / data.reviews.length) * 100) : 0;
-  const activeDays = new Set(data.reviews.map((review) => dayKey(new Date(review.reviewedAt))));
-  let streak = 0;
-  for (let i = 0; i < 365; i++) {
-    if (!activeDays.has(dayKey(new Date(now.getTime() - i * 86400000)))) break;
-    streak++;
-  }
+  const cardFormats = new Map(data.sets.flatMap((set) => set.cards).map((card) => [card.id, card.format]));
+  const score = (multipleChoice: boolean) => {
+    const reviews = data.reviews.filter((review) => cardFormats.has(review.cardId) && (cardFormats.get(review.cardId) === "multiple_choice") === multipleChoice);
+    return reviews.length ? `${Math.round(reviews.filter((review) => ["good", "easy"].includes(review.rating)).length / reviews.length * 100)}%` : "—";
+  };
+  const streak = data.dailyReview.streak;
   const weak = data.sets.flatMap((set) => set.cards.map((card) => ({ card, set }))).filter(({ card }) => card.status === "苦手");
   const aiHistory = data.chatMessages.reduce<Array<{ message: ChatMessage; question: string; card: Card | undefined; setTitle: string }>>((history, message, index) => {
     if (message.role !== "assistant") return history;
@@ -810,25 +787,39 @@ function Records({ data, now, startStudy }: { data: AppData; now: Date; startStu
   }, []).reverse().slice(0, 8);
   return (
     <div className="page records-page">
-      <div className="page-heading"><div><h1>学習の記録</h1><p>学習すると、ここへ自動的に記録されます。</p></div></div>
+      <div className="page-heading"><div><h1>{t("学習の記録")}</h1><p>{t("学習すると、ここへ自動的に記録されます。")}</p></div></div>
       <section className="chart-panel">
-        <div className="section-row"><h2>直近7日間</h2><p>合計 <strong>{weekReviews}枚</strong></p></div>
-        <div className="bar-chart">{dayData.map((day) => <div key={dayKey(day.date)}><span style={{ height: `${Math.max(8, day.count * 18)}px` }}><i>{day.count}枚</i></span><b>{new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", weekday: "short" }).format(day.date)}</b></div>)}</div>
+        <div className="section-row"><h2>{t("直近7日間")}</h2><p>{t("合計")}<strong>{weekReviews}{t("枚")}</strong></p></div>
+        <div className="bar-chart">{dayData.map((day) => <div key={dayKey(day.date)}><span style={{ height: `${day.count === 0 ? 2 : Math.max(4, day.count / maxDailyReviews * 120)}px` }}><i>{day.count}{t("枚")}</i></span><b>{new Intl.DateTimeFormat(locale, { timeZone: "Asia/Tokyo", weekday: "short" }).format(day.date)}</b></div>)}</div>
       </section>
-      <div className="stats-grid">{[["🔥", "連続学習", `${streak}日`, "今日まで"], ["▣", "今週の学習", `${weekReviews}枚`, `全期間 ${data.reviews.length}枚`], ["◎", "定着評価", `${accuracy}%`, "わかった＋覚えた"]].map((s) => <article key={s[1]}><span>{s[0]}</span><small>{s[1]}</small><strong>{s[2]}</strong><em>{s[3]}</em></article>)}</div>
-      <section><div className="section-row"><h2>復習リマインド</h2><span className="muted">現在時刻で更新</span></div><div className="reminder-list">{data.sets.slice(0, 5).map((set) => { const due = set.cards.filter((card) => isDue(card, now)).length; return <button key={set.id} onClick={() => startStudy(set.id)}><span>◷</span><div><strong>{due ? `${due}枚のカードが復習待ち` : `${set.title}の次回復習`}</strong><small>{set.title}</small></div><em>{relativeDate(set.nextReviewAt, now)}　›</em></button>; })}</div></section>
-      <section><div className="section-row"><h2>AI解説の学習履歴</h2><span className="muted">自動保存</span></div><div className="ai-history-list">{aiHistory.length ? aiHistory.map(({ message, question, card: historyCard, setTitle }) => <article key={message.id}><div><span>✦</span><small>{setTitle} ・ {relativeDate(message.createdAt, now)}</small></div><strong>{historyCard?.question || question}</strong><p className="history-question">あなた：{question}</p><p>{message.content}</p></article>) : <p className="list-empty">学習中にAIへ質問すると、解説がここへ保存されます。</p>}</div></section>
-      <section><div className="section-row"><h2>苦手カード</h2><span className="muted">{weak.length}枚</span></div><div className="weak-list">{weak.length ? weak.slice(0, 8).map(({ card, set }) => <button key={card.id} onClick={() => startStudy(set.id, card.id)}><i>{set.category}</i><strong>{card.question}</strong><span>復習 {card.reviewCount}回　›</span></button>) : <p className="list-empty">苦手カードはまだありません。</p>}</div></section>
+      <div className="stats-grid">
+        {[["streak", "連続学習", t("{0}日", streak), "今日まで"], ["cards", "今週の学習", t("{0}枚", weekReviews), t("全期間 {0}枚", data.reviews.length)], ["recall", "覚えていた割合", score(false), "一問一答などの自己評価"], ["accuracy", "4択の正答率", score(true), "選択した答えによる評価"]].map(([icon, label, value, description]) => (
+          <article key={icon}>
+            <span className="record-stat-icon" aria-hidden="true"><img src={`/record-icons/${icon}.png`} width={1254} height={1254} alt="" loading="lazy" /></span>
+            <small>{t(label)}</small>
+            <strong>{value}</strong>
+            <em>{t(description)}</em>
+          </article>
+        ))}
+      </div>
+      <section><div className="section-row"><h2>{t("復習リマインド")}</h2><span className="muted">{t("現在時刻で更新")}</span></div><div className="reminder-list">{data.sets.slice(0, 5).map((set) => { const due = set.cards.filter((card) => isDue(card, now)).length; return <button key={set.id} onClick={() => startStudy(set.id)}><span>◷</span><div><strong>{due ? t("{0}枚のカードが復習待ち", due) : t("{0}の次回復習", set.title)}</strong><small>{set.title}</small></div><em>{relativeDate(set.nextReviewAt, now, language)}　›</em></button>; })}</div></section>
+      <details className="ai-history-disclosure"><summary>{t("AI解説の学習履歴")}<span>{t("クリックして履歴を確認")}</span></summary><div className="ai-history-list">{aiHistory.length ? aiHistory.map(({ message, question, card: historyCard, setTitle }) => <details key={message.id}><summary><span><span>✦</span><small>{setTitle}{t("・")}{relativeDate(message.createdAt, now, language)}</small></span><strong>{historyCard?.question || question}</strong></summary><p className="history-question">{t("あなた：")}{question}</p><p>{message.content}</p></details>) : <p className="list-empty">{t("学習中にAIへ質問すると、解説がここへ保存されます。")}</p>}</div></details>
+      <section><div className="section-row"><h2>{t("苦手カード")}</h2><span className="muted">{weak.length}{t("枚")}</span></div><div className="weak-list">{weak.length ? weak.slice(0, 8).map(({ card, set }) => <button key={card.id} onClick={() => startStudy(set.id, card.id)}><i>{set.category}</i><strong>{card.question}</strong><span>{t("復習")}{card.reviewCount}{t("回　›")}</span></button>) : <p className="list-empty">{t("苦手カードはまだありません。")}</p>}</div></section>
     </div>
   );
 }
 
-export default function App() {
+function App() {
+  const { t, language, locale, setLanguage } = useLanguage();
   const now = useClock();
+  const activeDay = dayKey(now);
   const [screen, setScreen] = useState<Screen>("home");
   const [data, setData] = useState<AppData | null>(null);
   const [loadingError, setLoadingError] = useState("");
+  const [folderId, setFolderId] = useState<string | null>(null);
+  const [setDetailOpen, setSetDetailOpen] = useState(false);
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
+  const [destination, setDestination] = useState("root");
   const [draft, setDraft] = useState<DraftMaterial | null>(null);
   const [lastGeneration, setLastGeneration] = useState<{ text: string; detail: string; style: string } | null>(null);
   const [queue, setQueue] = useState<string[]>([]);
@@ -859,12 +850,12 @@ export default function App() {
       if (active) setLoadingError(error instanceof Error ? error.message : "データを読み込めませんでした。");
     });
     return () => { active = false; };
-  }, []);
+  }, [activeDay]);
 
   const generate = async (text: string, detail: string, style: string) => {
     const material = await api<GeneratedMaterial>("/api/ai/cards", {
       method: "POST",
-      body: JSON.stringify({ text, detail, style }),
+      body: JSON.stringify({ text, detail, style, language }),
     });
     setDraft({
       ...material,
@@ -877,11 +868,15 @@ export default function App() {
 
   const startStudy = (setId?: string, startCardId?: string) => {
     if (!data) return;
-    const target = data.sets.find((set) => set.id === setId) || data.sets.find((set) => set.id === selectedSetId) || data.sets[0];
+    const memorySetId = setId?.startsWith("__memory__:") ? setId.slice("__memory__:".length) : undefined;
+    const daily = setId?.startsWith("__daily__") || setId === "__due__";
+    const dailySetId = setId?.startsWith("__daily__:") ? setId.slice("__daily__:".length) : undefined;
+    const dailyPending = new Set(data.dailyReview.cardIds.filter((id) => !data.dailyReview.completedCardIds.includes(id)));
+    const target = data.sets.find((set) => set.id === (memorySetId || dailySetId || setId)) || data.sets.find((set) => set.id === selectedSetId) || data.sets[0];
     if (!target) { setScreen("study"); return; }
     const due = target.cards.filter((card) => isDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
-    const scheduledCards = due.length ? due : target.cards;
-    const requestedCard = startCardId ? target.cards.find((card) => card.id === startCardId) : undefined;
+    const scheduledCards = memorySetId ? target.cards.filter((card) => isLongTermDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()) : daily ? data.sets.filter((set) => !dailySetId || set.id === dailySetId).flatMap((set) => set.cards).filter((card) => isActiveCard(card) && dailyPending.has(card.id)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()) : due.length ? due : target.cards.filter(isActiveCard);
+    const requestedCard = startCardId ? target.cards.find((card) => card.id === startCardId && isActiveCard(card)) : undefined;
     const cards = requestedCard ? [requestedCard, ...scheduledCards.filter((card) => card.id !== requestedCard.id)] : scheduledCards;
     setSelectedSetId(target.id);
     setQueue(cards.map((card) => card.id));
@@ -896,31 +891,32 @@ export default function App() {
   };
 
   const navigate = (next: Screen) => {
+    if (next === "sets") setSetDetailOpen(false);
     if (next === "study" && !queue.length) startStudy();
     else setScreen(next);
   };
 
-  if (!data) return <Shell screen={screen} setScreen={navigate}><div className="page loading-state" aria-live="polite">{loadingError ? <><h1>読み込めませんでした</h1><p>{loadingError}</p><button className="primary" onClick={reload}>再読み込み</button></> : <><span>✦</span><p>学習データを準備しています…</p></>}</div></Shell>;
+  if (!data) return <Shell screen={screen} setScreen={navigate}><div className="page loading-state" aria-live="polite">{loadingError ? <><h1>{t("読み込めませんでした")}</h1><p>{t(loadingError)}</p><button className="primary" onClick={reload}>{t("再読み込み")}</button></> : <><span>✦</span><p>{t("学習データを準備しています…")}</p></>}</div></Shell>;
 
   const saveDraft = async () => {
     if (!draft) return;
     const selectedCards = draft.cards.filter((card) => card.selected).map(({ question, answer, difficulty, format, choices }) => ({ question, answer, difficulty, format, choices }));
-    const result = await api<{ setId: string; data: AppData }>("/api/data", {
+    const targetSetId = destination.startsWith("set:") ? destination.slice(4) : null;
+    const targetFolderId = destination.startsWith("folder:") ? destination.slice(7) : null;
+    const result = await api<{ setId?: string; data: AppData }>("/api/data", {
       method: "POST",
-      body: JSON.stringify({
+      body: JSON.stringify(targetSetId ? {
+        action: "addCardsToSet", setId: targetSetId, cards: selectedCards, sourceContent: draft.sourceContent, sourceTitle: draft.title,
+      } : {
         action: "saveSet",
-        material: {
-          title: draft.title,
-          category: draft.category,
-          summary: draft.summary,
-          keyPoints: draft.keyPoints,
-          sourceContent: draft.sourceContent,
-          cards: selectedCards,
-        },
+        material: { folderId: targetFolderId, title: draft.title, category: draft.category, summary: draft.summary, keyPoints: draft.keyPoints, sourceContent: draft.sourceContent, cards: selectedCards },
       }),
     });
+    const savedSetId = targetSetId || result.setId || null;
     setData(result.data);
-    setSelectedSetId(result.setId);
+    setSelectedSetId(savedSetId);
+    setFolderId(result.data.sets.find((set) => set.id === savedSetId)?.folderId || null);
+    setSetDetailOpen(true);
     setDraft(null);
     setScreen("sets");
   };
@@ -933,11 +929,22 @@ export default function App() {
 
   let content: React.ReactNode;
   let title: string | undefined;
-  if (screen === "home") content = <Home data={data} now={now} startStudy={startStudy} setScreen={navigate} selectSet={setSelectedSetId} resumeDraft={draft ? () => setScreen("generate") : undefined} />;
-  else if (screen === "import") content = <ImportScreen onGenerate={generate} />;
-  else if (screen === "generate") { content = <Generate draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={async () => { if (lastGeneration) await generate(lastGeneration.text, lastGeneration.detail, lastGeneration.style); }} />; title = "カードの確認"; }
-  else if (screen === "sets") { content = <SetDetail data={data} selectedSetId={selectedSetId} selectSet={setSelectedSetId} startStudy={startStudy} now={now} />; title = "カードセット"; }
-  else if (screen === "study") content = <Study key={sessionKey} data={data} queue={queue} flipped={flipped} setFlipped={setFlipped} setQueue={setQueue} sessionDone={sessionDone} setSessionDone={setSessionDone} sessionSetId={sessionSetId} sessionId={sessionId} sessionTotal={sessionTotal} sessionMistakes={sessionMistakes} setSessionMistakes={setSessionMistakes} startStudy={startStudy} setData={updateData} backToSets={() => setScreen("sets")} goHome={() => setScreen("home")} now={now} />;
+  if (screen === "home") content = <Home data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} onSample={async () => {
+      const result = await api<{ data: AppData }>("/api/data", { method: "POST", body: JSON.stringify({ action: "sample", language }) });
+      const sample = result.data.sets[0];
+      setData(result.data);
+      if (sample) { setSelectedSetId(sample.id); setQueue(sample.cards.filter(isActiveCard).map((c) => c.id)); setSessionSetId(sample.id); setSessionId(`lesson_${crypto.randomUUID()}`); setSessionTotal(sample.cards.filter(isActiveCard).length); setSessionMistakes(0); setSessionDone(false); setFlipped(false); setSessionKey((v) => v + 1); setScreen("study"); }
+    }} resumeDraft={draft ? () => setScreen("generate") : undefined} />;
+  else if (screen === "import") content = <ImportScreen onGenerate={generate} data={data} destination={destination} setDestination={setDestination} />;
+  else if (screen === "generate") { content = <Generate data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={async () => { if (lastGeneration) await generate(lastGeneration.text, lastGeneration.detail, lastGeneration.style); }} />; title = "カードの確認"; }
+  else if (screen === "sets") { content = <SetLibrary data={data} folderId={folderId} openSetId={setDetailOpen ? selectedSetId : null} onFolder={(id) => { setFolderId(id); setSetDetailOpen(false); }} onSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} onData={(updated) => { setData(updated); setQueue([]); }} onAdd={() => { setDestination(folderId ? `folder:${folderId}` : "root"); setScreen("import"); }}>
+      <SetDetail data={data} selectedSetId={selectedSetId} selectSet={setSelectedSetId} startStudy={startStudy} now={now} onData={(updated) => { setData(updated); setQueue([]); }} />
+    </SetLibrary>; title = "カードセット"; }
+  else if (screen === "study") content = <Study key={sessionKey} data={data} queue={queue} flipped={flipped} setFlipped={setFlipped} setQueue={setQueue} sessionDone={sessionDone} setSessionDone={setSessionDone} sessionSetId={sessionSetId} sessionId={sessionId} sessionTotal={sessionTotal} sessionMistakes={sessionMistakes} setSessionMistakes={setSessionMistakes} startStudy={startStudy} setData={updateData} backToSets={() => { setSetDetailOpen(true); setScreen("sets"); }} goHome={() => setScreen("home")} now={now} />;
   else content = <Records data={data} now={now} startStudy={startStudy} />;
   return <Shell screen={screen} setScreen={navigate} title={title}>{content}</Shell>;
+}
+
+export default function LocalizedApp() {
+  return <LanguageProvider><App /></LanguageProvider>;
 }

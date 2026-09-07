@@ -15,6 +15,20 @@
       "when": 1785519243722,
       "tag": "0001_new_firedrake",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788627698819,
+      "tag": "0002_peaceful_sumo",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788697478998,
+      "tag": "0003_past_firedrake",
+      "breakpoints": true
     }
   ]
 }

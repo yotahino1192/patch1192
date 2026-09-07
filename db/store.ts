@@ -1,3 +1,5 @@
+import { studyDayBounds, streakLength } from "../lib/daily-review";
+import type { DailyReview } from "../lib/types";
 import { env } from "cloudflare:workers";
 import type {
   AppData,
@@ -127,52 +129,42 @@ function parseJsonArray(value: unknown): string[] {
   }
 }
 
-async function seedIfEmpty(userId: string): Promise<void> {
-  const db = database();
-  const row = await db.prepare("SELECT COUNT(*) AS count FROM card_sets WHERE user_id = ?")
-    .bind(userId).first<{ count: number }>();
+export async function seedIfEmpty(userId: string, language: "ja" | "en" = "ja"): Promise<void> {
+  await ensureDatabase();
+  const row = await database().prepare("SELECT COUNT(*) AS count FROM card_sets WHERE user_id = ?").bind(userId).first<{ count: number }>();
   if (Number(row?.count || 0) > 0) return;
-
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const sourceId = id("src");
-  const setId = id("set");
-  const seedCards = [
-    ["スピノザにおける実体とは？", "それ自体で存在し、それ自体によって理解されるもの。", 2],
-    ["スピノザは実体を何と同一視したか？", "神、または自然（デウス・シヴェ・ナトゥーラ）と同一視した。", 2],
-    ["スピノザによれば、実体の性質は？", "実体は無限であり、無数の属性を持つ。", 3],
-  ] as const;
-
-  await db.batch([
-    db.prepare("INSERT INTO sources (id,user_id,title,content,created_at,updated_at) VALUES (?,?,?,?,?,?)")
-      .bind(sourceId, userId, "スピノザの実体論", "スピノザは、実体とはそれ自体で存在し、それ自体によって理解されるものだと定義した。唯一の実体を神または自然と同一視し、無限の属性を持つと考えた。", nowIso, nowIso),
-    db.prepare(`INSERT INTO card_sets
-      (id,user_id,source_id,title,category,summary,key_points,created_at,updated_at,last_studied_at,next_review_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(setId, userId, sourceId, "スピノザ", "哲学", "唯一の実体を神＝自然とみなすスピノザの一元論。",
-        JSON.stringify(["実体はそれ自体で存在する", "実体は神または自然である", "実体は無限の属性を持つ"]),
-        nowIso, nowIso, null, nowIso),
-    ...seedCards.map(([question, answer, difficulty]) =>
-      db.prepare(`INSERT INTO cards
-        (id,set_id,user_id,question,answer,format,choices,status,difficulty,due_at,interval_days,review_count,correct_count,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(id("card"), setId, userId, question, answer, "qa", "[]", "未学習", difficulty, nowIso, 0, 0, 0, nowIso, nowIso)),
-  ]);
+  const en = language === "en";
+  const pairs = en ? [
+    ["What is substance according to Spinoza?", "That which exists in itself and is understood through itself."],
+    ["What did Spinoza identify substance with?", "God, or Nature (Deus sive Natura)."],
+    ["What are the properties of substance for Spinoza?", "Substance is infinite and has infinitely many attributes."],
+  ] : [
+    ["スピノザにおける実体とは？", "それ自体で存在し、それ自体によって理解されるもの。"],
+    ["スピノザは実体を何と同一視したか？", "神、または自然（デウス・シヴェ・ナトゥーラ）と同一視した。"],
+    ["スピノザによれば、実体の性質は？", "実体は無限であり、無数の属性を持つ。"],
+  ];
+  await saveGeneratedSet(userId, {
+    title: en ? "Spinoza" : "スピノザ", category: en ? "Philosophy" : "哲学",
+    summary: en ? "Spinoza identifies the one substance with God or Nature." : "唯一の実体を神＝自然とみなすスピノザの一元論。",
+    keyPoints: pairs.map(([, answer]) => answer), sourceContent: pairs.map(([, answer]) => answer).join(en ? " " : "\n"),
+    cards: pairs.map(([question, answer]) => ({ question, answer, format: "qa", choices: [], difficulty: 2 })),
+  });
 }
 
 export async function loadAppData(userId: string): Promise<AppData> {
   await ensureDatabase();
-  await seedIfEmpty(userId);
   const db = database();
-  const [setResult, cardResult, reviewResult, chatResult] = await Promise.all([
+  const [setResult, cardResult, reviewResult, chatResult, folderResult] = await Promise.all([
     db.prepare("SELECT * FROM card_sets WHERE user_id = ? ORDER BY updated_at DESC").bind(userId).all(),
     db.prepare("SELECT * FROM cards WHERE user_id = ? ORDER BY created_at ASC").bind(userId).all(),
     db.prepare("SELECT * FROM review_logs WHERE user_id = ? ORDER BY reviewed_at DESC LIMIT 500").bind(userId).all(),
     db.prepare("SELECT * FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 500").bind(userId).all(),
+    db.prepare("SELECT id, parent_id, name FROM folders WHERE user_id = ? ORDER BY name, id").bind(userId).all(),
   ]);
 
   const cards = (cardResult.results || []).map(mapCard);
   const sets: CardSet[] = (setResult.results || []).map((row) => ({
+    folderId: row.folder_id ? String(row.folder_id) : null,
     id: String(row.id),
     title: String(row.title),
     category: String(row.category),
@@ -211,7 +203,8 @@ export async function loadAppData(userId: string): Promise<AppData> {
     createdAt: String(row.created_at),
   }));
 
-  return { sets, reviews, chatMessages };
+  const folders = (folderResult.results || []).map((row) => ({ id: String(row.id), parentId: row.parent_id ? String(row.parent_id) : null, name: String(row.name) }));
+  return { sets, reviews, chatMessages, folders, dailyReview: await loadDailyReview(userId) };
 }
 
 function mapCard(row: Record<string, unknown>): Card {
@@ -233,10 +226,11 @@ function mapCard(row: Record<string, unknown>): Card {
   };
 }
 
-export async function saveGeneratedSet(userId: string, material: GeneratedMaterial & { sourceContent: string }): Promise<string> {
+export async function saveGeneratedSet(userId: string, material: GeneratedMaterial & { sourceContent: string; folderId?: string | null }): Promise<string> {
   await ensureDatabase();
   const db = database();
   const now = new Date().toISOString();
+  await requireFolder(userId, material.folderId || null);
   const sourceId = id("src");
   const setId = id("set");
   const statements = [
@@ -254,6 +248,7 @@ export async function saveGeneratedSet(userId: string, material: GeneratedMateri
         .bind(id("card"), setId, userId, card.question.trim(), card.answer.trim(), normalizeFormat(card.format), JSON.stringify(normalizeChoices(card)), "未学習",
           Math.max(1, Math.min(3, Math.round(card.difficulty || 2))), now, 0, 0, 0, now, now)),
   ];
+  statements.push(db.prepare("UPDATE card_sets SET folder_id = ? WHERE id = ? AND user_id = ?").bind(material.folderId || null, setId, userId));
   await db.batch(statements);
   return setId;
 }
@@ -270,13 +265,15 @@ function normalizeChoices(card: GeneratedCard): string[] {
   return [...choices.slice(0, 3), answer];
 }
 
-export async function addCardsToSet(userId: string, setId: string, newCards: GeneratedCard[]): Promise<void> {
+export async function addCardsToSet(userId: string, setId: string, newCards: GeneratedCard[], source?: { title: string; content: string }): Promise<void> {
   await ensureDatabase();
   const db = database();
   const existing = await db.prepare("SELECT id FROM card_sets WHERE id = ? AND user_id = ?").bind(setId, userId).first<{ id: string }>();
   if (!existing) throw new Error("SET_NOT_FOUND");
   const now = new Date().toISOString();
   await db.batch([
+    ...(source ? [db.prepare("UPDATE sources SET content = content || ?, updated_at = ? WHERE user_id = ? AND id = (SELECT source_id FROM card_sets WHERE id = ? AND user_id = ?)")
+      .bind(`\n\n--- ${source.title} ---\n${source.content}`, now, userId, setId, userId)] : []),
     ...newCards.map((card) => db.prepare(`INSERT INTO cards
       (id,set_id,user_id,question,answer,format,choices,status,difficulty,due_at,interval_days,review_count,correct_count,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -290,8 +287,9 @@ export async function reviewCard(userId: string, cardId: string, rating: BinaryR
   await ensureDatabase();
   const db = database();
   const card = await db.prepare("SELECT * FROM cards WHERE id = ? AND user_id = ?").bind(cardId, userId).first<Record<string, unknown>>();
-  if (!card) throw new Error("CARD_NOT_FOUND");
+  if (!card || ["アーカイブ", "削除済み"].includes(String(card.status))) throw new Error("CARD_NOT_FOUND");
 
+  await loadDailyReview(userId);
   const reviewedAtMs = Date.now();
   const now = new Date(reviewedAtMs).toISOString();
   const schedule = scheduleBinaryReview(rating, Number(card.interval_days || 0), reviewedAtMs);
@@ -308,7 +306,7 @@ export async function reviewCard(userId: string, cardId: string, rating: BinaryR
     db.prepare("UPDATE card_sets SET last_studied_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
       .bind(now, now, setId, userId),
   ]);
-  const next = await db.prepare("SELECT MIN(due_at) AS next_due FROM cards WHERE set_id = ? AND user_id = ? AND status <> 'アーカイブ'")
+  const next = await db.prepare("SELECT MIN(due_at) AS next_due FROM cards WHERE set_id = ? AND user_id = ? AND status NOT IN ('アーカイブ', '削除済み')")
     .bind(setId, userId).first<{ next_due: string }>();
   await db.prepare("UPDATE card_sets SET next_review_at = ? WHERE id = ? AND user_id = ?")
     .bind(next?.next_due || dueAt.toISOString(), setId, userId).run();
@@ -367,4 +365,97 @@ export async function loadAiCardContext(userId: string, setId: string, cardId: s
     sourceContent: String(context.content),
     history,
   };
+}
+
+export async function manageMaterial(userId: string, input: {
+  action: string; cardId?: string; setId?: string; title?: string;
+  question?: string; answer?: string; choices?: string[];
+}): Promise<void> {
+  await ensureDatabase();
+  const db = database();
+  const now = new Date().toISOString();
+  if (input.action === "renameSet") {
+    const result = await db.prepare("UPDATE card_sets SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+      .bind(input.title, now, input.setId, userId).run();
+    if (!result.meta.changes) throw new Error("SET_NOT_FOUND");
+    return;
+  }
+  const card = await db.prepare("SELECT * FROM cards WHERE id = ? AND user_id = ?").bind(input.cardId, userId).first<Record<string, unknown>>();
+  if (!card) throw new Error("CARD_NOT_FOUND");
+  let statement;
+  if (input.action === "editCard") {
+    const choices = input.choices || [];
+    if (card.format === "multiple_choice" && (choices.length !== 4 || new Set(choices).size !== 4 || !choices.every(Boolean) || !choices.includes(input.answer || ""))) throw new Error("INVALID_CHOICES");
+    statement = db.prepare("UPDATE cards SET question = ?, answer = ?, choices = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+      .bind(input.question, input.answer, JSON.stringify(card.format === "multiple_choice" ? choices : []), now, input.cardId, userId);
+  } else {
+    const restored = Number(card.interval_days) >= 14 ? "定着中" : Number(card.interval_days) > 0 ? "復習待ち" : Number(card.review_count) > 0 ? "苦手" : "未学習";
+    const status = input.action === "deleteCard" ? "削除済み" : input.action === "archiveCard" ? "アーカイブ" : restored;
+    statement = db.prepare("UPDATE cards SET status = ?, updated_at = ? WHERE id = ? AND user_id = ?").bind(status, now, input.cardId, userId);
+  }
+  await db.batch([
+    statement,
+    db.prepare("UPDATE card_sets SET updated_at = ? WHERE id = ? AND user_id = ?").bind(now, card.set_id, userId),
+  ]);
+  await db.prepare("UPDATE card_sets SET next_review_at = (SELECT MIN(due_at) FROM cards WHERE set_id = ? AND user_id = ? AND status NOT IN ('アーカイブ', '削除済み')) WHERE id = ? AND user_id = ?")
+    .bind(card.set_id, userId, card.set_id, userId).run();
+}
+
+async function requireFolder(userId: string, folderId: string | null): Promise<void> {
+  if (folderId === null) return;
+  const folder = await database().prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?").bind(folderId, userId).first();
+  if (!folder) throw new Error("FOLDER_NOT_FOUND");
+}
+
+export async function organizeSets(userId: string, input: {
+  action: "createFolder" | "renameFolder" | "moveSet";
+  folderId: string | null; setId?: string; name?: string;
+}): Promise<string | null> {
+  const db = database();
+  await requireFolder(userId, input.folderId);
+  const now = new Date().toISOString();
+  if (input.action === "createFolder") {
+    const folderId = id("folder");
+    await db.prepare("INSERT INTO folders (id, user_id, parent_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(folderId, userId, input.folderId, input.name, now, now).run();
+    return folderId;
+  }
+  if (input.action === "renameFolder") {
+    if (!input.folderId) throw new Error("FOLDER_NOT_FOUND");
+    await db.prepare("UPDATE folders SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?").bind(input.name, now, input.folderId, userId).run();
+  } else {
+    const result = await db.prepare("UPDATE card_sets SET folder_id = ?, updated_at = ? WHERE id = ? AND user_id = ?").bind(input.folderId, now, input.setId, userId).run();
+    if (!result.meta.changes) throw new Error("SET_NOT_FOUND");
+  }
+  return input.folderId;
+}
+
+export async function loadDailyReview(userId: string, now = new Date()): Promise<DailyReview> {
+  const db = database();
+  const { day, start, end } = studyDayBounds(now);
+  // Freeze the day's assignment so completed sets do not disappear as due dates advance.
+  let plan = await db.prepare("SELECT card_ids, completed_at FROM daily_review_plans WHERE user_id = ? AND day = ?")
+    .bind(userId, day).first<{ card_ids: string; completed_at: string | null }>();
+  if (!plan) {
+    const candidates = await db.prepare(`SELECT id FROM cards WHERE user_id = ? AND status NOT IN ('アーカイブ', '削除済み') AND
+      ((interval_days < 60 AND due_at < ?) OR (interval_days <= 60 AND id IN (SELECT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good','easy'))))
+      ORDER BY due_at, id`).bind(userId, end, userId, start, end).all<{ id: string }>();
+    const ids = (candidates.results || []).map((c) => c.id);
+    if (ids.length) {
+      await db.prepare("INSERT OR IGNORE INTO daily_review_plans (user_id, day, card_ids) VALUES (?, ?, ?)").bind(userId, day, JSON.stringify(ids)).run();
+      plan = await db.prepare("SELECT card_ids, completed_at FROM daily_review_plans WHERE user_id = ? AND day = ?").bind(userId, day).first<{ card_ids: string; completed_at: string | null }>();
+    }
+  }
+  const active = await db.prepare("SELECT id FROM cards WHERE user_id = ? AND status NOT IN ('アーカイブ', '削除済み')").bind(userId).all<{ id: string }>();
+  const activeIds = new Set((active.results || []).map((c) => c.id));
+  const cardIds = plan ? parseJsonArray(plan.card_ids).filter((id) => activeIds.has(id)) : [];
+  const successes = await db.prepare("SELECT DISTINCT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good', 'easy')")
+    .bind(userId, start, end).all<{ card_id: string }>();
+  const successfulIds = new Set((successes.results || []).map((r) => r.card_id));
+  const completedCardIds = cardIds.filter((id) => successfulIds.has(id));
+  const completed = Boolean(plan?.completed_at) || (cardIds.length > 0 && completedCardIds.length === cardIds.length);
+  if (completed && !plan?.completed_at) await db.prepare("UPDATE daily_review_plans SET completed_at = ? WHERE user_id = ? AND day = ? AND completed_at IS NULL").bind(now.toISOString(), userId, day).run();
+  const history = await db.prepare("SELECT day FROM daily_review_plans WHERE user_id = ? AND completed_at IS NOT NULL AND day <= ? ORDER BY day DESC").bind(userId, day).all<{ day: string }>();
+  const achievedDays = (history.results || []).map((row) => row.day);
+  return { day, cardIds, completedCardIds, completed, achievedDays: achievedDays.slice(0, 60), streak: streakLength(achievedDays, now) };
 }

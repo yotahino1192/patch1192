@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { primaryKey, index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const sources = sqliteTable("sources", {
   id: text("id").primaryKey(),
@@ -9,10 +9,20 @@ export const sources = sqliteTable("sources", {
   updatedAt: text("updated_at").notNull(),
 }, (table) => [index("sources_user_idx").on(table.userId)]);
 
+export const folders = sqliteTable("folders", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  parentId: text("parent_id"),
+  name: text("name").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => [index("folders_user_parent_idx").on(table.userId, table.parentId)]);
+
 export const cardSets = sqliteTable("card_sets", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   sourceId: text("source_id").notNull(),
+  folderId: text("folder_id"),
   title: text("title").notNull(),
   category: text("category").notNull(),
   summary: text("summary").notNull(),
@@ -73,3 +83,10 @@ export const chatMessages = sqliteTable("chat_messages", {
   index("chat_messages_card_idx").on(table.cardId),
   index("chat_messages_session_idx").on(table.sessionId),
 ]);
+
+export const dailyReviewPlans = sqliteTable("daily_review_plans", {
+  userId: text("user_id").notNull(),
+  day: text("day").notNull(),
+  cardIds: text("card_ids").notNull(),
+  completedAt: text("completed_at"),
+}, (table) => [primaryKey({ columns: [table.userId, table.day] })]);
