@@ -1,4 +1,4 @@
-import { createClient, type Client, type InValue } from "@libsql/client";
+import { createClient, type Client, type InValue, type Transaction } from "@libsql/client";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
@@ -52,6 +52,13 @@ export function createDatabase(client: Client, migrationsDirectory = resolve(pro
   }
   return {
     initialize, prepare,
+    async transaction<T>(action: (tx: Transaction) => Promise<T>): Promise<T> {
+      await initialize();
+      const tx = await client.transaction("write");
+      try { const result = await action(tx); await tx.commit(); return result; }
+      catch (error) { await tx.rollback(); throw error; }
+      finally { tx.close(); }
+    },
     async batch(statements: Array<{ sql: string; args: InValue[] }>) {
       await initialize();
       return client.batch(statements.map(({ sql, args }) => ({ sql, args })), "write");

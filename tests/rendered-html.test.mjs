@@ -10,7 +10,7 @@ test("server-renders the Loop application shell", async () => {
   assert.match(layout, /title:\s*"Loop/);
   assert.match(page, /学習データを準備しています/);
   assert.match(page, /メインナビゲーション/);
-  assert.match(page, /左で「まだ覚えていない」、右で「覚えていた」/);
+  assert.doesNotMatch(page, /左で「まだ覚えていない」、右で「覚えていた」/);
   assert.match(page, /レッスンが終了しました/);
   assert.match(page, /エビングハウスの忘却曲線/);
   assert.match(page, /AIに解説してもらう/);

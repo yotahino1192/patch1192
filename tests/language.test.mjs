@@ -48,9 +48,11 @@ test("material manager has English controls while retaining the original cards",
 test("folder library renders both languages without translating folder names", () => {
   const props = { data: { sets: [set], folders: [{ id: "f1", parentId: null, name: "資格の勉強" }], reviews: [], chatMessages: [] }, folderId: null, openSetId: null, onFolder() {}, onSet() {}, onData() {}, onAdd() {} };
   const en = render("en", React.createElement(SetLibrary, props));
-  for (const text of ["All materials", "Create folder", "Add a card set", "Move", "資格の勉強", "私の教材"]) assert.ok(en.includes(text), text);
+  for (const text of ["All materials", "Folder", "Add a card set", "Move", "資格の勉強", "私の教材"]) assert.ok(en.includes(text), text);
   const ja = render("ja", React.createElement(SetLibrary, props));
-  assert.ok(ja.includes("フォルダを作成"));
+  assert.ok(ja.includes("フォルダ"));
+  assert.ok(!ja.includes('class="folder-create"'));
+  assert.ok(!en.includes('class="folder-create"'));
 });
 
 
@@ -59,7 +61,8 @@ test("daily review starts with a locked button and a closed task panel in both l
   for (const language of ["ja", "en"]) {
     const html = render(language, React.createElement(DailyReviewRail, { data, now: new Date("2026-09-06T12:00:00+09:00"), onStudy() {} }));
     assert.ok(html.includes('aria-expanded="false"'));
-    assert.ok(html.includes('<svg'));
-    assert.ok(!html.includes('class="daily-review-popover"'));
+    assert.ok(html.includes("/ui-icons/lock.png"));
+    assert.ok(!html.includes('<svg'));
+    assert.ok(!html.includes('class="daily-todo-content"'));
   }
 });

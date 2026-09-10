@@ -4,12 +4,9 @@ import { useState } from "react";
 import type { AppData } from "../lib/types";
 import { studyDay } from "../lib/daily-review";
 import { useLanguage } from "./language";
+import { AssetIcon, IconLabel } from "./asset-icon";
 
-function Lock() {
-  return <svg width="23" height="23" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><rect x="4" y="10" width="16" height="12" rx="4" stroke="currentColor" strokeWidth="2"/><path d="M12 15v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>;
-}
-
-export function DailyReviewRail({ data, now, onStudy }: { data: AppData; now: Date; onStudy: (id: string) => void }) {
+export function DailyReviewRail({ data, now, onStudy }: { data: AppData; now: Date; onStudy: (id: string, startCardId?: string, batchSize?: number) => void }) {
   const { t, locale } = useLanguage();
   const [open, setOpen] = useState(false);
   const plan = data.dailyReview;
@@ -17,29 +14,38 @@ export function DailyReviewRail({ data, now, onStudy }: { data: AppData; now: Da
   const done = new Set(plan.completedCardIds);
   const assigned = new Set(plan.cardIds);
   const sets = data.sets.map((set) => ({ set, cards: set.cards.filter((c) => assigned.has(c.id)) })).filter(({ cards }) => cards.length);
-  const completedSets = sets.filter(({ cards }) => cards.every((c) => done.has(c.id))).length;
+  const remaining = plan.cardIds.filter((id) => !done.has(id)).length;
+  const achievedDays = days.map((date) => plan.achievedDays.includes(studyDay(date)));
   return <section className="daily-review-rail" aria-label={t("連続学習記録")}>
     <div className="streak-heading"><h2>🔥 {t("連続学習")}</h2><strong>{t("{0}日", plan.streak)}</strong></div>
     <div className="streak-track">{days.map((date, i) => {
       const today = i === 6;
-      const achieved = plan.achievedDays.includes(studyDay(date));
-      const linked = achieved && i < 6 && plan.achievedDays.includes(studyDay(days[i + 1]));
+      const achieved = achievedDays[i];
+      let linkedDays = 0;
+      if (achieved && !achievedDays[i - 1]) {
+        while (achievedDays[i + linkedDays + 1]) linkedDays++;
+      }
       const number = new Intl.DateTimeFormat(locale, { timeZone: "Asia/Tokyo", day: "numeric" }).format(date).replace(/日$/, "");
       const label = today ? t("今日") : new Intl.DateTimeFormat(locale, { timeZone: "Asia/Tokyo", weekday: "short" }).format(date);
-      return <div className={`streak-day ${today ? "is-today" : ""} ${achieved ? "is-achieved" : ""} ${linked ? "is-linked" : ""}`} key={studyDay(date)}>
+      return <div className={`streak-day ${today ? "is-today" : ""} ${achieved ? "is-achieved" : ""}`} key={studyDay(date)}>
         <span>{label}</span>
-        {today ? <button className="streak-medal" aria-label={`${number} · ${t("今日の復習ToDoを開く")}`} aria-expanded={open} aria-controls="daily-review-popover" onClick={() => setOpen(!open)}><span>{number}</span><span className="streak-status" aria-hidden="true">{achieved ? "✓" : <Lock />}</span></button> : <span className="streak-medal" aria-label={`${number} · ${t(achieved ? "達成済み" : "未達成")}`}><span>{number}</span>{achieved && <span className="streak-status" aria-hidden="true">✓</span>}</span>}
+        {linkedDays > 0 && <span className="streak-highlight" style={{ width: `calc(${linkedDays * 100}% + var(--streak-highlight-size))` }} aria-hidden="true"><span className="streak-sparkle"><AssetIcon name="sparkles" size={14} /></span></span>}
+        {today ? <button className="streak-medal" aria-label={`${number} · ${t("今日の復習ToDoを開く")}`} aria-expanded={open} aria-controls="daily-todo-content" onClick={() => setOpen(!open)}><span>{number}</span><span className="streak-status" aria-hidden="true"><AssetIcon name={achieved ? "check" : "lock"} size={20} /></span></button> : <span className="streak-medal" aria-label={`${number} · ${t(achieved ? "達成済み" : "未達成")}`}><span>{number}</span>{achieved && <span className="streak-status" aria-hidden="true"><AssetIcon name="check" size={20} /></span>}</span>}
       </div>;
     })}</div>
-    <button type="button" className="today-todo-button" aria-expanded={open} aria-controls="daily-review-popover" onClick={() => setOpen(!open)}><span>{t("今日のToDo")}</span><span aria-hidden="true">{open ? "⌃" : "⌄"}</span></button>
-    {open && <div id="daily-review-popover" className="daily-review-popover">
-      <div className="section-row"><h3>{t("今日の復習ToDo")}</h3><span>{t("{0} / {1}セット完了", completedSets, sets.length)}</span></div>
-      <p className="muted">{t("忘却曲線を参考にした復習間隔から、今日までに復習するカードを選んでいます。")}</p>
-      {sets.length ? <ul className="daily-todos">{sets.map(({ set, cards }) => {
-        const finished = cards.every((c) => done.has(c.id));
-        return <li key={set.id} className={finished ? "is-complete" : ""}><span className="todo-check" role="checkbox" aria-readonly="true" aria-checked={finished} aria-label={set.title}>{finished ? "✓" : ""}</span><div><strong>{set.title}</strong><small>{t("{0} / {1}枚完了", cards.filter((c) => done.has(c.id)).length, cards.length)}</small></div>{finished ? <span className="todo-done">{t("完了")}</span> : <button className="secondary" onClick={() => onStudy(`__daily__:${set.id}`)}>{t("学習")}</button>}</li>;
-      })}</ul> : <p>{t("今日の復習予定はありません。教材を追加して学習を始めましょう。")}</p>}
-      {plan.completed ? <p className="daily-achieved" role="status">✓ {t("今日のストリーク達成！おつかれさま！")}</p> : sets.length > 0 && <><button className="primary wide" onClick={() => onStudy("__daily__")}>{t("復習を始める")}</button><p className="streak-hint">{t("すべてのToDoを完了すると、今日のストリーク達成です。")}</p></>}
-    </div>}
+    <div className="daily-todo">
+      <button type="button" className="today-todo-button" aria-expanded={open} aria-controls="daily-todo-content" onClick={() => setOpen(!open)}><span>{t("今日のToDo")}</span><AssetIcon name={open ? "chevron-up" : "chevron-down"} size={16} /></button>
+      {open && <div id="daily-todo-content" className="daily-todo-content">
+        {sets.length ? <ul className="daily-todos">{sets.map(({ set, cards }) => {
+          const finished = cards.every((c) => done.has(c.id));
+          return <li key={set.id} className={finished ? "is-complete" : ""}><span className="todo-check" role="checkbox" aria-readonly="true" aria-checked={finished} aria-label={set.title}>{finished ? <AssetIcon name="check" size={24} /> : "⬜"}</span><div><strong>{set.title}</strong><small>{t("{0} / {1}枚完了", cards.filter((c) => done.has(c.id)).length, cards.length)}</small></div>{finished ? <span className="todo-done">{t("完了")}</span> : <button className="secondary" onClick={() => onStudy(`__daily__:${set.id}`)}>{t("学習")}</button>}</li>;
+        })}</ul> : <p>{t("今日の復習予定はありません。教材を追加して学習を始めましょう。")}</p>}
+        {remaining > 0 && <div className="daily-todo-actions">
+          <button className="primary wide" onClick={() => onStudy("__daily__")}>{t("今日の復習を始める · 残り{0}枚", remaining)}</button>
+          {remaining > 5 && <button className="secondary small-batch-start" onClick={() => onStudy("__daily__", undefined, 5)}>{t("まず5枚だけ学習")}</button>}
+        </div>}
+        {plan.completed ? <p className="daily-achieved" role="status"><IconLabel name="check">{t("今日のストリーク達成！おつかれさま！")}</IconLabel></p> : sets.length > 0 && <p className="streak-hint">{t("すべてのToDoを完了すると、今日のストリーク達成です。")}</p>}
+      </div>}
+    </div>
   </section>;
 }

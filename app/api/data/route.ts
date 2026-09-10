@@ -1,4 +1,4 @@
-import { organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, requestUserId, reviewCard, saveGeneratedSet } from "../../../db/store";
+import { organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, requestUserId, reviewCard, undoReview, saveGeneratedSet } from "../../../db/store";
 import type { BinaryReviewRating, GeneratedCard, GeneratedMaterial } from "../../../lib/types";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +86,13 @@ export async function POST(request: Request): Promise<Response> {
       await addCardsToSet(userId, setId, body.cards, typeof body.sourceContent === "string" ? { title: String(body.sourceTitle || "追加資料").slice(0, 120), content: body.sourceContent.trim() } : undefined);
       return json({ data: await loadAppData(userId) });
     }
+    if (body.action === "undoReview") {
+      const reviewId = String(body.reviewId || "");
+      const sessionId = String(body.sessionId || "");
+      if (!reviewId || !sessionId) return json({ error: "取り消す評価が見つかりません。" }, 400);
+      await undoReview(userId, reviewId, sessionId);
+      return json({ data: await loadAppData(userId) });
+    }
     if (body.action === "reviewCard") {
       const cardId = String(body.cardId || "");
       const rating = String(body.rating || "") as BinaryReviewRating;
@@ -93,12 +100,13 @@ export async function POST(request: Request): Promise<Response> {
         return json({ error: "学習評価が正しくありません。" }, 400);
       }
       const sessionId = String(body.sessionId || "").trim().slice(0, 120) || null;
-      await reviewCard(userId, cardId, rating, Number(body.responseMs || 0), sessionId);
-      return json({ data: await loadAppData(userId) });
+      const reviewId = await reviewCard(userId, cardId, rating, Number(body.responseMs || 0), sessionId);
+      return json({ reviewId, data: await loadAppData(userId) });
     }
     return json({ error: "未対応の操作です。" }, 400);
   } catch (error) {
     console.error("data POST failed", error);
+    if (error instanceof Error && error.message === "UNDO_NOT_AVAILABLE") return json({ error: "この評価は取り消せません。別の学習が進んでいるか、カードが変更されています。" }, 409);
     if (error instanceof Error && error.message === "FOLDER_NOT_FOUND") return json({ error: "フォルダが見つかりませんでした。" }, 404);
     if (error instanceof Error && error.message === "SET_NOT_FOUND") return json({ error: "セットが見つかりませんでした。保存先を選び直してください。" }, 404);
     if (error instanceof Error && error.message === "INVALID_CHOICES") return json({ error: "選択肢は重複のない4つにし、答えを含めてください。" }, 400);

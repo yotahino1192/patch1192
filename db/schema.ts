@@ -63,6 +63,8 @@ export const reviewLogs = sqliteTable("review_logs", {
   rating: text("rating").notNull(),
   responseMs: integer("response_ms").notNull(),
   reviewedAt: text("reviewed_at").notNull(),
+  previousState: text("previous_state"),
+  undoneAt: text("undone_at"),
 }, (table) => [
   index("review_logs_user_idx").on(table.userId),
   index("review_logs_card_idx").on(table.cardId),

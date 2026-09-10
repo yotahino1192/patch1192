@@ -16,6 +16,18 @@ const db = {
       async run() { return { meta: sqlite.prepare(sql).run(...values) }; },
     };
   },
+  async transaction(action) {
+    sqlite.exec("BEGIN");
+    try {
+      const result = await action({ async execute({ sql, args = [] }) {
+        const stmt = sqlite.prepare(sql);
+        if (stmt.columns().length) return { rows: stmt.all(...args) };
+        const result = stmt.run(...args);
+        return { rows: [], rowsAffected: result.changes };
+      } });
+      sqlite.exec("COMMIT"); return result;
+    } catch (error) { sqlite.exec("ROLLBACK"); throw error; }
+  },
   async batch(statements) { const results = []; for (const statement of statements) results.push(await statement.run()); return results; },
 };
 globalThis.__testD1 = db;
@@ -28,6 +40,27 @@ registerHooks({
   },
 });
 const { loadAppData, seedIfEmpty, manageMaterial, saveGeneratedSet, reviewCard, organizeSets, loadDailyReview } = await import("../db/store.ts");
+
+test("record graph counts successful cards per Tokyo day without the 500-log limit", async () => {
+  const user = 'record-counts';
+  await seedIfEmpty(user);
+  const data = await loadAppData(user);
+  const ids = data.sets[0].cards.map((card) => card.id);
+  const midnight = new Date(`${data.dailyReview.day}T00:00:00+09:00`).getTime();
+  const today = new Date(midnight + 1000).toISOString();
+  const yesterday = new Date(midnight - 1000).toISOString();
+  const insert = sqlite.prepare('INSERT INTO review_logs (id,user_id,card_id,session_id,rating,response_ms,reviewed_at,undone_at) VALUES (?,?,?,?,?,?,?,?)');
+  insert.run('record-early', user, ids[0], 'records', 'good', 100, today, null);
+  for (let i = 0; i < 510; i++) insert.run(`record-repeat-${i}`, user, ids[1], 'records', 'good', 100, today, null);
+  insert.run('record-wrong', user, ids[2], 'records', 'again', 100, today, null);
+  insert.run('record-undone', user, ids[2], 'records', 'good', 100, today, today);
+  insert.run('record-yesterday', user, ids[2], 'records', 'good', 100, yesterday, null);
+  const result = await loadAppData(user);
+  assert.ok(result.reviews.length <= 500);
+  assert.equal(result.recordActivity.find((entry) => entry.day === data.dailyReview.day).cards, 2);
+  assert.equal(result.recordActivity.reduce((sum, entry) => sum + entry.cards, 0), 3);
+  assert.deepEqual((await loadAppData('no-records-user')).recordActivity, []);
+});
 
 test("first use is empty; sample is explicit and is not duplicated", async () => {
   assert.equal((await loadAppData("new-user")).sets.length, 0);

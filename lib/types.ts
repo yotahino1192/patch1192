@@ -70,6 +70,8 @@ export type DailyReview = {
 };
 
 export type AppData = {
+  undoneReviewIds?: string[];
+  recordActivity?: { day: string; cards: number }[];
   dailyReview: DailyReview;
   folders: Folder[];
   sets: CardSet[];

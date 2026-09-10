@@ -61,12 +61,16 @@ export async function seedIfEmpty(userId: string, language: "ja" | "en" = "ja"):
 export async function loadAppData(userId: string): Promise<AppData> {
   await ensureDatabase();
   const db = database();
-  const [setResult, cardResult, reviewResult, chatResult, folderResult] = await Promise.all([
+  const { start, end } = studyDayBounds(new Date());
+  const recordStart = new Date(new Date(start).getTime() - 6 * 86_400_000).toISOString();
+  const [setResult, cardResult, reviewResult, chatResult, folderResult, activityResult] = await Promise.all([
     db.prepare("SELECT * FROM card_sets WHERE user_id = ? ORDER BY updated_at DESC").bind(userId).all(),
     db.prepare("SELECT * FROM cards WHERE user_id = ? ORDER BY created_at ASC").bind(userId).all(),
-    db.prepare("SELECT * FROM review_logs WHERE user_id = ? ORDER BY reviewed_at DESC LIMIT 500").bind(userId).all(),
+    db.prepare("SELECT * FROM review_logs WHERE user_id = ? ORDER BY reviewed_at DESC, rowid DESC LIMIT 500").bind(userId).all(),
     db.prepare("SELECT * FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 500").bind(userId).all(),
     db.prepare("SELECT id, parent_id, name FROM folders WHERE user_id = ? ORDER BY name, id").bind(userId).all(),
+    // Count each successfully recalled card once per Tokyo day, beyond the log page limit.
+    db.prepare("SELECT date(reviewed_at, '+9 hours') AS day, COUNT(DISTINCT card_id) AS cards FROM review_logs WHERE user_id = ? AND undone_at IS NULL AND rating IN ('good', 'easy') AND reviewed_at >= ? AND reviewed_at < ? GROUP BY day").bind(userId, recordStart, end).all(),
   ]);
 
   const cards = (cardResult.results || []).map(mapCard);
@@ -91,7 +95,7 @@ export async function loadAppData(userId: string): Promise<AppData> {
     set.sourceContent = source?.content || "";
   }
 
-  const reviews: ReviewLog[] = (reviewResult.results || []).map((row) => ({
+  const reviews: ReviewLog[] = (reviewResult.results || []).filter((row) => !row.undone_at).map((row) => ({
     id: String(row.id),
     cardId: String(row.card_id),
     sessionId: row.session_id ? String(row.session_id) : null,
@@ -111,7 +115,7 @@ export async function loadAppData(userId: string): Promise<AppData> {
   }));
 
   const folders = (folderResult.results || []).map((row) => ({ id: String(row.id), parentId: row.parent_id ? String(row.parent_id) : null, name: String(row.name) }));
-  return { sets, reviews, chatMessages, folders, dailyReview: await loadDailyReview(userId) };
+  return { sets, reviews, chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: (reviewResult.results || []).filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
 }
 
 function mapCard(row: Record<string, unknown>): Card {
@@ -190,33 +194,48 @@ export async function addCardsToSet(userId: string, setId: string, newCards: Gen
   ]);
 }
 
-export async function reviewCard(userId: string, cardId: string, rating: BinaryReviewRating, responseMs: number, sessionId: string | null): Promise<void> {
+export async function reviewCard(userId: string, cardId: string, rating: BinaryReviewRating, responseMs: number, sessionId: string | null): Promise<string> {
   await ensureDatabase();
-  const db = database();
-  const card = await db.prepare("SELECT * FROM cards WHERE id = ? AND user_id = ?").bind(cardId, userId).first<Record<string, unknown>>();
-  if (!card || ["アーカイブ", "削除済み"].includes(String(card.status))) throw new Error("CARD_NOT_FOUND");
-
   await loadDailyReview(userId);
-  const reviewedAtMs = Date.now();
-  const now = new Date(reviewedAtMs).toISOString();
-  const schedule = scheduleBinaryReview(rating, Number(card.interval_days || 0), reviewedAtMs);
-  const dueAt = new Date(schedule.dueAtMs);
-  const safeResponseMs = Number.isFinite(responseMs) ? Math.max(0, Math.min(responseMs, 3_600_000)) : 0;
-  const setId = String(card.set_id);
-  await db.batch([
-    db.prepare(`UPDATE cards SET status = ?, due_at = ?, interval_days = ?,
-      review_count = review_count + 1, correct_count = correct_count + ?, updated_at = ?
-      WHERE id = ? AND user_id = ?`)
-      .bind(schedule.status, dueAt.toISOString(), schedule.intervalDays, schedule.correctDelta, now, cardId, userId),
-    db.prepare("INSERT INTO review_logs (id,user_id,card_id,session_id,rating,response_ms,reviewed_at) VALUES (?,?,?,?,?,?,?)")
-      .bind(id("review"), userId, cardId, sessionId, rating, safeResponseMs, now),
-    db.prepare("UPDATE card_sets SET last_studied_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
-      .bind(now, now, setId, userId),
-  ]);
-  const next = await db.prepare("SELECT MIN(due_at) AS next_due FROM cards WHERE set_id = ? AND user_id = ? AND status NOT IN ('アーカイブ', '削除済み')")
-    .bind(setId, userId).first<{ next_due: string }>();
-  await db.prepare("UPDATE card_sets SET next_review_at = ? WHERE id = ? AND user_id = ?")
-    .bind(next?.next_due || dueAt.toISOString(), setId, userId).run();
+  return database().transaction(async (tx) => {
+    const card = (await tx.execute({ sql: "SELECT * FROM cards WHERE id = ? AND user_id = ?", args: [cardId, userId] })).rows[0];
+    if (!card || ["アーカイブ", "削除済み"].includes(String(card.status))) throw new Error("CARD_NOT_FOUND");
+    const nowMs = Date.now();
+    const now = new Date(nowMs).toISOString();
+    const schedule = scheduleBinaryReview(rating, Number(card.interval_days), nowMs);
+    const setId = String(card.set_id);
+    const set = (await tx.execute({ sql: "SELECT last_studied_at FROM card_sets WHERE id = ? AND user_id = ?", args: [setId, userId] })).rows[0];
+    const previous = { status: card.status, dueAt: card.due_at, intervalDays: card.interval_days, reviewCount: card.review_count, correctCount: card.correct_count, lastStudiedAt: set?.last_studied_at ?? null };
+    const reviewId = id("review");
+    await tx.execute({ sql: "UPDATE cards SET status = ?, due_at = ?, interval_days = ?, review_count = review_count + 1, correct_count = correct_count + ?, updated_at = ? WHERE id = ? AND user_id = ?", args: [schedule.status, new Date(schedule.dueAtMs).toISOString(), schedule.intervalDays, schedule.correctDelta, now, cardId, userId] });
+    await tx.execute({ sql: "INSERT INTO review_logs (id,user_id,card_id,session_id,rating,response_ms,reviewed_at,previous_state) VALUES (?,?,?,?,?,?,?,?)", args: [reviewId, userId, cardId, sessionId, rating, Number.isFinite(responseMs) ? Math.max(0, Math.min(responseMs, 3_600_000)) : 0, now, JSON.stringify(previous)] });
+    await tx.execute({ sql: "UPDATE card_sets SET last_studied_at = ?, updated_at = ?, next_review_at = (SELECT MIN(due_at) FROM cards WHERE set_id = ? AND user_id = ? AND status NOT IN ('アーカイブ', '削除済み')) WHERE id = ? AND user_id = ?", args: [now, now, setId, userId, setId, userId] });
+    return reviewId;
+  });
+}
+
+export async function undoReview(userId: string, reviewId: string, sessionId: string): Promise<void> {
+  await ensureDatabase();
+  await database().transaction(async (tx) => {
+    const review = (await tx.execute({ sql: "SELECT rowid AS sequence, * FROM review_logs WHERE id = ? AND user_id = ? AND session_id = ?", args: [reviewId, userId, sessionId] })).rows[0];
+    if (!review?.previous_state) throw new Error("UNDO_NOT_AVAILABLE");
+    const newer = (await tx.execute({ sql: "SELECT id FROM review_logs WHERE user_id = ? AND rowid > ? AND undone_at IS NULL LIMIT 1", args: [userId, review.sequence] })).rows[0];
+    if (newer) throw new Error("UNDO_NOT_AVAILABLE");
+    if (review.undone_at) return; // Retrying the same request never rolls back twice.
+    const card = (await tx.execute({ sql: "SELECT * FROM cards WHERE id = ? AND user_id = ?", args: [review.card_id, userId] })).rows[0];
+    if (!card || ["削除済み", "アーカイブ"].includes(String(card.status))) throw new Error("UNDO_NOT_AVAILABLE");
+    const previous = JSON.parse(String(review.previous_state)) as { status: string; dueAt: string; intervalDays: number; reviewCount: number; correctCount: number; lastStudiedAt: string | null };
+    if (Number(card.review_count) !== previous.reviewCount + 1) throw new Error("UNDO_NOT_AVAILABLE");
+    const now = new Date().toISOString();
+    await tx.execute({ sql: "UPDATE review_logs SET undone_at = ? WHERE id = ? AND user_id = ?", args: [now, reviewId, userId] });
+    await tx.execute({ sql: "UPDATE cards SET status = ?, due_at = ?, interval_days = ?, review_count = ?, correct_count = ?, updated_at = ? WHERE id = ? AND user_id = ?", args: [previous.status, previous.dueAt, previous.intervalDays, previous.reviewCount, previous.correctCount, now, review.card_id, userId] });
+    await tx.execute({ sql: "UPDATE card_sets SET last_studied_at = ?, updated_at = ?, next_review_at = (SELECT MIN(due_at) FROM cards WHERE set_id = ? AND user_id = ? AND status NOT IN ('アーカイブ', '削除済み')) WHERE id = ? AND user_id = ?", args: [previous.lastStudiedAt, now, card.set_id, userId, card.set_id, userId] });
+    const { day, start, end } = studyDayBounds(new Date(String(review.reviewed_at)));
+    await tx.execute({ sql: `UPDATE daily_review_plans SET completed_at = NULL WHERE user_id = ? AND day = ? AND EXISTS (
+      SELECT 1 FROM json_each(daily_review_plans.card_ids) assignment JOIN cards c ON c.id = assignment.value AND c.user_id = daily_review_plans.user_id
+      WHERE c.status NOT IN ('削除済み', 'アーカイブ') AND c.id NOT IN (SELECT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good','easy') AND undone_at IS NULL)
+    )`, args: [userId, day, userId, start, end] });
+  });
 }
 
 export async function saveChatPair(
@@ -345,7 +364,7 @@ export async function loadDailyReview(userId: string, now = new Date()): Promise
     .bind(userId, day).first<{ card_ids: string; completed_at: string | null }>();
   if (!plan) {
     const candidates = await db.prepare(`SELECT id FROM cards WHERE user_id = ? AND status NOT IN ('アーカイブ', '削除済み') AND
-      ((interval_days < 60 AND due_at < ?) OR (interval_days <= 60 AND id IN (SELECT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good','easy'))))
+      ((interval_days < 60 AND due_at < ?) OR (interval_days <= 60 AND id IN (SELECT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good','easy') AND undone_at IS NULL)))
       ORDER BY due_at, id`).bind(userId, end, userId, start, end).all<{ id: string }>();
     const ids = (candidates.results || []).map((c) => c.id);
     if (ids.length) {
@@ -356,7 +375,7 @@ export async function loadDailyReview(userId: string, now = new Date()): Promise
   const active = await db.prepare("SELECT id FROM cards WHERE user_id = ? AND status NOT IN ('アーカイブ', '削除済み')").bind(userId).all<{ id: string }>();
   const activeIds = new Set((active.results || []).map((c) => c.id));
   const cardIds = plan ? parseJsonArray(plan.card_ids).filter((id) => activeIds.has(id)) : [];
-  const successes = await db.prepare("SELECT DISTINCT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good', 'easy')")
+  const successes = await db.prepare("SELECT DISTINCT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good', 'easy') AND undone_at IS NULL")
     .bind(userId, start, end).all<{ card_id: string }>();
   const successfulIds = new Set((successes.results || []).map((r) => r.card_id));
   const completedCardIds = cardIds.filter((id) => successfulIds.has(id));
