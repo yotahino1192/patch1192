@@ -17,7 +17,7 @@ export function DailyReviewRail({ data, now, onStudy }: { data: AppData; now: Da
   const remaining = plan.cardIds.filter((id) => !done.has(id)).length;
   const achievedDays = days.map((date) => plan.achievedDays.includes(studyDay(date)));
   return <section className="daily-review-rail" aria-label={t("連続学習記録")}>
-    <div className="streak-heading"><h2>🔥 {t("連続学習")}</h2><strong>{t("{0}日", plan.streak)}</strong></div>
+    <div className="streak-heading"><h2><IconLabel name="streak" size={24}>{t("連続学習")}</IconLabel></h2><strong>{t("{0}日", plan.streak)}</strong></div>
     <div className="streak-track">{days.map((date, i) => {
       const today = i === 6;
       const achieved = achievedDays[i];

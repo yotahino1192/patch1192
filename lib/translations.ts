@@ -1,4 +1,5 @@
 export const english: Record<string, string> = {
+"フォルダへ戻る": "Back to folder",
 "カードセットを編集": "Edit card set",
 "カード数": "Cards",
 "最終学習日": "Last studied",

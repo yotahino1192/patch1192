@@ -15,7 +15,7 @@ import { ReviewCelebration } from "./study-effects";
 import { MaterialManager } from "./material-manager";
 import { SettingsDialog } from "./settings-dialog";
 import { StudyCardEditor } from "./study-card-editor";
-import { AssetIcon, IconLabel } from "./asset-icon";
+import { AssetIcon, IconLabel, type AssetName } from "./asset-icon";
 import type {
   AppData,
   Card,
@@ -208,18 +208,18 @@ function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resuma
       </section> : null}
       <DailyReviewRail data={data} now={now} onStudy={startStudy} />
       {resumableSessions.length > 0 && <section className="home-resume-list" aria-label={t("今日の学習")}>
-        {resumableSessions.map((session) => <button key={session.id} className="resume-study" onClick={() => onResume(session)}><span><strong>{t("続きから学習 · 残り{0}枚", pendingStudyCount(session))}</strong><small>{data.sets.find((set) => set.id === session.setId)?.title || t("復習")}</small></span><b aria-hidden="true">➡️</b></button>)}
+        {resumableSessions.map((session) => <button key={session.id} className="resume-study" onClick={() => onResume(session)}><span><strong>{t("続きから学習 · 残り{0}枚", pendingStudyCount(session))}</strong><small>{data.sets.find((set) => set.id === session.setId)?.title || t("復習")}</small></span><AssetIcon name="chevron-right" size={18} /></button>)}
       </section>}
 
       <section className="long-term-review">
         <div className="section-row"><h2>{t("久しぶりに思い出す")}</h2></div>
         {memorySets.length ? <div className="recommend-card-grid">{memorySets.map(({ set, cards }, index) => <button key={set.id} className={`recommend-card ${["blue-set", "green-set", "violet-set"][index % 3]}`} onClick={() => startStudy(`__memory__:${set.id}`)}>
-          <strong>{set.title}</strong><span className="recommend-number">{t("{0}枚", cards.length)}</span><small>{t("間隔をあけて、長期記憶を確認しましょう。")}</small><span className="recommend-link">{t("復習を始める")} <b aria-hidden="true">➡️</b></span>
+          <strong>{set.title}</strong><span className="recommend-number">{t("{0}枚", cards.length)}</span><small>{t("間隔をあけて、長期記憶を確認しましょう。")}</small><span className="recommend-link">{t("復習を始める")} <AssetIcon name="chevron-right" size={18} /></span>
         </button>)}</div> : <div className="memory-empty"><img src="/review-empty.png" width={1454} height={1080} alt="" /><div><strong>{t("今は復習待ちのカードはありません")}</strong><p>{t("次の復習まで少し休憩しましょう。")}</p></div></div>}
       </section>
 
-      {resumeDraft && <button className="resume-draft" onClick={resumeDraft}>{t("下書きの続きから")}<span>➡️</span></button>}
-      {data.sets.length > 0 && <button className="floating-add" onClick={() => setScreen("import")}><IconLabel name="plus" size={22}>{t("新しい教材を追加")}</IconLabel></button>}
+      {resumeDraft && <button className="resume-draft" onClick={resumeDraft}>{t("下書きの続きから")}<AssetIcon name="chevron-right" size={18} /></button>}
+      {data.sets.length > 0 && <button className="floating-add" onClick={() => setScreen("import")}><IconLabel name="plus-dark" size={22}>{t("新しい教材を追加")}</IconLabel></button>}
     </div>
   );
 }
@@ -424,7 +424,7 @@ function SetDetail({ data, selectedSetId, selectSet, startStudy, now, onData, fo
       <section>
         <div className="section-row"><h2>{t("カード一覧")}</h2><span className="muted">{activeCards.length}{t("枚")}</span></div>
         <div className="topic-list">
-          {activeCards.map((card, index) => <button id={`set-card-${card.id}`} key={card.id} onClick={() => startStudy(set.id, card.id)}><span>{index + 1}</span><div><strong>{card.question}</strong><small>{card.answer}</small></div><i>{t(card.status)}</i><em>{relativeDate(card.dueAt, now, language)}　➡️</em></button>)}
+          {activeCards.map((card, index) => <button id={`set-card-${card.id}`} key={card.id} onClick={() => startStudy(set.id, card.id)}><span>{index + 1}</span><div><strong>{card.question}</strong><small>{card.answer}</small></div><i>{t(card.status)}</i><em>{relativeDate(card.dueAt, now, language)} <AssetIcon name="chevron-right" size={16} /></em></button>)}
         </div>
       </section>
 
@@ -776,7 +776,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
     <div className="page study-page">
       {dailyCelebration && <ReviewCelebration onDismiss={() => setDailyCelebration(false)} />}
       <div className="study-header"><button className="secondary pause-study" disabled={busy || aiBusy} onClick={onPause}>{t("中断する")}</button><h1>{set.title}</h1><span /></div>
-      <div className="study-progress" role="progressbar" aria-valuemin={0} aria-valuemax={progressTotal} aria-valuenow={completed}><span style={{ width: `${progress}%` }} /><b>{t("残り")}{queue.length}{t("枚")}</b></div>
+      <div className="study-progress"><div className="study-progress-track" role="progressbar" aria-label={t("今日の学習")} aria-valuemin={0} aria-valuemax={progressTotal} aria-valuenow={completed} aria-valuetext={`${t("残り")}${queue.length}${t("枚")}`}><span className="study-progress-fill" style={{ width: `${progress}%` }} /></div><b className="study-progress-remaining">{t("残り")}{queue.length}{t("枚")}</b></div>
       <div className="study-tools">{undoButton}<button type="button" className="edit-study-button" disabled={busy || aiBusy} onClick={() => updateSession((current) => ({ ...current, editDraft: { cardId: card.id, question: card.question, answer: card.answer, choices: [...card.choices] } }))}>{t("このカードを修正")}</button></div>
       <article
         key={`flashcard:${card.id}`}
@@ -828,12 +828,12 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         <button className="primary wide record-choice" disabled={busy || aiBusy} onClick={() => submitVerdict(selectedChoice === card.answer ? "correct" : "incorrect")}>{selectedChoice === card.answer ? <IconLabel name="check">{t("選択結果を記録して次へ")}</IconLabel> : <IconLabel name="refresh">{t("選択結果を記録して後でもう一度")}</IconLabel>}</button>
       ) : (
         <div className="swipe-actions compact" aria-label={t("スワイプ操作の代替ボタン")}>
-          <button className="incorrect" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("incorrect")}><b>⬅️</b><span><strong>{t("まだ覚えていない")}</strong></span></button>
-          <button className="correct" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("correct")}><span><strong>{t("覚えていた")}</strong></span><b>➡️</b></button>
+          <button className="incorrect" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("incorrect")}><AssetIcon name="chevron-left" size={20} /><span><strong>{t("まだ覚えていない")}</strong></span></button>
+          <button className="correct" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("correct")}><span><strong>{t("覚えていた")}</strong></span><AssetIcon name="chevron-right" size={20} /></button>
         </div>
       )}
 
-      {flipped && <details key={`source:${card.id}`} className="source-details"><summary>{t("元の文章を確認")}</summary><p>{set.sourceContent}</p></details>}
+      {flipped && <details key={`source:${card.id}`} className="source-details"><summary><IconLabel name="document">{t("元の文章を確認")}</IconLabel></summary><p>{set.sourceContent}</p></details>}
       {error && <p className="inline-error" role="alert">{t(error)}</p>}
     </div>
   );
@@ -875,17 +875,17 @@ function Records({ data, now, startStudy }: { data: AppData; now: Date; startStu
         <div className="bar-chart">{dayData.map((day) => <div key={dayKey(day.date)}><span style={{ height: `${day.count === 0 ? 2 : Math.max(4, day.count / maxDailyReviews * 90)}px` }}><i>{day.count}{language === "ja" && t("枚")}</i></span><b>{new Intl.DateTimeFormat(locale, { timeZone: "Asia/Tokyo", weekday: "short" }).format(day.date)}</b></div>)}</div>
       </section>
       <div className="record-stats">
-        {[["streak", "連続学習", t("{0}日", streak)], ["cards", "直近7日間の学習", t("{0}枚", weekReviews)], ["recall", "長期記憶したカード数", t("{0}枚", milestones.longTerm)], ["cards", "もう少しで長期記憶に到達するカード数", t("{0}枚", milestones.nearLongTerm)], ["accuracy", "学習し切ったセット数", t("{0}セット", milestones.completedSets)]].map(([icon, label, value], index) => (
+        {[["streak", "連続学習", t("{0}日", streak)], ["weekly-study", "直近7日間の学習", t("{0}枚", weekReviews)], ["long-term", "長期記憶したカード数", t("{0}枚", milestones.longTerm)], ["memory-clock", "もう少しで長期記憶に到達するカード数", t("{0}枚", milestones.nearLongTerm)], ["completed-sets", "学習し切ったセット数", t("{0}セット", milestones.completedSets)]].map(([icon, label, value], index) => (
           <article key={label} className={index < 2 ? "record-stat-summary" : "record-stat-memory"}>
-            <span className="record-stat-icon" aria-hidden="true"><img src={`/record-icons/${icon}.png`} width={1254} height={1254} alt="" loading="lazy" /></span>
+            <span className="record-stat-icon" aria-hidden="true"><AssetIcon name={icon as AssetName} size={index < 2 ? 28 : 34} /></span>
             <small>{t(label)}</small>
             <strong>{value}</strong>
           </article>
         ))}
       </div>
-      <section><div className="section-row"><h2>{t("復習リマインド")}</h2></div><div className="reminder-list">{data.sets.slice(0, 5).map((set) => { const due = set.cards.filter((card) => isDue(card, now)).length; return <button key={set.id} onClick={() => startStudy(set.id)}><AssetIcon name="clock" size={26} /><div><strong>{due ? t("{0}枚のカードが復習待ち", due) : t("{0}の次回復習", set.title)}</strong><small>{set.title}</small></div><em>{relativeDate(set.nextReviewAt, now, language)}　➡️</em></button>; })}</div></section>
+      <section><div className="section-row"><h2>{t("復習リマインド")}</h2></div><div className="reminder-list">{data.sets.slice(0, 5).map((set) => { const due = set.cards.filter((card) => isDue(card, now)).length; return <button key={set.id} onClick={() => startStudy(set.id)}><AssetIcon name="clock" size={26} /><div><strong>{due ? t("{0}枚のカードが復習待ち", due) : t("{0}の次回復習", set.title)}</strong><small>{set.title}</small></div><em>{relativeDate(set.nextReviewAt, now, language)} <AssetIcon name="chevron-right" size={16} /></em></button>; })}</div></section>
       <details className="ai-history-disclosure"><summary>{t("AI解説の学習履歴")}</summary><div className="ai-history-list">{aiHistory.length ? aiHistory.map(({ message, question, card: historyCard, setTitle }) => <details key={message.id}><summary><span><span><AssetIcon name="sparkles" /></span><small>{setTitle}{t("・")}{relativeDate(message.createdAt, now, language)}</small></span><strong>{historyCard?.question || question}</strong></summary><p className="history-question">{t("あなた：")}{question}</p><p>{message.content}</p></details>) : <p className="list-empty">{t("学習中にAIへ質問すると、解説がここへ保存されます。")}</p>}</div></details>
-      <section><div className="section-row"><h2>{t("苦手カード")}</h2><span className="muted">{weak.length}{t("枚")}</span></div><div className="weak-list">{weak.length ? weak.slice(0, 8).map(({ card, set }) => <button key={card.id} onClick={() => startStudy(set.id, card.id)}><i>{set.category}</i><strong>{card.question}</strong><span>{t("復習")}{card.reviewCount}{t("回　➡️")}</span></button>) : <p className="list-empty">{t("苦手カードはまだありません。")}</p>}</div></section>
+      <section><div className="section-row"><h2>{t("苦手カード")}</h2><span className="muted">{weak.length}{t("枚")}</span></div><div className="weak-list">{weak.length ? weak.slice(0, 8).map(({ card, set }) => <button key={card.id} onClick={() => startStudy(set.id, card.id)}><i>{set.category}</i><strong>{card.question}</strong><span>{t("復習")}{card.reviewCount}{t("回")} <AssetIcon name="chevron-right" size={16} /></span></button>) : <p className="list-empty">{t("苦手カードはまだありません。")}</p>}</div></section>
     </div>
   );
 }
