@@ -67,7 +67,7 @@ export async function extractDocument(file: File, options: { workerSrc?: string 
   }
   if (extension === "docx" || extension === "pptx") return extractOfficeText(new Uint8Array(await file.arrayBuffer()), extension);
   if (extension !== "pdf") throw new Error("PDF・Word（.docx）・PowerPoint（.pptx）・TXT・Markdown・CSVに対応しています。");
-  const pdfjs = await import("pdfjs-dist");
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = options.workerSrc || "/pdfjs/pdf.worker.min.mjs";
   const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), useSystemFonts: true, cMapUrl: "/pdfjs/cmaps/", cMapPacked: true });
   try {

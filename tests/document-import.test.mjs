@@ -27,7 +27,7 @@ test('documents with entities or no supported content are rejected', () => {
   assert.throws(() => extractOfficeText(zip({'misc.txt':'text'}),'pptx'), /形式/);
 });
 
-const pdfOptions = { workerSrc: new URL("../node_modules/pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).href };
+const pdfOptions = { workerSrc: new URL("../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).href };
 function pdfFile(text) {
   const stream = `BT /F1 12 Tf 72 720 Td (${text}) Tj ET`;
   const objects = [

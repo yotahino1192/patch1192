@@ -12,7 +12,12 @@ const LanguageContext = createContext({ language: "ja" as Language, setLanguage:
 export function LanguageProvider({ children, initialLanguage = "ja" }: { children: ReactNode; initialLanguage?: Language }) {
   const [language, setLanguage] = useState<Language>(initialLanguage);
   useEffect(() => {
-    try { if (localStorage.getItem("loop-language") === "en") setLanguage("en"); } catch { /* Storage is optional. */ }
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      try { if (localStorage.getItem("loop-language") === "en") setLanguage("en"); } catch { /* Storage is optional. */ }
+    });
+    return () => { active = false; };
   }, []);
   useEffect(() => {
     document.documentElement.lang = language;

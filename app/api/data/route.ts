@@ -106,7 +106,7 @@ export async function POST(request: Request): Promise<Response> {
       if (!validId(body.sessionId) || !validId(body.operationId) || !validId(body.cardId) || !Number.isSafeInteger(body.expectedReviewCount) || Number(body.expectedReviewCount) < 0 || typeof body.responseMs !== "number" || !Number.isFinite(body.responseMs) || body.responseMs < 0) return json({ error: "画面を再読み込みして、学習状態を確認してください。", code: "INVALID_REVIEW_OPERATION" }, 400);
       const sessionId = body.sessionId;
       const reviewId = await reviewCard(userId, cardId, rating, body.responseMs, sessionId, { operationId: body.operationId, expectedReviewCount: Number(body.expectedReviewCount) });
-      return json({ reviewId, data: await loadAppData(userId) });
+      return json({ reviewId, data: await loadAppData(userId, [sessionId]) });
     }
     return json({ error: "未対応の操作です。" }, 400);
   } catch (error) {

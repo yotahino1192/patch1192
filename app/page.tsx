@@ -611,6 +611,11 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
           ...attempt,
         }),
       });
+      if (result.data.undoneReviewIds?.includes(result.reviewId)) {
+        setData(result.data);
+        updateSession((current) => reconcileSession(current, result.data));
+        return;
+      }
       updateSession((current) => ({ ...current, undo: studyUndoCheckpoint(session, result.reviewId) }));
       setData(result.data);
       if (!mounted.current) return;

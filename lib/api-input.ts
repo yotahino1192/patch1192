@@ -5,7 +5,7 @@ export class InputError extends Error {
 
 // Check bytes while reading, before allocating/parsing an unbounded JSON body.
 export async function readJsonObject(request: Request): Promise<Record<string, unknown>> {
-  if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) throw new InputError('JSON形式で送信してください。', 415);
+  if (request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase() !== 'application/json') throw new InputError('JSON形式で送信してください。', 415);
   const limit = 2 * 1024 * 1024;
   if (Number(request.headers.get('content-length')) > limit) throw new InputError('送信内容が大きすぎます。', 413);
   const reader = request.body?.getReader();

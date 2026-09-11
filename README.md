@@ -6,6 +6,8 @@ UIと学習の仕様は従来のまま、VercelのNode.js実行環境に対応�
 UIアイコンは既存の画像素材、または標準の絵文字を使用します。Codexによる独自のSVG・CSS描画アイコンや新規生成アイコンは追加しません。既存画像の共通表示は `app/asset-icon.tsx` を利用できます。 設定・閉じる・開閉・チェック・鍵・きらめき・説明・追加・再生成は、ユーザー提供の `public/ui-icons/` のPNGを優先します。
 `public/nav-icons/` の画像は下部メニューバー専用です。画面内のボタン、見出し、ブラウザーのタブアイコンには流用しません。
 
+現在の設計は [ARCHITECTURE.md](ARCHITECTURE.md)、検証結果と公開前の課題は [STATUS.md](STATUS.md) を参照してください。
+
 ## ローカルで起動
 
 Node.js 22系を使います。
@@ -86,6 +88,8 @@ Cloudflare専用の認証ヘッダーはVercelでは信頼せず、従来のロ�
 - 保存と復習の処理: `db/store.ts`
 - `npm run db:generate`: スキーマ変更時のSQL生成
 - `npm test`: 本番ビルドと自動テスト
+- `npm run check`: Node 22で型検査・Lint・自動テスト・本番ビルド
+- `npm run test:unit`: 自動テストのみ
 
 初回接続時、SQLをトランザクション内で順に適用します。適用履歴は `_loop_migrations` に保存します。
 既存のCloudflareローカルDBをコピーした場合も、既に存在するテーブルや列は維持します。

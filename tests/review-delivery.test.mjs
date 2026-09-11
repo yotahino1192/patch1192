@@ -13,7 +13,7 @@ globalThis.__deliveryDatabase = db;
 after(async () => { client.close(); await rm(directory, { recursive:true, force:true }); });
 registerHooks({ resolve(specifier, context, next) {
   if (specifier === './client') return { url: 'data:text/javascript,export function database(){return globalThis.__deliveryDatabase} export async function initializeDatabase(){await globalThis.__deliveryDatabase.initialize()}', shortCircuit: true };
-  if (['../lib/daily-review', '../lib/review'].includes(specifier)) return next(new URL(specifier + '.ts', context.parentURL).href, context);
+  if (specifier.startsWith('.') && !/\.[a-z]+$/.test(specifier)) return next(new URL(specifier + '.ts', context.parentURL).href, context);
   return next(specifier, context);
 } });
 const { saveGeneratedSet, loadAppData, reviewCard, undoReview } = await import('../db/store.ts');
@@ -75,4 +75,45 @@ test('lost incorrect-answer response rotates the queue exactly once on recovery'
   const restored=reconcileSession(session,data);
   assert.equal(restored.mistakes,1);assert.equal(restored.flipped,false);assert.equal(restored.pendingReview,null);
   assert.deepEqual(reconcileSession(restored,data),restored);
+});
+
+const { POST, GET } = await import('../app/api/data/route.ts');
+const request = (body) => new Request('http://localhost/api/data', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+test('API response failure after commit can be retried without another write', async () => {
+  const { session, pendingReview } = await setup('loop-owner');
+  const payload = {action:'reviewCard',sessionId:session.id,...pendingReview};
+  let failRead = false;
+  globalThis.__deliveryDatabase = {
+    ...db,
+    transaction: async (action) => { const result = await db.transaction(action); failRead = true; return result; },
+    prepare(sql, args) {
+      if (failRead && sql.startsWith('SELECT * FROM card_sets')) { failRead = false; throw new Error('simulated response read failure'); }
+      return db.prepare(sql,args);
+    },
+  };
+  try { assert.equal((await POST(request(payload))).status,500); }
+  finally { globalThis.__deliveryDatabase = db; }
+  const response = await POST(request(payload));assert.equal(response.status,200);
+  const result = await response.json();assert.equal(result.data.sets[0].cards[0].reviewCount,1);
+  const duplicate = await (await POST(request(payload))).json();assert.equal(duplicate.reviewId,result.reviewId);
+  assert.equal((await POST(request({...payload,rating:'again'}))).status,409);
+  assert.equal((await POST(request({...payload,operationId:undefined}))).status,400);
+  const restored = await (await GET(new Request(`http://localhost/api/data?sessionId=${session.id}`))).json();
+  assert.equal(reconcileSession(session,restored).done,true);
+});
+test('API rejects invalid bodies before touching the database', async () => {
+  for (const body of [null,[],42]) assert.equal((await POST(request(body))).status,400);
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:{'content-type':'application/json'},body:'{'}))).status,400);
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',body:'{}'}))).status,415);
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:{'content-type':'application/json-invalid'},body:'{}'}))).status,415);
+  const oversized = ' '.repeat(2 * 1024 * 1024 + 1);
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:{'content-type':'application/json'},body:oversized}))).status,413);
+  const stream = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(oversized)); controller.close(); } });
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:{'content-type':'application/json'},body:stream,duplex:'half'}))).status,413);
+  assert.equal((await POST(request({action:'addCardsToSet',setId:'x',cards:[{question:123,answer:'A',choices:[],format:'qa',difficulty:1}]}))).status,400);
+  assert.equal((await GET(new Request('http://localhost/api/data?sessionId=bad%20id'))).status,400);
+});
+test('database unique constraint rejects bypassed duplicate operation IDs', async () => {
+  const {send,card,pendingReview}=await setup('constraint');await send();
+  await assert.rejects(db.prepare('INSERT INTO review_logs (id,user_id,card_id,rating,response_ms,reviewed_at,operation_id) VALUES (?,?,?,?,?,?,?)').bind('bypass','constraint',card.id,'good',0,new Date().toISOString(),pendingReview.operationId).run(),/UNIQUE/);
 });
