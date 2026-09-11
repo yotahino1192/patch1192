@@ -11,7 +11,8 @@ after(() => client.close());
 registerHooks({ resolve(specifier, context, next) {
   if (specifier === "./client") return { url: 'data:text/javascript,export function database(){return globalThis.__undoDatabase;} export async function initializeDatabase(){await globalThis.__undoDatabase.initialize();}', shortCircuit: true };
   if (["../lib/daily-review", "../lib/review"].includes(specifier)) return next(new URL(specifier + ".ts", context.parentURL).href, context);
-  return next(specifier, context);
+  if (specifier === "../lib/onboarding" || specifier === "../lib/api-input") return next(new URL(specifier + ".ts", context.parentURL).href, context);
+    return next(specifier, context);
 } });
 const { saveGeneratedSet, loadAppData, reviewCard, undoReview, manageMaterial } = await import("../db/store.ts");
 async function makeCard(owner) {

@@ -36,6 +36,7 @@ registerHooks({
     if (specifier === "./client") return { url: 'data:text/javascript,export function database() { return globalThis.__testD1; } export async function initializeDatabase() {}', shortCircuit: true };
     if (specifier === "../lib/daily-review") return next(new URL("../lib/daily-review.ts", context.parentURL).href, context);
     if (specifier === "../lib/review") return next(new URL("../lib/review.ts", context.parentURL).href, context);
+    if (specifier === "../lib/onboarding" || specifier === "../lib/api-input") return next(new URL(specifier + ".ts", context.parentURL).href, context);
     return next(specifier, context);
   },
 });

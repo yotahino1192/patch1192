@@ -95,3 +95,16 @@ export const dailyReviewPlans = sqliteTable("daily_review_plans", {
   cardIds: text("card_ids").notNull(),
   completedAt: text("completed_at"),
 }, (table) => [primaryKey({ columns: [table.userId, table.day] })]);
+
+export const userProfiles = sqliteTable("user_profiles", {
+  userId: text("user_id").primaryKey(),
+  displayName: text("display_name").notNull().default(""),
+  interests: text("interests").notNull().default("[]"),
+  learningGoal: text("learning_goal").notNull().default(""),
+  onboardingCompleted: integer("onboarding_completed").notNull().default(0),
+  onboardingCompletedAt: text("onboarding_completed_at"),
+  initialSetId: text("initial_set_id"),
+  initialCardIds: text("initial_card_ids").notNull().default("[]"),
+  initialSessionId: text("initial_session_id"),
+  firstLearningCompletedAt: text("first_learning_completed_at"),
+});

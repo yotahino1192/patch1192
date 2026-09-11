@@ -1,5 +1,5 @@
 import { InputError, readJsonObject, validId, boundedText } from "../../../lib/api-input";
-import { organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, requestUserId, reviewCard, undoReview, saveGeneratedSet } from "../../../db/store";
+import { updateOnboarding, organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, requestUserId, reviewCard, undoReview, saveGeneratedSet } from "../../../db/store";
 import type { BinaryReviewRating, GeneratedCard, GeneratedMaterial } from "../../../lib/types";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +43,10 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const body = await readJsonObject(request);
     const userId = requestUserId(request);
+    if (body.action === "onboarding") {
+      await updateOnboarding(userId, body);
+      return json({ data: await loadAppData(userId) });
+    }
     if (["createFolder", "renameFolder", "moveSet"].includes(String(body.action))) {
       const action = body.action as "createFolder" | "renameFolder" | "moveSet";
       const name = String(body.name || "").trim();

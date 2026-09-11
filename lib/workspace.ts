@@ -81,16 +81,17 @@ export function reconcileSession(session: StudySession, data: AppData): StudySes
   if (session.undo && data.undoneReviewIds?.includes(session.undo.reviewId)) session = restoreStudyUndo(session);
   if (session.pendingReview && data.undoneOperationIds?.includes(session.pendingReview.operationId)) session = { ...session, pendingReview: null };
   const reviews = (data.sessionReviews ?? data.reviews).filter((review) => review.sessionId === session.id);
+  const introductory = data.profile?.initialSessionId === session.id && !data.profile.onboardingCompleted;
   const pending = session.pendingReview;
   const delivered = pending && reviews.find((review) => review.operationId === pending.operationId);
   if (delivered && session.queue[0] === pending?.cardId) {
     session = { ...session, undo: studyUndoCheckpoint(session, delivered.id), pendingReview: null,
-      queue: delivered.rating === "again" ? [...session.queue.slice(1), session.queue[0]] : session.queue.slice(1),
+      queue: delivered.rating === "again" && !introductory ? [...session.queue.slice(1), session.queue[0]] : session.queue.slice(1),
       mistakes: session.mistakes + (delivered.rating === "again" ? 1 : 0),
       flipped: false, selectedChoice: null, aiInput: "", aiOpen: false, aiCompose: false };
   }
   const active = new Map(data.sets.flatMap((set) => set.cards).filter((card) => !["削除済み", "アーカイブ"].includes(card.status)).map((card) => [card.id, card]));
-  const finished = new Set(reviews.filter((review) => ["good", "easy"].includes(review.rating)).map((review) => review.cardId));
+  const finished = new Set(reviews.filter((review) => (introductory || ["good", "easy"].includes(review.rating))).map((review) => review.cardId));
   if (session.pendingReview && !delivered && active.get(session.pendingReview.cardId)?.reviewCount !== session.pendingReview.expectedReviewCount) session = { ...session, pendingReview: null, flipped: false, selectedChoice: null };
   const availableQueue = [...new Set(session.queue)].filter((id) => active.has(id));
   const queue = availableQueue.filter((id) => !finished.has(id));

@@ -3,6 +3,7 @@
 import { useLanguage, LanguageProvider, translate, type Language } from "./language";
 
 import { useEffect, useRef, useState } from "react";
+import { Onboarding } from "./onboarding";
 import { useWorkspace } from "./use-workspace";
 import { EMPTY_IMPORT, EMPTY_SESSION, workspaceSessionIds, activateSession, reconcileWorkspace, reconcileSession, pendingStudyCount, startStudyBatch, nextStudyBatch, studyUndoCheckpoint, restoreStudyUndo, studyReturnTarget, resolveStudyReturn, type DraftCard, type DraftMaterial, type ImportDraft, type StudySession, type Workspace } from "../lib/workspace";
 import { SetLibrary, folderPath } from "./set-library";
@@ -206,11 +207,12 @@ function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resuma
       <section className="hero companion-greeting" aria-label={t("キャラクターからのあいさつ")}>
         <img className="home-landscape" src="/home-landscape.png" width={1672} height={941} alt="" fetchPriority="high" aria-hidden="true" />
         <div className="companion-bubble">
-          <h1>{t(greeting(now))}{t("、Yota")}</h1>
+          <h1>{t(greeting(now))}{data.profile?.displayName ? `、${data.profile.displayName}` : t("、Yota")}</h1>
           <p>{!data.sets.length ? t("まずはサンプルで、一緒に学んでみよう！") : planPending.size ? t("今日は{0}枚、一緒に復習しよう！", planPending.size) : data.dailyReview.completed ? t("今日の復習はできたね。おつかれさま！") : t("次の復習までひと休み。新しい文章からも学べるよ！")}</p>
         </div>
       </section>
 
+      {data.profile?.firstLearningCompletedAt && <section className="panel onboarding-home-summary"><IconLabel name="check">{t("最初のPatchができました")}</IconLabel><p>{t("3枚学習しました")} · {data.sets.find(set=>set.id===data.profile?.initialSetId)?.title}</p></section>}
       {!data.sets.length ? <section className="panel first-lesson">
         <h2>{t("最初の学習を始めよう")}</h2>
         <button className="primary wide" disabled={sampleBusy} onClick={async () => { setSampleBusy(true); setSampleError(""); try { await onSample(); } catch (e) { setSampleError(e instanceof Error ? e.message : t("サンプルを準備できませんでした。")); } finally { setSampleBusy(false); } }}>{sampleBusy ? t("準備しています…") : t("サンプルで学習 · 3枚")}</button>
@@ -466,6 +468,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
   now: Date;
 }) {
   const { t, language, locale, setLanguage } = useLanguage();
+  const introductory = data.profile?.initialSessionId === sessionId && !data.profile.onboardingCompleted;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dragX, setDragX] = useState(0);
@@ -626,10 +629,10 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         if (!mounted.current) return;
         setCorrectFeedback(false);
       }
-      if (!data.dailyReview.completed && result.data.dailyReview.completed && result.data.dailyReview.cardIds.length > 0) {
+      if (!introductory && !data.dailyReview.completed && result.data.dailyReview.completed && result.data.dailyReview.cardIds.length > 0) {
         setDailyCelebration(true);
       }
-      const nextQueue = advanceLessonQueue(queue, resolvedVerdict);
+      const nextQueue = introductory ? queue.slice(1) : advanceLessonQueue(queue, resolvedVerdict);
       updateSession((current) => ({ ...current, queue: nextQueue, pendingReview: null }));
       if (resolvedVerdict === "incorrect") {
         setSessionMistakes((count) => count + 1);
@@ -642,7 +645,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
       setAiOpen(false);
       setAiInput("");
       shownAt.current = currentTimeMs();
-      if (resolvedVerdict === "correct" && nextQueue.length === 0) {
+      if ((introductory || resolvedVerdict === "correct") && nextQueue.length === 0) {
         if (session.remaining?.length) updateSession((current) => ({ ...current, batchDone: true }));
         else { setSessionDone(true); void summarizeAiHistory(sessionAiMessages); }
       }
@@ -802,8 +805,8 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
     <div className="page study-page">
       {dailyCelebration && <ReviewCelebration onDismiss={() => setDailyCelebration(false)} />}
       <div className="study-header"><button className="secondary pause-study" disabled={busy || aiBusy} onClick={onPause}>{t("中断する")}</button><h1>{set.title}</h1><span /></div>
-      <div className="study-progress"><div className="study-progress-track" role="progressbar" aria-label={t("今日の学習")} aria-valuemin={0} aria-valuemax={progressTotal} aria-valuenow={completed} aria-valuetext={`${t("残り")}${queue.length}${t("枚")}`}><span className="study-progress-fill" style={{ width: `${progress}%` }} /></div><b className="study-progress-remaining">{t("残り")}{queue.length}{t("枚")}</b></div>
-      <div className="study-tools">{undoButton}<button type="button" className="edit-study-button" disabled={busy || aiBusy} onClick={() => updateSession((current) => ({ ...current, editDraft: { cardId: card.id, question: card.question, answer: card.answer, choices: [...card.choices] } }))}>{t("このカードを修正")}</button></div>
+      <div className="study-progress"><div className="study-progress-track" role="progressbar" aria-label={t("今日の学習")} aria-valuemin={0} aria-valuemax={progressTotal} aria-valuenow={completed} aria-valuetext={`${t("残り")}${queue.length}${t("枚")}`}><span className="study-progress-fill" style={{ width: `${progress}%` }} /></div><b className="study-progress-remaining">{introductory ? `${Math.min(3,completed+1)} / 3` : <>{t("残り")}{queue.length}{t("枚")}</>}</b></div>
+      {!introductory && <div className="study-tools">{undoButton}<button type="button" className="edit-study-button" disabled={busy || aiBusy} onClick={() => updateSession((current) => ({ ...current, editDraft: { cardId: card.id, question: card.question, answer: card.answer, choices: [...card.choices] } }))}>{t("このカードを修正")}</button></div>}
       <article
         key={`flashcard:${card.id}`}
         className={`flashcard ${correctFeedback || (flipped && selectedChoice === card.answer) ? "answer-correct" : ""} ${flipped ? "flipped" : ""} ${dragX > 8 ? "swiping-right" : ""} ${dragX < -8 ? "swiping-left" : ""}`}
@@ -831,8 +834,9 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         {(correctFeedback || (flipped && selectedChoice === card.answer)) && <span className="correct-check" role="status" aria-label={t("正解です。")}><AssetIcon name="check" size={46} /></span>}
         {!flipped && card.format === "multiple_choice" && <div className="study-choice-grid">{card.choices.map((choice) => <button key={choice} type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedChoice(choice); setFlipped(true); setGestureMessage(t("答えを確認し、「選択結果を記録」で次へ進みます。")); }}>{choice}</button>)}</div>}
         {flipped && selectedChoice && <p role="status" aria-live="polite" className={`choice-feedback ${selectedChoice === card.answer ? "is-correct" : "is-incorrect"}`}>{t("選んだ答え：")}{selectedChoice}{t("。")}{selectedChoice === card.answer ? t("正解です。") : t("正解は「{0}」です。", card.answer)}</p>}
-        {flipped && <button type="button" className="card-ai-button" disabled={busy || aiBusy} onPointerDown={(event) => event.stopPropagation()} onClick={openAiExplanation}><IconLabel name="sparkles">{t("AIに解説してもらう")}</IconLabel></button>}
+        {flipped && !introductory && <button type="button" className="card-ai-button" disabled={busy || aiBusy} onPointerDown={(event) => event.stopPropagation()} onClick={openAiExplanation}><IconLabel name="sparkles">{t("AIに解説してもらう")}</IconLabel></button>}
       </article>
+      {introductory && !flipped && <button className="primary wide" onClick={()=>setFlipped(true)}>{t("答えを見る")}</button>}
       <p className="study-sr-only" role="status">{busy ? t("学習記録を保存しています…") : aiBusy ? t("AIが解説を作成しています…") : t(gestureMessage)}</p>
       {aiOpen && (
         <section className="inline-ai-panel">
@@ -850,16 +854,16 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
           {(aiCompose || cardMessages.length > 0) && <div className="chat-input"><input autoFocus value={aiInput} onChange={(event) => setAiInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) void askAi(aiInput); }} placeholder={t(cardMessages.length ? "追加で質問する…" : "質問を入力する…")} aria-label={t(cardMessages.length ? "AIへの追加質問" : "AIへの質問")} /><button type="button" onClick={() => askAi(aiInput)} disabled={aiBusy || !aiInput.trim()} aria-label={t("質問を送信")}>⬆️</button></div>}
         </section>
       )}
-      {card.format === "multiple_choice" && selectedChoice ? (
+      {(!introductory || flipped) && (card.format === "multiple_choice" && selectedChoice ? (
         <button className="primary wide record-choice" disabled={busy || aiBusy} onClick={() => submitVerdict(selectedChoice === card.answer ? "correct" : "incorrect")}>{selectedChoice === card.answer ? <IconLabel name="check">{t("選択結果を記録して次へ")}</IconLabel> : <IconLabel name="refresh">{t("選択結果を記録して後でもう一度")}</IconLabel>}</button>
       ) : (
         <div className="swipe-actions compact" aria-label={t("スワイプ操作の代替ボタン")}>
           <button className="incorrect" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("incorrect")}><AssetIcon name="chevron-left" size={20} /><span><strong>{t("まだ覚えていない")}</strong></span></button>
           <button className="correct" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("correct")}><span><strong>{t("覚えていた")}</strong></span><AssetIcon name="chevron-right" size={20} /></button>
         </div>
-      )}
+      ))}
 
-      {flipped && <details key={`source:${card.id}`} className="source-details"><summary><IconLabel name="document">{t("元の文章を確認")}</IconLabel></summary><p>{set.sourceContent}</p></details>}
+      {flipped && !introductory && <details key={`source:${card.id}`} className="source-details"><summary><IconLabel name="document">{t("元の文章を確認")}</IconLabel></summary><p>{set.sourceContent}</p></details>}
       {error && <p className="inline-error" role="alert">{t(error)}</p>}
     </div>
   );
@@ -1059,6 +1063,14 @@ function App() {
     });
   };
 
+  const studyContent = <Study key={sessionId} session={session} updateSession={updateSession} data={data} queue={queue} flipped={flipped} setFlipped={setFlipped} setQueue={setQueue} sessionDone={sessionDone} setSessionDone={setSessionDone} sessionSetId={sessionSetId} sessionId={sessionId} sessionTotal={sessionTotal} sessionMistakes={sessionMistakes} setSessionMistakes={setSessionMistakes} startStudy={startStudy} setData={updateData} backToSets={() => { setSetDetailOpen(true); setScreen("sets"); }} goHome={() => setScreen("home")} onPause={pauseStudy} now={now} />;
+  if (data.profile && !data.profile.onboardingCompleted) return <Onboarding data={data} onData={setData} study={screen === "study" && sessionId === data.profile.initialSessionId ? studyContent : null} onStart={() => {
+    const profile = data.profile!;
+    const initial = session.id === profile.initialSessionId ? session : { ...EMPTY_SESSION, id: profile.initialSessionId!, scope: profile.initialSetId!, setId: profile.initialSetId, queue: profile.initialCardIds, total: 3, returnTo: { screen: "home" as const } };
+    setWorkspace(w => activateSession(w, reconcileSession(initial, data)));
+    setScreen("study");
+  }} onFinish={() => { setWorkspace(w=>({...w, session:null})); setScreen("home"); }} />;
+
   let content: React.ReactNode;
   let title: string | undefined;
   if (screen === "home") content = <Home data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
@@ -1077,7 +1089,7 @@ function App() {
   else if (screen === "sets") { content = <SetLibrary data={data} folderId={folderId} openSetId={setDetailOpen ? selectedSetId : null} onFolder={(id) => { setFolderId(id); setSetDetailOpen(false); }} onSet={(id, cardId) => { setSelectedSetId(id); setFocusedCardId(cardId || null); setSetDetailOpen(true); }} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} onAdd={() => { setDestination(folderId ? `folder:${folderId}` : "root"); setScreen("import"); }}>
       <SetDetail key={selectedSetId} focusedCardId={focusedCardId} data={data} selectedSetId={selectedSetId} selectSet={setSelectedSetId} startStudy={startStudy} now={now} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} />
     </SetLibrary>; title = "カードセット"; }
-  else if (screen === "study") content = <Study key={sessionId} session={session} updateSession={updateSession} data={data} queue={queue} flipped={flipped} setFlipped={setFlipped} setQueue={setQueue} sessionDone={sessionDone} setSessionDone={setSessionDone} sessionSetId={sessionSetId} sessionId={sessionId} sessionTotal={sessionTotal} sessionMistakes={sessionMistakes} setSessionMistakes={setSessionMistakes} startStudy={startStudy} setData={updateData} backToSets={() => { setSetDetailOpen(true); setScreen("sets"); }} goHome={() => setScreen("home")} onPause={pauseStudy} now={now} />;
+  else if (screen === "study") content = studyContent;
   else content = <Records data={data} now={now} startStudy={(id) => { if (id) setSelectedSetId(id); setSetDetailOpen(true); setScreen("sets"); }} />;
   return <Shell screen={screen} setScreen={navigate} title={title}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{content}</Shell>;
 }

@@ -1,3 +1,6 @@
+import { PRESETS, GOALS, validInterests, recommend } from "../lib/onboarding";
+import { InputError } from "../lib/api-input";
+import type { UserProfile } from "../lib/types";
 import { studyDayBounds, streakLength } from "../lib/daily-review";
 import type { DailyReview } from "../lib/types";
 import { database, initializeDatabase } from "./client";
@@ -60,6 +63,7 @@ export async function seedIfEmpty(userId: string, language: "ja" | "en" = "ja"):
 
 export async function loadAppData(userId: string, sessionIds: string[] = []): Promise<AppData> {
   await ensureDatabase();
+  const profile = await loadProfile(userId);
   const db = database();
   const { start, end } = studyDayBounds(new Date());
   const recordStart = new Date(new Date(start).getTime() - 6 * 86_400_000).toISOString();
@@ -95,7 +99,7 @@ export async function loadAppData(userId: string, sessionIds: string[] = []): Pr
     set.sourceContent = source?.content || "";
   }
 
-  const requestedSessions = [...new Set(sessionIds)];
+  const requestedSessions = [...new Set([...sessionIds, ...(!profile.onboardingCompleted && profile.initialSessionId ? [profile.initialSessionId] : [])])];
   const sessionRows = requestedSessions.length ? (await db.prepare(`SELECT * FROM review_logs WHERE user_id = ? AND session_id IN (${requestedSessions.map(() => "?").join(",")}) ORDER BY rowid ASC`).bind(userId, ...requestedSessions).all()).results : [];
   const mapReview = (row: Record<string, unknown>): ReviewLog => ({
     id: String(row.id),
@@ -120,7 +124,7 @@ export async function loadAppData(userId: string, sessionIds: string[] = []): Pr
   }));
 
   const folders = (folderResult.results || []).map((row) => ({ id: String(row.id), parentId: row.parent_id ? String(row.parent_id) : null, name: String(row.name) }));
-  return { undoneOperationIds: sessionRows.filter((row) => row.undone_at && row.operation_id).map((row) => String(row.operation_id)), sets, reviews, ...(requestedSessions.length ? { sessionReviews } : {}), chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: [...(reviewResult.results || []), ...sessionRows].filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
+  return { profile, undoneOperationIds: sessionRows.filter((row) => row.undone_at && row.operation_id).map((row) => String(row.operation_id)), sets, reviews, ...(requestedSessions.length ? { sessionReviews } : {}), chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: [...(reviewResult.results || []), ...sessionRows].filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
 }
 
 function mapCard(row: Record<string, unknown>): Card {
@@ -147,6 +151,12 @@ export async function saveGeneratedSet(userId: string, material: GeneratedMateri
   const db = database();
   const now = new Date().toISOString();
   await requireFolder(userId, material.folderId || null);
+  const { setId, statements } = materialStatements(db, userId, material, now);
+  await db.batch(statements);
+  return setId;
+}
+
+function materialStatements(db: ReturnType<typeof database>, userId: string, material: GeneratedMaterial & { sourceContent: string; folderId?: string | null }, now: string) {
   const sourceId = id("src");
   const setId = id("set");
   const statements = [
@@ -165,8 +175,7 @@ export async function saveGeneratedSet(userId: string, material: GeneratedMateri
           Math.max(1, Math.min(3, Math.round(card.difficulty || 2))), now, 0, 0, 0, now, now)),
   ];
   statements.push(db.prepare("UPDATE card_sets SET folder_id = ? WHERE id = ? AND user_id = ?").bind(material.folderId || null, setId, userId));
-  await db.batch(statements);
-  return setId;
+  return { setId, statements };
 }
 
 function normalizeFormat(format: GeneratedCard["format"]): Card["format"] {
@@ -224,6 +233,7 @@ export async function reviewCard(userId: string, cardId: string, rating: BinaryR
     await tx.execute({ sql: "UPDATE cards SET status = ?, due_at = ?, interval_days = ?, review_count = review_count + 1, correct_count = correct_count + ?, updated_at = ? WHERE id = ? AND user_id = ?", args: [schedule.status, new Date(schedule.dueAtMs).toISOString(), schedule.intervalDays, schedule.correctDelta, now, cardId, userId] });
     await tx.execute({ sql: "INSERT INTO review_logs (id,user_id,card_id,session_id,rating,response_ms,reviewed_at,previous_state,operation_id) VALUES (?,?,?,?,?,?,?,?,?)", args: [reviewId, userId, cardId, sessionId, rating, Number.isFinite(responseMs) ? Math.max(0, Math.min(responseMs, 3_600_000)) : 0, now, JSON.stringify(previous), operation?.operationId ?? null] });
     await tx.execute({ sql: "UPDATE card_sets SET last_studied_at = ?, updated_at = ?, next_review_at = (SELECT MIN(due_at) FROM cards WHERE set_id = ? AND user_id = ? AND status NOT IN ('アーカイブ', '削除済み')) WHERE id = ? AND user_id = ?", args: [now, now, setId, userId, setId, userId] });
+    await completeFirstLearning(tx, userId, sessionId, now);
     return reviewId;
   });
 }
@@ -373,6 +383,7 @@ export async function organizeSets(userId: string, input: {
 export async function loadDailyReview(userId: string, now = new Date()): Promise<DailyReview> {
   const db = database();
   const { day, start, end } = studyDayBounds(now);
+  const intro = await db.prepare("SELECT initial_card_ids, first_learning_completed_at FROM user_profiles WHERE user_id = ? AND initial_set_id IS NOT NULL").bind(userId).first<{initial_card_ids:string;first_learning_completed_at:string|null}>();
   // Freeze the day's assignment so completed sets do not disappear as due dates advance.
   let plan = await db.prepare("SELECT card_ids, completed_at FROM daily_review_plans WHERE user_id = ? AND day = ?")
     .bind(userId, day).first<{ card_ids: string; completed_at: string | null }>();
@@ -380,7 +391,7 @@ export async function loadDailyReview(userId: string, now = new Date()): Promise
     const candidates = await db.prepare(`SELECT id FROM cards WHERE user_id = ? AND status NOT IN ('アーカイブ', '削除済み') AND
       ((interval_days < 60 AND due_at < ?) OR (interval_days <= 60 AND id IN (SELECT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good','easy') AND undone_at IS NULL)))
       ORDER BY due_at, id`).bind(userId, end, userId, start, end).all<{ id: string }>();
-    const ids = (candidates.results || []).map((c) => c.id);
+    const ids = intro && !intro.first_learning_completed_at ? parseJsonArray(intro.initial_card_ids) : (candidates.results || []).map((c) => c.id);
     if (ids.length) {
       await db.prepare("INSERT OR IGNORE INTO daily_review_plans (user_id, day, card_ids) VALUES (?, ?, ?)").bind(userId, day, JSON.stringify(ids)).run();
       plan = await db.prepare("SELECT card_ids, completed_at FROM daily_review_plans WHERE user_id = ? AND day = ?").bind(userId, day).first<{ card_ids: string; completed_at: string | null }>();
@@ -389,13 +400,75 @@ export async function loadDailyReview(userId: string, now = new Date()): Promise
   const active = await db.prepare("SELECT id FROM cards WHERE user_id = ? AND status NOT IN ('アーカイブ', '削除済み')").bind(userId).all<{ id: string }>();
   const activeIds = new Set((active.results || []).map((c) => c.id));
   const cardIds = plan ? parseJsonArray(plan.card_ids).filter((id) => activeIds.has(id)) : [];
-  const successes = await db.prepare("SELECT DISTINCT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good', 'easy') AND undone_at IS NULL")
-    .bind(userId, start, end).all<{ card_id: string }>();
+  const successes = await db.prepare("SELECT DISTINCT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND (rating IN ('good', 'easy') OR session_id = (SELECT initial_session_id FROM user_profiles WHERE user_id = ?)) AND undone_at IS NULL")
+    .bind(userId, start, end, userId).all<{ card_id: string }>();
   const successfulIds = new Set((successes.results || []).map((r) => r.card_id));
+  if (intro?.first_learning_completed_at && intro.first_learning_completed_at >= start && intro.first_learning_completed_at < end) for (const id of parseJsonArray(intro.initial_card_ids)) successfulIds.add(id);
   const completedCardIds = cardIds.filter((id) => successfulIds.has(id));
   const completed = Boolean(plan?.completed_at) || (cardIds.length > 0 && completedCardIds.length === cardIds.length);
   if (completed && !plan?.completed_at) await db.prepare("UPDATE daily_review_plans SET completed_at = ? WHERE user_id = ? AND day = ? AND completed_at IS NULL").bind(now.toISOString(), userId, day).run();
   const history = await db.prepare("SELECT day FROM daily_review_plans WHERE user_id = ? AND completed_at IS NOT NULL AND day <= ? ORDER BY day DESC").bind(userId, day).all<{ day: string }>();
   const achievedDays = (history.results || []).map((row) => row.day);
   return { day, cardIds, completedCardIds, completed, achievedDays: achievedDays.slice(0, 60), streak: streakLength(achievedDays, now) };
+}
+
+export async function loadProfile(userId: string): Promise<UserProfile> {
+  await ensureDatabase();
+  const db = database();
+  await db.prepare(`INSERT OR IGNORE INTO user_profiles (user_id, onboarding_completed)
+    SELECT ?, CASE WHEN EXISTS (SELECT 1 FROM card_sets WHERE user_id = ?)
+      OR EXISTS (SELECT 1 FROM review_logs WHERE user_id = ?) OR EXISTS (SELECT 1 FROM folders WHERE user_id = ?)
+      OR EXISTS (SELECT 1 FROM sources WHERE user_id = ?) THEN 1 ELSE 0 END`).bind(userId,userId,userId,userId,userId).run();
+  const row = await db.prepare('SELECT * FROM user_profiles WHERE user_id = ?').bind(userId).first<Record<string,unknown>>();
+  if (!row) throw new Error('PROFILE_NOT_FOUND');
+  return { displayName: String(row.display_name), interests: parseJsonArray(row.interests), learningGoal: String(row.learning_goal), onboardingCompleted: Boolean(row.onboarding_completed), onboardingCompletedAt: row.onboarding_completed_at ? String(row.onboarding_completed_at) : null, initialSetId: row.initial_set_id ? String(row.initial_set_id) : null, initialCardIds: parseJsonArray(row.initial_card_ids), initialSessionId: row.initial_session_id ? String(row.initial_session_id) : null, firstLearningCompletedAt: row.first_learning_completed_at ? String(row.first_learning_completed_at) : null };
+}
+
+export async function updateOnboarding(userId: string, input: Record<string,unknown>): Promise<void> {
+  await loadProfile(userId);
+  await database().transaction(async tx => {
+    const row = (await tx.execute({sql:'SELECT * FROM user_profiles WHERE user_id = ?',args:[userId]})).rows[0];
+    if (row.onboarding_completed) return;
+    const now = new Date().toISOString();
+    if (input.step === 'finish') {
+      if (!row.first_learning_completed_at) throw new InputError('まず3枚の学習を終えてください。',409);
+      await tx.execute({sql:'UPDATE user_profiles SET onboarding_completed = 1, onboarding_completed_at = ? WHERE user_id = ?',args:[now,userId]});
+      return;
+    }
+    if (row.initial_set_id) return; // Double taps/retries cannot adopt another preset.
+    if (input.step === 'name') {
+      if (typeof input.displayName !== 'string' || !input.displayName.trim() || input.displayName.trim().length > 60) throw new InputError('名前を1〜60文字で入力してください。');
+      await tx.execute({sql:'UPDATE user_profiles SET display_name = ? WHERE user_id = ?',args:[input.displayName.trim(),userId]});
+    } else if (input.step === 'interests') {
+      if (!row.display_name || !validInterests(input.interests)) throw new InputError('興味を3つ選んでください。');
+      await tx.execute({sql:'UPDATE user_profiles SET interests = ?, learning_goal = ? WHERE user_id = ?',args:[JSON.stringify(input.interests),'',userId]});
+    } else if (input.step === 'goal') {
+      if (!validInterests(parseJsonArray(row.interests)) || typeof input.learningGoal !== 'string' || !GOALS.includes(input.learningGoal)) throw new InputError('学習目的を1つ選んでください。');
+      await tx.execute({sql:'UPDATE user_profiles SET learning_goal = ? WHERE user_id = ?',args:[input.learningGoal,userId]});
+    } else if (input.step === 'select') {
+      const choices = recommend(parseJsonArray(row.interests),String(row.learning_goal));
+      const preset = PRESETS.find(p => p.id === input.presetId && choices.some(c=>c.preset.id===p.id));
+      if (!row.learning_goal || !preset) throw new InputError('おすすめからセットを選んでください。');
+      const {setId,statements} = materialStatements(database(),userId,preset,now);
+      for (const statement of statements) await tx.execute({sql:statement.sql,args:statement.args});
+      // Material statements preserve the preset order. Store exact IDs rather than relying on random-ID sorting.
+      const cardRows = (await tx.execute({sql:'SELECT id FROM cards WHERE set_id = ? AND user_id = ? ORDER BY rowid LIMIT 3',args:[setId,userId]})).rows;
+      const cardIds = cardRows.map(r=>String(r.id));
+      const sessionId = id('intro');
+      await tx.execute({sql:'UPDATE user_profiles SET initial_set_id = ?, initial_card_ids = ?, initial_session_id = ? WHERE user_id = ?',args:[setId,JSON.stringify(cardIds),sessionId,userId]});
+      const {day} = studyDayBounds(new Date(now));
+      await tx.execute({sql:'INSERT OR IGNORE INTO daily_review_plans (user_id,day,card_ids) VALUES (?,?,?)',args:[userId,day,JSON.stringify(cardIds)]});
+    } else throw new InputError('未対応の操作です。');
+  });
+}
+
+async function completeFirstLearning(tx: import('@libsql/client').Transaction, userId: string, sessionId: string | null, now: string) {
+  const profile = (await tx.execute({sql:'SELECT * FROM user_profiles WHERE user_id = ? AND initial_session_id = ? AND first_learning_completed_at IS NULL',args:[userId,sessionId]})).rows[0];
+  if (!profile) return;
+  const ids = parseJsonArray(profile.initial_card_ids);
+  const answers = (await tx.execute({sql:'SELECT DISTINCT card_id FROM review_logs WHERE user_id = ? AND session_id = ? AND undone_at IS NULL',args:[userId,sessionId]})).rows.map(r=>String(r.card_id));
+  if (ids.length !== 3 || !ids.every(id=>answers.includes(id))) return;
+  await tx.execute({sql:'UPDATE user_profiles SET first_learning_completed_at = ? WHERE user_id = ? AND first_learning_completed_at IS NULL',args:[now,userId]});
+  const {day} = studyDayBounds(new Date(now));
+  await tx.execute({sql:'INSERT INTO daily_review_plans (user_id,day,card_ids,completed_at) VALUES (?,?,?,?) ON CONFLICT(user_id,day) DO UPDATE SET completed_at = COALESCE(daily_review_plans.completed_at,excluded.completed_at)',args:[userId,day,JSON.stringify(ids),now]});
 }

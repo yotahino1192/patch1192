@@ -17,7 +17,8 @@
     "db:import-local": "node scripts/import-cloudflare-local.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "test:unit": "node --test tests/*.test.mjs",
-    "check": "npm run typecheck && npm run lint && npm run test:unit && npm run build"
+    "check": "npm run typecheck && npm run lint && npm run test:unit && npm run build",
+    "test:onboarding-browser": "node scripts/check-onboarding.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

@@ -71,6 +71,7 @@ export type DailyReview = {
 };
 
 export type AppData = {
+  profile?: UserProfile;
   sessionReviews?: ReviewLog[];
   undoneReviewIds?: string[];
   undoneOperationIds?: string[];
@@ -96,4 +97,11 @@ export type GeneratedMaterial = {
   summary: string;
   keyPoints: string[];
   cards: GeneratedCard[];
+};
+
+export type UserProfile = {
+  displayName: string; interests: string[]; learningGoal: string;
+  onboardingCompleted: boolean; onboardingCompletedAt: string | null;
+  initialSetId: string | null; initialCardIds: string[]; initialSessionId: string | null;
+  firstLearningCompletedAt: string | null;
 };
