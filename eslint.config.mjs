@@ -10,6 +10,7 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
+    "ios/**", // Xcode and Capacitor generated/native files.
     "build/**",
     "next-env.d.ts",
     "public/pdfjs/**", // Copied from pdfjs-dist; maintained upstream.

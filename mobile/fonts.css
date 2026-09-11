@@ -1,0 +1,15 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/noto-sans-jp/400.css";
+@import "@fontsource/noto-sans-jp/700.css";
+@import "@fontsource/m-plus-rounded-1c/400.css";
+@import "@fontsource/m-plus-rounded-1c/700.css";
+@import "@fontsource/nunito-sans/400.css";
+@import "@fontsource/nunito-sans/700.css";
+
+:root {
+  --font-inter: "Inter";
+  --font-noto-jp: "Noto Sans JP";
+  --font-rounded-jp: "M PLUS Rounded 1c";
+  --font-nunito: "Nunito Sans";
+}

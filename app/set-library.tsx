@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "../lib/api-client";
+
 import { useLanguage } from "./language";
 import { AssetIcon, IconLabel } from "./asset-icon";
 
@@ -51,7 +53,7 @@ export function SetLibrary({ data, folderId, openSetId, onFolder, onSet, onData,
     if (busy) return false;
     setBusy(true); setError(""); setMessage("");
     try {
-      const response = await fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const response = await apiFetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json() as { data: AppData; error?: string };
       if (!response.ok) throw new Error(result.error || "保存できませんでした。");
       onData(result.data);

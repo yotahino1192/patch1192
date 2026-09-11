@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "../lib/api-client";
+
 import { useState } from "react";
 import type { StudyEdit } from "../lib/workspace";
 import type { CardFormat, AppData } from "../lib/types";
@@ -19,7 +21,7 @@ export function StudyCardEditor({ draft, format, onChange, onSaved, onCancel, on
       if (busy) return;
       setBusy(true); setError("");
       try {
-        const response = await fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "editCard", cardId: draft.cardId, question: draft.question, answer: draft.answer, choices: draft.choices }) });
+        const response = await apiFetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "editCard", cardId: draft.cardId, question: draft.question, answer: draft.answer, choices: draft.choices }) });
         const result = await response.json() as { data: AppData; error?: string };
         if (!response.ok) throw new Error(result.error || "保存できませんでした。");
         onSaved(result.data);

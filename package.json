@@ -18,9 +18,23 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test:unit": "node --test tests/*.test.mjs",
     "check": "npm run typecheck && npm run lint && npm run test:unit && npm run build",
-    "test:onboarding-browser": "node scripts/check-onboarding.mjs"
+    "test:onboarding-browser": "node scripts/check-onboarding.mjs",
+    "mobile:dev": "vite --config mobile/vite.config.ts --mode development",
+    "premobile:dev": "node scripts/prepare-assets.mjs",
+    "mobile:build": "node scripts/prepare-assets.mjs && vite build --config mobile/vite.config.ts",
+    "mobile:build:local": "npm run mobile:build -- --mode development",
+    "ios:sync": "npm run mobile:build && cap sync ios",
+    "ios:sync:local": "npm run mobile:build:local && cap sync ios",
+    "ios:open": "cap open ios",
+    "ios:run": "npm run ios:sync:local && cap run ios"
   },
   "dependencies": {
+    "@capacitor/core": "8.5.2",
+    "@capacitor/ios": "8.5.2",
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/m-plus-rounded-1c": "5.3.0",
+    "@fontsource/noto-sans-jp": "5.3.0",
+    "@fontsource/nunito-sans": "5.3.0",
     "@libsql/client": "^0.18.0",
     "drizzle-orm": "0.45.2",
     "fflate": "^0.8.3",
@@ -30,6 +44,7 @@
     "react-dom": "19.2.6"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.2",
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "^4.20260702.1",
     "@tailwindcss/postcss": "4.2.1",
@@ -46,7 +61,7 @@
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "vinext": "0.0.50",
-    "vite": "8.0.13",
+    "vite": "8.0.16",
     "wrangler": "4.92.0"
   },
   "type": "module",

@@ -1,6 +1,6 @@
 # Project status
 
-最終確認: 2026-09-11。実装構成は [ARCHITECTURE.md](ARCHITECTURE.md)。以下はローカル作業ツリーを確認した状態であり、本番反映済みという意味ではない。
+最終確認: 2026-09-12。実装構成は [ARCHITECTURE.md](ARCHITECTURE.md)。以下はローカル作業ツリーを確認した状態であり、本番反映済みという意味ではない。
 
 ## 基盤改善（前フェーズ）
 
@@ -16,7 +16,7 @@
 
 基盤改善フェーズでは既存の画面構成・アイコン・採点方式を維持した。今回の初回モードの差分は下記参照。
 
-## 依存関係
+## 依存関係（前フェーズの記録）
 
 - Next.js / eslint-config-next: 16.2.6 → **16.3.4**。監査が示した修正版へ揃えた。
 - baseline-browser-mapping: **2.11.22**（互換範囲内更新）。
@@ -27,7 +27,7 @@ Next.jsの[AVIF画像最適化の脆弱性](https://github.com/vercel/next.js/se
 
 本番依存の `npm audit --omit=dev` は **0件**。全依存の監査は **19件（高14・中4・低1）** が残る。主にCloudflare/Vite/vinext系、開発ツール配下、Drizzle Kit等。現在のNext.js実行経路とは分けて扱う。開発ツールも安全という意味ではなく、旧開発サーバーを外部公開しない。強制更新はvinextのメジャー変更やDrizzle Kitのダウングレードを含むため今回は実施していない。
 
-## 検証結果
+## 検証結果（前フェーズの記録）
 
 Node **22.23.2** で確認。
 
@@ -98,3 +98,50 @@ DBの0006は新規テーブル追加のみ。本番には未適用。プロフ�
 - 文書: `ARCHITECTURE.md`、`STATUS.md`
 
 教材の投資用語は [Investor.govの投資入門](https://www.investor.gov/introduction-investing)、スピノザの基本概念は [Stanford Encyclopedia of Philosophy](https://plato.stanford.edu/entries/spinoza-attributes/) 等と照合。プリセットは独自に書いた日本語の入門用要約で、個別の投資助言や資格試験範囲の保証ではない。
+
+## iOS / Capacitor Phase 1（2026-09-12）
+
+### 今回の変更
+
+- Capacitor core/ios/cli **8.5.2** とSwift Package Managerを使用するXcode Appターゲットを追加。iOS **16.4以上**。現時点の開発用Bundle IDは `com.patch.learning`。
+- `mobile/` のVite入口で既存 `app/page.tsx` と全コンポーネント・学習ロジックを再利用。UIのコピーやSwiftUI/React Nativeへの書き換えなし。
+- Webの同一オリジン通信は維持。iOSのみ共通APIクライアントからネイティブHTTPで設定済みバックエンドへ通信。APIの認証/CORS/DB処理は変更なし。
+- フォント・画像・PDF Worker/cmapsを同梱。モバイルの実行時Google Fonts依存なし。
+- `PATCH_API_URL` はモバイル専用envまたはシェルで指定。本番ビルドはHTTPS設定必須。Xcode Releaseでは開発用bundleを拒否する。
+- Viteを既存8.0.13から **8.0.16** へ最小パッチ更新。今回モバイル開発に使用するため、監査が報告したWindowsの開発サーバー関連指摘へ対応した。
+- スクリプトと環境別起動手順は [mobile/README.md](mobile/README.md)。生成したWeb bundleはGitに含めず、実行前にsyncする。
+
+### 確認済み
+
+Node **22.23.2** / Xcode **26.1.1** / iPhone 17 Pro Simulator **iOS 26.1**。
+
+| チェック | 結果 |
+| --- | --- |
+| `npm run typecheck` | 成功 |
+| `npm run lint` | エラー0、既存警告42 |
+| `npm run test:unit` | 70件成功（共通APIクライアントの4件を追加） |
+| `npm run build` | Next.js production build成功 |
+| `npm run mobile:build` | HTTPSの検証用originを指定して成功。本番Vercelへの接続検証ではない |
+| `npm run ios:sync:local` | 静的bundle生成・ネイティブプロジェクト同期成功 |
+| Xcode Debug Simulator build | 成功。署名不要のSimulatorビルド |
+| Xcodeプロジェクトを開く | 成功 |
+| Simulatorへinstall/launch | 成功。日本語フォント付き初回画面を表示 |
+| Simulator → 既存Next API | 隔離した一時DBのバックエンドで初回取得、名前・興味の保存、目的選択画面への遷移を確認 |
+| WKWebView localStorage | テストアプリ領域に `loop-workspace-v1` の保存を確認 |
+| Releaseの誤設定防止 | 同期済みローカル開発bundleを拒否することを確認 |
+| 既存Webのブラウザーテスト | 初回案内、保存応答消失、DB復元、3枚学習、Day1、ホーム、再読込、レスポンシブ幅を確認 |
+
+Simulatorの接続先は一時DB `/tmp/patch-ios-phase1.db` を使用したローカルバックエンド。AIキーは無効。既存のローカルDB・本番DBのデータを移行・削除していない。
+
+### 残る確認・制約
+
+- iOSの全オンボーディング完了、学習/復習の全操作、長い画面のスクロール、キーボード、PDF/Office取り込み、オフライン復元は実機を含む手動確認が必要。SimulatorのUI自動操作では全フローを通していない。Webテストの成功をiOS全機能の検証と混同しない。
+- 本番Vercel/Turso接続、保護されたVercel環境へのアクセス、実際のAI生成、iPhone実機、署名付きArchive、TestFlight/App Store提出は未検証。
+- アプリのアイコン/起動画面はCapacitorの生成テンプレート。公開前に最終素材へ変更する。
+- bundleは約50MB。日本語フォントや既存画像を同梱した結果であり、今回全面最適化は行っていない。
+- native API transportは現在のJSON APIに限定。ファイルの直接アップロード、ストリーミング、AbortSignal連携は対象外。
+- localStorageは端末内のみ。アプリ削除/データ消去で下書きは失われ、Web版や別端末との同期はしない。
+- 認証、loop-owner移行、通知、ウィジェット、ディープリンクは未実装。共有所有者のままなので一般公開には使わない。
+- インストール後の全依存監査は21件（高11・中9・低1）。既存の開発依存指摘に加えCapacitor CLI→xcode→uuidの指摘がある。確認したxcode呼び出しはuuid.v4で、報告対象のv3/v5/v6＋buffer経路ではない。強制ダウングレード/メジャーoverrideはせず、上流修正を追跡する。前フェーズの監査件数は当時の記録として残している。
+
+次は、このシェルでの実機スモーク確認を完了し、認証・ユーザー別データ分離のPhase 2へ進む。正式な認証サービスと既存データの帰属は実装前に決める。

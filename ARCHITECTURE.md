@@ -1,11 +1,11 @@
 # Architecture
 
-最終確認: 2026-09-11。この文書は現在の実装を説明する。予定・未実装・検証結果は [STATUS.md](STATUS.md)。起動・環境変数は [README.md](README.md)。コード変更時は関連する記述も更新する。
+最終確認: 2026-09-12。この文書は現在の実装を説明する。予定・未実装・検証結果は [STATUS.md](STATUS.md)。起動・環境変数は [README.md](README.md)。コード変更時は関連する記述も更新する。
 
 ## 実行構成
 
 - Node.js 22、Next.js 16.3.4 App Router、React 19.2.6、TypeScript。`npm run dev/build/start` は Next.js + webpack を使用する。
-- 想定ホストは Vercel の Node.js Runtime。Cloudflare/Vite/vinext 関連の開発依存は残っているが、現在の起動・本番ビルド経路には使用しない。
+- 想定ホストは Vercel の Node.js Runtime。Web版はNext.js + webpackを継続。ViteはiOS同梱フロントエンドのビルドに使用する。Cloudflare/vinextは現在の実行経路では使用しない。
 - `/` のクライアント画面が JSON API を呼ぶ。Server Actions は使用していない。
 - API は `/api/data`、`/api/ai/cards`、`/api/ai/chat`。Node.js、動的応答、`no-store`、実行時間上限60秒。
 - DB は `@libsql/client`。ローカルは `.data/loop.db`、ホスト環境は `TURSO_DATABASE_URL`。VercelでURL未設定・file URLは実行時エラー。秘密情報はサーバー側環境変数。
@@ -85,3 +85,16 @@ PDF本体とWorkerは同じpdfjs-distのlegacy buildを使用し、Workerと日�
 - 学習完了後の「ホームへ」で `onboarding_completed` を更新する。直前で閉じた場合は完了画面へ戻り、完了済みならホーム。OAuthログイン・名前自動取得は未接続であり、現状では全ブラウザーが同じ `loop-owner` の完了状態を共有する。
 
 手動ブラウザー検証は `npm run build` 後に `npm run test:onboarding-browser`。Node 22とChromeが必要で、macOS以外は `CHROME_PATH` を指定する。一時DB・専用Chromeプロファイルを使い、終了時に削除する。通常利用のDBは使用しない。
+
+## iOS / Capacitor（Phase 1）
+
+- `mobile/main.tsx` は既存 `app/page.tsx` を直接読み込む。UI・学習ロジック・LanguageProviderは共有し、別実装にコピーしていない。
+- Viteの別入口 `mobile/vite.config.ts` が `dist/mobile` に静的HTML/JS/CSSを出力。Next.jsサーバー/API/DBはアプリに同梱しない。
+- Capacitor 8.5.2、`ios/App/App.xcodeproj` の Appターゲット。Swift Package Managerで同版のネイティブライブラリを使用。iOS最低16.4。現在のBundle ID `com.patch.learning` は開発用の仮ID。
+- `lib/api-client.ts` はWebでは同一オリジンfetch。iOS起動時だけ `CapacitorHttp` を使うJSON通信へ切り替える。APIのCORSやloop-owner処理は変更しない。画像/PDF取得はネイティブHTTPへ置き換えない。
+- 接続先は公開設定 `PATCH_API_URL`。モバイル専用envディレクトリを使い、サーバーの秘密情報をビルドへ渡さない。開発既定はlocalhost:3001、本番モードはHTTPS originを必須にする。
+- `public/`、PDF Worker/cmaps、Fontsourceの日本語・英語フォントを同梱。Web版のnext/fontは維持。
+- localStorageはWKWebViewのcapacitor://localhostの領域。既存キー・復元ロジックをそのまま使い、SafariやWeb版とは保存領域を共有しない。認証・オフライン同期は未実装。
+- `scripts/check-ios-bundle.sh` をXcode build phaseで実行。Releaseではローカル開発用bundleを拒否。配布可能な認証・プライバシー等が整ったことを保証するチェックではない。
+- 起動・env・手動チェックは [mobile/README.md](mobile/README.md)。`ios:sync:local` → `ios:open` → Xcode Run。本番接続先は `ios:sync`。
+- 署名Team、正式なApp Icon、認証、通知、ウィジェット、ディープリンク実装は今回追加しない。DBスキーマ・既存データ移行・loop-ownerの初回案内判定は変更しない。

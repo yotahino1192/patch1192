@@ -1,4 +1,6 @@
 "use client";
+
+import { apiFetch } from "../lib/api-client";
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AppData } from '../lib/types';
 import { GOALS, INTEREST_GROUPS, recommend } from '../lib/onboarding';
@@ -20,7 +22,7 @@ export function Onboarding({data,onData,onStart,onFinish,study}: {data: AppData;
   async function save(input:Record<string,unknown>,next:string) {
     if(lock.current)return;lock.current=true;setBusy(true);setError('');
     try {
-      const response = await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'onboarding',...input})});
+      const response = await apiFetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'onboarding',...input})});
       const result = await response.json() as { data: AppData; error?: string };
       if(!response.ok)throw new Error(result.error || t('保存できませんでした。もう一度お試しください。'));
       onData(result.data);setStep(next);

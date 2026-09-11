@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "../lib/api-client";
+
 import { useLanguage, LanguageProvider, translate, type Language } from "./language";
 
 import { useEffect, useRef, useState } from "react";
@@ -44,7 +46,7 @@ class ApiError extends Error {
 }
 
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     ...options,
     headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
   });
