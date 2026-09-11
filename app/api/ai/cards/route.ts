@@ -1,3 +1,4 @@
+import { requireAuth, authErrorResponse } from "../../../../lib/auth-server";
 import { InputError, readJsonObject } from "../../../../lib/api-input";
 import { generateMaterial } from "../../../../lib/openai";
 
@@ -11,6 +12,7 @@ function json(data: unknown, status = 200): Response {
 
 export async function POST(request: Request): Promise<Response> {
   try {
+    await requireAuth(request);
     const body = await readJsonObject(request);
     const text = String(body.text || "").trim();
     const mode = body.mode === "lesson_summary" ? "lesson_summary" : "source";
@@ -27,6 +29,8 @@ export async function POST(request: Request): Promise<Response> {
     });
     return json(material);
   } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
     if (error instanceof InputError) return json({ error: error.message }, error.status);
     console.error("card generation failed", error);
     if (error instanceof Error && error.message === "AI_NOT_CONFIGURED") {

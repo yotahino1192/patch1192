@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch } from "../lib/api-client";
+import { useApiFetch } from "./account-context";
 
 import { useLanguage } from "./language";
 import { AssetIcon, IconLabel } from "./asset-icon";
@@ -28,6 +28,7 @@ export function SetLibrary({ data, folderId, openSetId, onFolder, onSet, onData,
   onFolder: (id: string | null) => void; onSet: (id: string, cardId?: string) => void;
   onData: (data: AppData) => void; onAdd: () => void; children: ReactNode;
 }) {
+  const apiFetch = useApiFetch();
   const { t, language, locale, setLanguage } = useLanguage();
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");

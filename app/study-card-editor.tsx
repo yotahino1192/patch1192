@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch } from "../lib/api-client";
+import { useApiFetch } from "./account-context";
 
 import { useState } from "react";
 import type { StudyEdit } from "../lib/workspace";
@@ -11,6 +11,7 @@ export function StudyCardEditor({ draft, format, onChange, onSaved, onCancel, on
   draft: StudyEdit; format: CardFormat; onChange: (value: StudyEdit) => void;
   onSaved: (data: AppData) => void; onCancel: () => void; onPause: () => void;
 }) {
+  const apiFetch = useApiFetch();
   const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

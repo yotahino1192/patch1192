@@ -1,5 +1,6 @@
+import { requireAuth, authErrorResponse } from "../../../../lib/auth-server";
 import { InputError, readJsonObject } from "../../../../lib/api-input";
-import { loadAiCardContext, requestUserId, saveChatPair } from "../../../../db/store";
+import { loadAiCardContext, saveChatPair } from "../../../../db/store";
 import { answerQuestion } from "../../../../lib/openai";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ function json(data: unknown, status = 200): Response {
 
 export async function POST(request: Request): Promise<Response> {
   try {
+    const { userId } = await requireAuth(request);
     const body = await readJsonObject(request);
     const question = String(body.question || "").trim();
     if (!question) return json({ error: "質問を入力してください。" }, 400);
@@ -20,7 +22,6 @@ export async function POST(request: Request): Promise<Response> {
     const cardId = String(body.cardId || "").trim();
     const sessionId = String(body.sessionId || "").trim().slice(0, 120);
     if (!setId || !cardId || !sessionId) return json({ error: "学習セッションを確認できませんでした。" }, 400);
-    const userId = requestUserId(request);
     const context = await loadAiCardContext(userId, setId, cardId, sessionId);
     const answer = await answerQuestion({
       language: body.language === "en" ? "en" : "ja",
@@ -35,6 +36,8 @@ export async function POST(request: Request): Promise<Response> {
     await saveChatPair(userId, context.setId, context.cardId, sessionId, question, answer);
     return json({ answer });
   } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
     if (error instanceof InputError) return json({ error: error.message }, error.status);
     console.error("AI chat failed", error);
     if (error instanceof Error && error.message === "AI_NOT_CONFIGURED") {

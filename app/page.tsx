@@ -1,10 +1,11 @@
 "use client";
 
-import { apiFetch } from "../lib/api-client";
+import { useApiFetch } from "./account-context";
+import { AuthBoundary } from "./auth-provider";
 
 import { useLanguage, LanguageProvider, translate, type Language } from "./language";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Onboarding } from "./onboarding";
 import { useWorkspace } from "./use-workspace";
 import { EMPTY_IMPORT, EMPTY_SESSION, workspaceSessionIds, activateSession, reconcileWorkspace, reconcileSession, pendingStudyCount, startStudyBatch, nextStudyBatch, studyUndoCheckpoint, restoreStudyUndo, studyReturnTarget, resolveStudyReturn, type DraftCard, type DraftMaterial, type ImportDraft, type StudySession, type Workspace } from "../lib/workspace";
@@ -45,7 +46,9 @@ class ApiError extends Error {
   }
 }
 
-async function api<T>(url: string, options?: RequestInit): Promise<T> {
+function useApi() {
+  const apiFetch = useApiFetch();
+  return useCallback(async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await apiFetch(url, {
     ...options,
     headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
@@ -53,9 +56,10 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const body = await response.json() as T & { error?: string; code?: string };
   if (!response.ok) throw new ApiError(body.error || "通信に失敗しました。", body.code);
   return body;
+  }, [apiFetch]);
 }
 
-async function loadWorkspaceData(workspace: Workspace): Promise<AppData> {
+async function loadWorkspaceData(workspace: Workspace, api: ReturnType<typeof useApi>): Promise<AppData> {
   const ids = workspaceSessionIds(workspace);
   const chunks = ids.length ? Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) => ids.slice(i * 100, (i + 1) * 100)) : [[]];
   const results: AppData[] = [];
@@ -470,6 +474,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
   now: Date;
 }) {
   const { t, language, locale, setLanguage } = useLanguage();
+  const api = useApi();
   const introductory = data.profile?.initialSessionId === sessionId && !data.profile.onboardingCompleted;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -923,6 +928,7 @@ function Records({ data, now, startStudy }: { data: AppData; now: Date; startStu
 }
 
 function App() {
+  const api = useApi();
   const { t, language, locale, setLanguage } = useLanguage();
   const now = useClock();
   const activeDay = dayKey(now);
@@ -972,7 +978,7 @@ function App() {
 
   const reload = async () => {
     try {
-      const loaded = await loadWorkspaceData(getWorkspace());
+      const loaded = await loadWorkspaceData(getWorkspace(), api);
       setWorkspace((w) => reconcileWorkspace(w, loaded));
       setData(loaded);
       setSelectedSetId((current) => current || loaded.sets[0]?.id || null);
@@ -982,7 +988,7 @@ function App() {
   useEffect(() => {
     if (!workspaceReady) return;
     let active = true;
-    loadWorkspaceData(getWorkspace()).then((loaded) => {
+    loadWorkspaceData(getWorkspace(), api).then((loaded) => {
       if (!active) return;
       setWorkspace((w) => reconcileWorkspace(w, loaded));
       setData(loaded);
@@ -992,7 +998,7 @@ function App() {
       if (active) setLoadingError(error instanceof Error ? error.message : "データを読み込めませんでした。");
     });
     return () => { active = false; };
-  }, [activeDay, workspaceReady, setWorkspace, getWorkspace]);
+  }, [activeDay, workspaceReady, setWorkspace, getWorkspace, api]);
 
   const generate = async (text: string, detail: string, style: string) => {
     const material = await api<GeneratedMaterial>("/api/ai/cards", {
@@ -1097,5 +1103,5 @@ function App() {
 }
 
 export default function LocalizedApp() {
-  return <LanguageProvider><App /></LanguageProvider>;
+  return <AuthBoundary><LanguageProvider><App /></LanguageProvider></AuthBoundary>;
 }

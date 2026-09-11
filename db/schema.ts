@@ -1,5 +1,17 @@
 import { primaryKey, index, uniqueIndex, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const authIdentities = sqliteTable("auth_identities", {
+  issuer: text("issuer").notNull(),
+  subject: text("subject").notNull(),
+  userId: text("user_id").notNull().references(() => users.id),
+  createdAt: text("created_at").notNull(),
+}, table => [primaryKey({ columns: [table.issuer, table.subject] }), index("auth_identities_user_idx").on(table.userId)]);
+
 export const sources = sqliteTable("sources", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch } from "../lib/api-client";
+import { useApiFetch, useAccount } from "./account-context";
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AppData } from '../lib/types';
 import { GOALS, INTEREST_GROUPS, recommend } from '../lib/onboarding';
@@ -8,6 +8,8 @@ import { useLanguage } from './language';
 import { AssetIcon } from './asset-icon';
 
 export function Onboarding({data,onData,onStart,onFinish,study}: {data: AppData; onData:(data:AppData)=>void;onStart:()=>void;onFinish:()=>void;study:ReactNode}) {
+  const apiFetch = useApiFetch();
+  const account = useAccount();
   const profile = data.profile!;
   const {t} = useLanguage();
   const [step,setStep] = useState(profile.initialSetId ? 'intro' : profile.learningGoal ? 'recommend' : profile.interests.length === 3 ? 'goal' : profile.displayName ? 'interests' : 'name');
@@ -37,7 +39,7 @@ export function Onboarding({data,onData,onStart,onFinish,study}: {data: AppData;
     <header className="onboarding-brand">Patch <span>{t('はじめの一歩')}</span></header>
     {study && !complete ? <main>{study}</main> : <main className="onboarding-page">
       {!complete && ['interests','goal','recommend'].includes(step) && <button className="onboarding-back" disabled={busy} onClick={()=>{setError('');setStep(step==='interests'?'name':step==='goal'?'interests':'goal');}}>{t('戻る')}</button>}
-      <h1 ref={heading} tabIndex={-1}>{t(title)}</h1>
+      {account && <button type="button" onClick={() => void account.logout()}>ログアウト</button>}<h1 ref={heading} tabIndex={-1}>{t(title)}</h1>
       {complete ? <section className="onboarding-success">
         <div className="onboarding-streak"><AssetIcon name="streak" size={52}/><strong>{t('1日')}</strong></div>
         <h2>{t('連続学習がスタートしました')}</h2><p>{t('3枚学習しました')}</p><p className="muted">{t('最初のPatchができました')}</p>

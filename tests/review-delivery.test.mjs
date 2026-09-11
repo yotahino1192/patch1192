@@ -1,3 +1,4 @@
+import { headers as authHeaders } from './auth-fixture.mjs';
 import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
 import { registerHooks } from 'node:module';
@@ -78,9 +79,12 @@ test('lost incorrect-answer response rotates the queue exactly once on recovery'
 });
 
 const { POST, GET } = await import('../app/api/data/route.ts');
-const request = (body) => new Request('http://localhost/api/data', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+const { resolveInternalUser } = await import('../db/auth-store.ts');
+const owner = await resolveInternalUser(process.env.CLERK_ISSUER, 'user_delivery');
+const headers = (extra = {}) => authHeaders('user_delivery', owner, extra);
+const request = (body) => new Request('http://localhost/api/data', {method:'POST',headers:headers({'content-type':'application/json'}),body:JSON.stringify(body)});
 test('API response failure after commit can be retried without another write', async () => {
-  const { session, pendingReview } = await setup('loop-owner');
+  const { session, pendingReview } = await setup(owner);
   const payload = {action:'reviewCard',sessionId:session.id,...pendingReview};
   let failRead = false;
   globalThis.__deliveryDatabase = {
@@ -98,20 +102,20 @@ test('API response failure after commit can be retried without another write', a
   const duplicate = await (await POST(request(payload))).json();assert.equal(duplicate.reviewId,result.reviewId);
   assert.equal((await POST(request({...payload,rating:'again'}))).status,409);
   assert.equal((await POST(request({...payload,operationId:undefined}))).status,400);
-  const restored = await (await GET(new Request(`http://localhost/api/data?sessionId=${session.id}`))).json();
+  const restored = await (await GET(new Request(`http://localhost/api/data?sessionId=${session.id}`, {headers:headers()}))).json();
   assert.equal(reconcileSession(session,restored).done,true);
 });
-test('API rejects invalid bodies before touching the database', async () => {
+test('authenticated API rejects invalid bodies before business writes', async () => {
   for (const body of [null,[],42]) assert.equal((await POST(request(body))).status,400);
-  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:{'content-type':'application/json'},body:'{'}))).status,400);
-  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',body:'{}'}))).status,415);
-  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:{'content-type':'application/json-invalid'},body:'{}'}))).status,415);
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:headers({'content-type':'application/json'}),body:'{'}))).status,400);
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:headers(),body:'{}'}))).status,415);
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:headers({'content-type':'application/json-invalid'}),body:'{}'}))).status,415);
   const oversized = ' '.repeat(2 * 1024 * 1024 + 1);
-  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:{'content-type':'application/json'},body:oversized}))).status,413);
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:headers({'content-type':'application/json'}),body:oversized}))).status,413);
   const stream = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(oversized)); controller.close(); } });
-  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:{'content-type':'application/json'},body:stream,duplex:'half'}))).status,413);
+  assert.equal((await POST(new Request('http://localhost/api/data',{method:'POST',headers:headers({'content-type':'application/json'}),body:stream,duplex:'half'}))).status,413);
   assert.equal((await POST(request({action:'addCardsToSet',setId:'x',cards:[{question:123,answer:'A',choices:[],format:'qa',difficulty:1}]}))).status,400);
-  assert.equal((await GET(new Request('http://localhost/api/data?sessionId=bad%20id'))).status,400);
+  assert.equal((await GET(new Request('http://localhost/api/data?sessionId=bad%20id',{headers:headers()}))).status,400);
 });
 test('database unique constraint rejects bypassed duplicate operation IDs', async () => {
   const {send,card,pendingReview}=await setup('constraint');await send();

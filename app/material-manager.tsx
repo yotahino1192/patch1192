@@ -1,6 +1,6 @@
 "use client";
 
-import { apiFetch } from "../lib/api-client";
+import { useApiFetch } from "./account-context";
 
 import { useLanguage } from "./language";
 
@@ -8,6 +8,7 @@ import { useState } from "react";
 import type { AppData, Card, CardSet } from "../lib/types";
 
 export function MaterialManager({ set, onData }: { set: CardSet; onData: (data: AppData) => void }) {
+  const apiFetch = useApiFetch();
   const { t, language, locale, setLanguage } = useLanguage();
   const [title, setTitle] = useState(set.title);
   const [editing, setEditing] = useState<Card | null>(null);

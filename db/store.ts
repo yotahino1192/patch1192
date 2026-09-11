@@ -18,10 +18,6 @@ import type {
 import { scheduleBinaryReview } from "../lib/review";
 
 
-export function requestUserId(_request: Request): string {
-  return "loop-owner";
-}
-
 export async function ensureDatabase(): Promise<void> {
   await initializeDatabase();
 }
@@ -94,8 +90,8 @@ export async function loadAppData(userId: string, sessionIds: string[] = []): Pr
   }));
 
   for (const set of sets) {
-    const source = await db.prepare("SELECT content FROM sources WHERE id = (SELECT source_id FROM card_sets WHERE id = ? AND user_id = ?)")
-      .bind(set.id, userId).first<{ content: string }>();
+    const source = await db.prepare("SELECT content FROM sources WHERE user_id = ? AND id = (SELECT source_id FROM card_sets WHERE id = ? AND user_id = ?)")
+      .bind(userId, set.id, userId).first<{ content: string }>();
     set.sourceContent = source?.content || "";
   }
 
@@ -272,6 +268,8 @@ export async function saveChatPair(
 ): Promise<void> {
   await ensureDatabase();
   const db = database();
+  if (!setId || !cardId || !sessionId) throw new Error("CARD_NOT_FOUND");
+  await loadAiCardContext(userId, setId, cardId, sessionId);
   const now = Date.now();
   await db.batch([
     db.prepare("INSERT INTO chat_messages (id,user_id,set_id,card_id,session_id,role,content,created_at) VALUES (?,?,?,?,?,?,?,?)")

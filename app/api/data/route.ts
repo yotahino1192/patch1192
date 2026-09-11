@@ -1,5 +1,6 @@
+import { requireAuth, authErrorResponse } from "../../../lib/auth-server";
 import { InputError, readJsonObject, validId, boundedText } from "../../../lib/api-input";
-import { updateOnboarding, organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, requestUserId, reviewCard, undoReview, saveGeneratedSet } from "../../../db/store";
+import { updateOnboarding, organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, reviewCard, undoReview, saveGeneratedSet } from "../../../db/store";
 import type { BinaryReviewRating, GeneratedCard, GeneratedMaterial } from "../../../lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,10 +31,13 @@ function validCards(value: unknown): value is GeneratedCard[] {
 
 export async function GET(request: Request): Promise<Response> {
   try {
+    const { userId } = await requireAuth(request);
     const sessionIds = [...new Set(new URL(request.url).searchParams.getAll("sessionId"))];
     if (sessionIds.length > 100 || !sessionIds.every(validId)) return json({ error: "学習セッションの指定を確認してください。" }, 400);
-    return json(await loadAppData(requestUserId(request), sessionIds));
+    return json(await loadAppData(userId, sessionIds));
   } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
     console.error("data GET failed", error);
     return json({ error: "学習データを読み込めませんでした。" }, 500);
   }
@@ -41,8 +45,8 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   try {
+    const { userId } = await requireAuth(request);
     const body = await readJsonObject(request);
-    const userId = requestUserId(request);
     if (body.action === "onboarding") {
       await updateOnboarding(userId, body);
       return json({ data: await loadAppData(userId) });
@@ -114,6 +118,8 @@ export async function POST(request: Request): Promise<Response> {
     }
     return json({ error: "未対応の操作です。" }, 400);
   } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
     if (error instanceof InputError) return json({ error: error.message }, error.status);
     if (error instanceof Error && ["REVIEW_OPERATION_CONFLICT", "REVIEW_STATE_CONFLICT"].includes(error.message)) return json({ error: "別の操作で学習状態が変更されています。最新の状態を確認してください。", code: error.message }, 409);
     if (error && typeof error === "object" && "code" in error && ["SQLITE_BUSY", "TRANSACTION_ACTIVE"].includes(String(error.code))) return json({ error: "保存処理が混み合っています。同じ回答をもう一度送信してください。" }, 503);
@@ -122,9 +128,7 @@ export async function POST(request: Request): Promise<Response> {
     if (error instanceof Error && error.message === "FOLDER_NOT_FOUND") return json({ error: "フォルダが見つかりませんでした。" }, 404);
     if (error instanceof Error && error.message === "SET_NOT_FOUND") return json({ error: "セットが見つかりませんでした。保存先を選び直してください。" }, 404);
     if (error instanceof Error && error.message === "INVALID_CHOICES") return json({ error: "選択肢は重複のない4つにし、答えを含めてください。" }, 400);
-    const message = error instanceof Error && error.message === "CARD_NOT_FOUND"
-      ? "カードが見つかりませんでした。"
-      : "データを保存できませんでした。";
-    return json({ error: message }, 500);
+    if (error instanceof Error && error.message === "CARD_NOT_FOUND") return json({ error: "カードが見つかりませんでした。" }, 404);
+    return json({ error: "データを保存できませんでした。" }, 500);
   }
 }
