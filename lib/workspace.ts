@@ -13,7 +13,9 @@ export type StudyUndo = {
 };
 export type StudyEdit = { cardId: string; question: string; answer: string; choices: string[] };
 export type StudyReturnTarget = { screen: "home" } | { screen: "sets"; setId: string };
+export type PendingReview = { operationId: string; cardId: string; rating: "again" | "good"; responseMs: number; expectedReviewCount: number };
 export type StudySession = {
+  pendingReview?: PendingReview | null;
   id: string; scope: string; setId: string | null; queue: string[]; total: number; mistakes: number;
   flipped: boolean; done: boolean; selectedChoice: string | null;
   aiInput: string; aiOpen: boolean; aiCompose: boolean;
@@ -41,8 +43,10 @@ function normalizeSession(session: StudySession): StudySession {
   const undo = session.undo;
   const edit = session.editDraft;
   const returnTo = session.returnTo;
-  const { undo: _undo, editDraft: _edit, batchSize: _size, remaining: _remaining, batchTotal: _total, batchDone: _done, returnTo: _returnTo, ...base } = session;
+  const pending = session.pendingReview;
+  const { pendingReview: _pending, undo: _undo, editDraft: _edit, batchSize: _size, remaining: _remaining, batchTotal: _total, batchDone: _done, returnTo: _returnTo, ...base } = session;
   return { ...base,
+    ...(record(pending) && typeof pending.operationId === "string" && pending.operationId.length > 0 && pending.operationId.length <= 120 && typeof pending.cardId === "string" && ["again", "good"].includes(String(pending.rating)) && count(pending.expectedReviewCount) && count(pending.responseMs) ? { pendingReview: pending as PendingReview } : {}),
     ...(record(returnTo) && (returnTo.screen === "home" || (returnTo.screen === "sets" && typeof returnTo.setId === "string" && returnTo.setId)) ? { returnTo } : {}),
     ...(session.batchSize === 5 && strings(session.remaining) && count(session.batchTotal) ? { batchSize: 5, remaining: session.remaining, batchTotal: session.batchTotal, batchDone: Boolean(session.batchDone) } : {}),
     ...(record(undo) && typeof undo.reviewId === "string" && strings(undo.queue) && strings(undo.remaining) && count(undo.mistakes) && count(undo.batchTotal) && [0, 5].includes(Number(undo.batchSize)) && typeof undo.flipped === "boolean" && (undo.selectedChoice === null || typeof undo.selectedChoice === "string") && typeof undo.aiInput === "string" && typeof undo.aiOpen === "boolean" && typeof undo.aiCompose === "boolean" && typeof undo.batchDone === "boolean" ? { undo } : {}),
@@ -75,9 +79,19 @@ export function parseWorkspace(raw: string | null): Workspace {
 // Reconcile with durable reviews so that answer is never submitted a second time.
 export function reconcileSession(session: StudySession, data: AppData): StudySession {
   if (session.undo && data.undoneReviewIds?.includes(session.undo.reviewId)) session = restoreStudyUndo(session);
+  if (session.pendingReview && data.undoneOperationIds?.includes(session.pendingReview.operationId)) session = { ...session, pendingReview: null };
+  const reviews = (data.sessionReviews ?? data.reviews).filter((review) => review.sessionId === session.id);
+  const pending = session.pendingReview;
+  const delivered = pending && reviews.find((review) => review.operationId === pending.operationId);
+  if (delivered && session.queue[0] === pending?.cardId) {
+    session = { ...session, undo: studyUndoCheckpoint(session, delivered.id), pendingReview: null,
+      queue: delivered.rating === "again" ? [...session.queue.slice(1), session.queue[0]] : session.queue.slice(1),
+      mistakes: session.mistakes + (delivered.rating === "again" ? 1 : 0),
+      flipped: false, selectedChoice: null, aiInput: "", aiOpen: false, aiCompose: false };
+  }
   const active = new Map(data.sets.flatMap((set) => set.cards).filter((card) => !["削除済み", "アーカイブ"].includes(card.status)).map((card) => [card.id, card]));
-  const reviews = data.reviews.filter((review) => review.sessionId === session.id);
   const finished = new Set(reviews.filter((review) => ["good", "easy"].includes(review.rating)).map((review) => review.cardId));
+  if (session.pendingReview && !delivered && active.get(session.pendingReview.cardId)?.reviewCount !== session.pendingReview.expectedReviewCount) session = { ...session, pendingReview: null, flipped: false, selectedChoice: null };
   const availableQueue = [...new Set(session.queue)].filter((id) => active.has(id));
   const queue = availableQueue.filter((id) => !finished.has(id));
   const availableRemaining = [...new Set(session.remaining || [])].filter((id) => active.has(id));
@@ -132,5 +146,9 @@ export function studyUndoCheckpoint(session: StudySession, reviewId: string): St
 export function restoreStudyUndo(session: StudySession): StudySession {
   if (!session.undo) return session;
   const { reviewId: _reviewId, ...before } = session.undo;
-  return { ...session, ...before, done: false, undo: null, editDraft: null };
+  return { ...session, ...before, done: false, undo: null, editDraft: null, ...(session.pendingReview ? { pendingReview: null } : {}) };
+}
+
+export function workspaceSessionIds(workspace: Workspace): string[] {
+  return [...new Set([workspace.session, ...workspace.pausedSessions].filter((session): session is StudySession => Boolean(session?.id)).map((session) => session.id))];
 }

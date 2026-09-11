@@ -11,7 +11,7 @@ test('fresh libSQL database initializes all schema and retains state on restart'
     await Promise.all([db.initialize(),db.initialize()]);
     const tables = (await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).results.map(r=>r.name);
     for(const name of ['cards','sources','card_sets','folders','daily_review_plans','review_logs','chat_messages']) assert.ok(tables.includes(name));
-    assert.equal((await db.prepare('SELECT count(*) AS n FROM _loop_migrations').first()).n,5);
+    assert.equal((await db.prepare('SELECT count(*) AS n FROM _loop_migrations').first()).n,6);
     await db.prepare('INSERT INTO folders VALUES (?,?,?,?,?,?)').bind('f','owner',null,'History','now','now').run();
     await createDatabase(client).initialize();
     assert.equal((await db.prepare('SELECT name FROM folders WHERE id=?').bind('f').first()).name,'History');
@@ -38,6 +38,6 @@ test('an existing Cloudflare schema is adopted without losing records', async ()
     const db = createDatabase(client);
     await db.initialize();
     assert.equal((await db.prepare("SELECT content FROM sources WHERE id='s'").first()).content,'Keep this text');
-    assert.equal((await db.prepare('SELECT count(*) AS n FROM _loop_migrations').first()).n,5);
+    assert.equal((await db.prepare('SELECT count(*) AS n FROM _loop_migrations').first()).n,6);
   } finally { client.close(); }
 });

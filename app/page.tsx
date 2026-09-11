@@ -4,7 +4,7 @@ import { useLanguage, LanguageProvider, translate, type Language } from "./langu
 
 import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "./use-workspace";
-import { EMPTY_IMPORT, EMPTY_SESSION, activateSession, reconcileWorkspace, reconcileSession, pendingStudyCount, startStudyBatch, nextStudyBatch, studyUndoCheckpoint, restoreStudyUndo, studyReturnTarget, resolveStudyReturn, type DraftCard, type DraftMaterial, type ImportDraft, type StudySession, type Workspace } from "../lib/workspace";
+import { EMPTY_IMPORT, EMPTY_SESSION, workspaceSessionIds, activateSession, reconcileWorkspace, reconcileSession, pendingStudyCount, startStudyBatch, nextStudyBatch, studyUndoCheckpoint, restoreStudyUndo, studyReturnTarget, resolveStudyReturn, type DraftCard, type DraftMaterial, type ImportDraft, type StudySession, type Workspace } from "../lib/workspace";
 import { SetLibrary, folderPath } from "./set-library";
 import { DocumentAttachments, type Attachment } from "./document-attachments";
 import { Dropdown } from "./dropdown";
@@ -50,6 +50,17 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const body = await response.json() as T & { error?: string; code?: string };
   if (!response.ok) throw new ApiError(body.error || "通信に失敗しました。", body.code);
   return body;
+}
+
+async function loadWorkspaceData(workspace: Workspace): Promise<AppData> {
+  const ids = workspaceSessionIds(workspace);
+  const chunks = ids.length ? Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) => ids.slice(i * 100, (i + 1) * 100)) : [[]];
+  const results: AppData[] = [];
+  for (const chunk of chunks) {
+    const query = new URLSearchParams(chunk.map((id) => ["sessionId", id]));
+    results.push(await api<AppData>(`/api/data${chunk.length ? `?${query}` : ""}`));
+  }
+  return { ...results[results.length - 1], sessionReviews: results.flatMap((data) => data.sessionReviews || []), undoneReviewIds: results.flatMap((data) => data.undoneReviewIds || []), undoneOperationIds: results.flatMap((data) => data.undoneOperationIds || []) };
 }
 
 function formatDate(value: Date, locale: string, kind: "full" | "short" | "time" | "review"): string {
@@ -580,9 +591,14 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
 
   const submitVerdict = async (verdict: LessonVerdict) => {
     if (!card || !flipped || busy || aiBusy || busyRef.current) return;
-    const resolvedVerdict: LessonVerdict = card.format === "multiple_choice" && selectedChoice
+    let resolvedVerdict: LessonVerdict = card.format === "multiple_choice" && selectedChoice
       ? selectedChoice === card.answer ? "correct" : "incorrect"
       : verdict;
+    const attempt = session.pendingReview || { operationId: crypto.randomUUID(), cardId: card.id, rating: resolvedVerdict === "correct" ? "good" as const : "again" as const, responseMs: Math.max(0, currentTimeMs() - shownAt.current), expectedReviewCount: card.reviewCount };
+    if (attempt.cardId !== card.id) return;
+    resolvedVerdict = attempt.rating === "good" ? "correct" : "incorrect";
+    // Persist the operation before any network request; all retries reuse it.
+    updateSession((current) => ({ ...current, pendingReview: attempt }));
     busyRef.current = true;
     setBusy(true);
     setError("");
@@ -592,9 +608,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         body: JSON.stringify({
           action: "reviewCard",
           sessionId,
-          cardId: card.id,
-          rating: resolvedVerdict === "correct" ? "good" : "again",
-          responseMs: currentTimeMs() - shownAt.current,
+          ...attempt,
         }),
       });
       updateSession((current) => ({ ...current, undo: studyUndoCheckpoint(session, result.reviewId) }));
@@ -611,7 +625,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         setDailyCelebration(true);
       }
       const nextQueue = advanceLessonQueue(queue, resolvedVerdict);
-      setQueue(nextQueue);
+      updateSession((current) => ({ ...current, queue: nextQueue, pendingReview: null }));
       if (resolvedVerdict === "incorrect") {
         setSessionMistakes((count) => count + 1);
         setGestureMessage("もう一度学ぶカードとして、列の後ろへ戻しました。");
@@ -628,6 +642,13 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         else { setSessionDone(true); void summarizeAiHistory(sessionAiMessages); }
       }
     } catch (e) {
+      if (e instanceof ApiError && ["REVIEW_STATE_CONFLICT", "REVIEW_OPERATION_CONFLICT"].includes(e.code || "")) {
+        try {
+          const fresh = await api<AppData>(`/api/data?sessionId=${encodeURIComponent(sessionId)}`);
+          setData(fresh);
+          updateSession((current) => reconcileSession(current, fresh));
+        } catch { /* Keep the pending operation so a later reload can reconcile it. */ }
+      }
       setError(e instanceof Error ? e.message : "評価を保存できませんでした。");
     } finally {
       busyRef.current = false;
@@ -901,7 +922,7 @@ function App() {
   const [setDetailOpen, setSetDetailOpen] = useState(false);
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
-  const { workspace, setWorkspace, workspaceReady, saveError } = useWorkspace();
+  const { workspace, getWorkspace, setWorkspace, workspaceReady, saveError } = useWorkspace();
   const { destination, draft, lastGeneration, importDraft } = workspace;
   const session = workspace.session || EMPTY_SESSION;
   const { queue, flipped, done: sessionDone, setId: sessionSetId, id: sessionId, total: sessionTotal, mistakes: sessionMistakes } = session;
@@ -940,7 +961,7 @@ function App() {
 
   const reload = async () => {
     try {
-      const loaded = await api<AppData>("/api/data");
+      const loaded = await loadWorkspaceData(getWorkspace());
       setWorkspace((w) => reconcileWorkspace(w, loaded));
       setData(loaded);
       setSelectedSetId((current) => current || loaded.sets[0]?.id || null);
@@ -950,7 +971,7 @@ function App() {
   useEffect(() => {
     if (!workspaceReady) return;
     let active = true;
-    api<AppData>("/api/data").then((loaded) => {
+    loadWorkspaceData(getWorkspace()).then((loaded) => {
       if (!active) return;
       setWorkspace((w) => reconcileWorkspace(w, loaded));
       setData(loaded);
@@ -960,7 +981,7 @@ function App() {
       if (active) setLoadingError(error instanceof Error ? error.message : "データを読み込めませんでした。");
     });
     return () => { active = false; };
-  }, [activeDay, workspaceReady, setWorkspace]);
+  }, [activeDay, workspaceReady, setWorkspace, getWorkspace]);
 
   const generate = async (text: string, detail: string, style: string) => {
     const material = await api<GeneratedMaterial>("/api/ai/cards", {

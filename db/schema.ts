@@ -1,4 +1,4 @@
-import { primaryKey, index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { primaryKey, index, uniqueIndex, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const sources = sqliteTable("sources", {
   id: text("id").primaryKey(),
@@ -65,10 +65,13 @@ export const reviewLogs = sqliteTable("review_logs", {
   reviewedAt: text("reviewed_at").notNull(),
   previousState: text("previous_state"),
   undoneAt: text("undone_at"),
+  operationId: text("operation_id"),
 }, (table) => [
   index("review_logs_user_idx").on(table.userId),
   index("review_logs_card_idx").on(table.cardId),
   index("review_logs_session_idx").on(table.sessionId),
+  uniqueIndex("review_logs_user_operation_idx").on(table.userId, table.operationId),
+  index("review_logs_user_session_idx").on(table.userId, table.sessionId),
 ]);
 
 export const chatMessages = sqliteTable("chat_messages", {

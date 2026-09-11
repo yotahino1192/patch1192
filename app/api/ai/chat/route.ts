@@ -1,3 +1,4 @@
+import { InputError, readJsonObject } from "../../../../lib/api-input";
 import { loadAiCardContext, requestUserId, saveChatPair } from "../../../../db/store";
 import { answerQuestion } from "../../../../lib/openai";
 
@@ -11,7 +12,7 @@ function json(data: unknown, status = 200): Response {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const body = await request.json() as Record<string, unknown>;
+    const body = await readJsonObject(request);
     const question = String(body.question || "").trim();
     if (!question) return json({ error: "質問を入力してください。" }, 400);
     if (question.length > 2000) return json({ error: "質問は2,000文字以内で入力してください。" }, 400);
@@ -34,6 +35,7 @@ export async function POST(request: Request): Promise<Response> {
     await saveChatPair(userId, context.setId, context.cardId, sessionId, question, answer);
     return json({ answer });
   } catch (error) {
+    if (error instanceof InputError) return json({ error: error.message }, error.status);
     console.error("AI chat failed", error);
     if (error instanceof Error && error.message === "AI_NOT_CONFIGURED") {
       return json({ error: "OpenAI APIの設定がまだ完了していません。管理者がAPIキーを設定すると利用できます。", code: "AI_NOT_CONFIGURED" }, 503);

@@ -48,6 +48,7 @@ export type ReviewLog = {
   rating: ReviewRating;
   reviewedAt: string;
   responseMs: number;
+  operationId?: string | null;
 };
 
 export type ChatMessage = {
@@ -70,7 +71,9 @@ export type DailyReview = {
 };
 
 export type AppData = {
+  sessionReviews?: ReviewLog[];
   undoneReviewIds?: string[];
+  undoneOperationIds?: string[];
   recordActivity?: { day: string; cards: number }[];
   dailyReview: DailyReview;
   folders: Folder[];

@@ -5,6 +5,15 @@ import { resolve } from "node:path";
 
 export function createDatabase(client: Client, migrationsDirectory = resolve(process.cwd(), "drizzle")) {
   let initialization: Promise<void> | undefined;
+  // Local SQLite connections cannot interleave commands with an open transaction.
+  // Remote libSQL retains concurrency and serializes writes at the database.
+  let localTail: Promise<unknown> = Promise.resolve();
+  function access<T>(action: () => Promise<T>): Promise<T> {
+    if (client.protocol !== "file") return action();
+    const result = localTail.then(action);
+    localTail = result.catch(() => undefined);
+    return result;
+  }
   async function migrate() {
     // A write transaction also serializes initialization across serverless instances.
     const tx = await client.transaction("write");
@@ -17,7 +26,7 @@ export function createDatabase(client: Client, migrationsDirectory = resolve(pro
         const sql = await readFile(resolve(migrationsDirectory, name), "utf8");
         for (let statement of sql.split("--> statement-breakpoint").map((part) => part.trim()).filter(Boolean)) {
           // Existing D1 exports already contain these tables/columns. Adopt them without dropping data.
-          statement = statement.replace(/^CREATE TABLE\s+(?!IF NOT EXISTS)/i, "CREATE TABLE IF NOT EXISTS ").replace(/^CREATE INDEX\s+(?!IF NOT EXISTS)/i, "CREATE INDEX IF NOT EXISTS ");
+          statement = statement.replace(/^CREATE TABLE\s+(?!IF NOT EXISTS)/i, "CREATE TABLE IF NOT EXISTS ").replace(/^CREATE (UNIQUE )?INDEX\s+(?!IF NOT EXISTS)/i, "CREATE $1INDEX IF NOT EXISTS ");
           const add = statement.match(/^ALTER TABLE [`"]?(\w+)[`"]? ADD (?:COLUMN )?[`"]?(\w+)[`"]?/i);
           if (add) {
             const columns = await tx.execute(`PRAGMA table_info("${add[1]}")`);
@@ -45,23 +54,25 @@ export function createDatabase(client: Client, migrationsDirectory = resolve(pro
           throw new Error("INVALID_SQL_VALUE");
         }));
       },
-      async all<T = Record<string, unknown>>() { await initialize(); return { results: (await client.execute({ sql, args })).rows as unknown as T[] }; },
+      async all<T = Record<string, unknown>>() { await initialize(); return { results: (await access(() => client.execute({ sql, args }))).rows as unknown as T[] }; },
       async first<T = Record<string, unknown>>() { return (await this.all<T>()).results[0] ?? null; },
-      async run() { await initialize(); const result = await client.execute({ sql, args }); return { meta: { changes: result.rowsAffected } }; },
+      async run() { await initialize(); const result = await access(() => client.execute({ sql, args })); return { meta: { changes: result.rowsAffected } }; },
     };
   }
   return {
     initialize, prepare,
     async transaction<T>(action: (tx: Transaction) => Promise<T>): Promise<T> {
       await initialize();
+      return access(async () => {
       const tx = await client.transaction("write");
       try { const result = await action(tx); await tx.commit(); return result; }
       catch (error) { await tx.rollback(); throw error; }
       finally { tx.close(); }
+      });
     },
     async batch(statements: Array<{ sql: string; args: InValue[] }>) {
       await initialize();
-      return client.batch(statements.map(({ sql, args }) => ({ sql, args })), "write");
+      return access(() => client.batch(statements.map(({ sql, args }) => ({ sql, args })), "write"));
     },
   };
 }

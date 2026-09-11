@@ -58,7 +58,7 @@ export async function seedIfEmpty(userId: string, language: "ja" | "en" = "ja"):
   });
 }
 
-export async function loadAppData(userId: string): Promise<AppData> {
+export async function loadAppData(userId: string, sessionIds: string[] = []): Promise<AppData> {
   await ensureDatabase();
   const db = database();
   const { start, end } = studyDayBounds(new Date());
@@ -95,14 +95,19 @@ export async function loadAppData(userId: string): Promise<AppData> {
     set.sourceContent = source?.content || "";
   }
 
-  const reviews: ReviewLog[] = (reviewResult.results || []).filter((row) => !row.undone_at).map((row) => ({
+  const requestedSessions = [...new Set(sessionIds)];
+  const sessionRows = requestedSessions.length ? (await db.prepare(`SELECT * FROM review_logs WHERE user_id = ? AND session_id IN (${requestedSessions.map(() => "?").join(",")}) ORDER BY rowid ASC`).bind(userId, ...requestedSessions).all()).results : [];
+  const mapReview = (row: Record<string, unknown>): ReviewLog => ({
     id: String(row.id),
     cardId: String(row.card_id),
     sessionId: row.session_id ? String(row.session_id) : null,
     rating: String(row.rating) as ReviewRating,
     responseMs: Number(row.response_ms),
     reviewedAt: String(row.reviewed_at),
-  }));
+    operationId: row.operation_id ? String(row.operation_id) : null,
+  });
+  const reviews = (reviewResult.results || []).filter((row) => !row.undone_at).map(mapReview);
+  const sessionReviews = sessionRows.filter((row) => !row.undone_at).map(mapReview);
 
   const chatMessages: ChatMessage[] = [...(chatResult.results || [])].reverse().map((row) => ({
     id: String(row.id),
@@ -115,7 +120,7 @@ export async function loadAppData(userId: string): Promise<AppData> {
   }));
 
   const folders = (folderResult.results || []).map((row) => ({ id: String(row.id), parentId: row.parent_id ? String(row.parent_id) : null, name: String(row.name) }));
-  return { sets, reviews, chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: (reviewResult.results || []).filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
+  return { undoneOperationIds: sessionRows.filter((row) => row.undone_at && row.operation_id).map((row) => String(row.operation_id)), sets, reviews, ...(requestedSessions.length ? { sessionReviews } : {}), chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: [...(reviewResult.results || []), ...sessionRows].filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
 }
 
 function mapCard(row: Record<string, unknown>): Card {
@@ -194,12 +199,21 @@ export async function addCardsToSet(userId: string, setId: string, newCards: Gen
   ]);
 }
 
-export async function reviewCard(userId: string, cardId: string, rating: BinaryReviewRating, responseMs: number, sessionId: string | null): Promise<string> {
+export async function reviewCard(userId: string, cardId: string, rating: BinaryReviewRating, responseMs: number, sessionId: string | null, operation?: { operationId: string; expectedReviewCount: number }): Promise<string> {
   await ensureDatabase();
   await loadDailyReview(userId);
   return database().transaction(async (tx) => {
+    if (operation) {
+      const existing = (await tx.execute({ sql: "SELECT * FROM review_logs WHERE user_id = ? AND operation_id = ?", args: [userId, operation.operationId] })).rows[0];
+      if (existing) {
+        const previous = JSON.parse(String(existing.previous_state));
+        if (existing.card_id !== cardId || existing.session_id !== sessionId || existing.rating !== rating || previous.reviewCount !== operation.expectedReviewCount) throw new Error("REVIEW_OPERATION_CONFLICT");
+        return String(existing.id); // Includes undone operations: a retry must never reapply them.
+      }
+    }
     const card = (await tx.execute({ sql: "SELECT * FROM cards WHERE id = ? AND user_id = ?", args: [cardId, userId] })).rows[0];
     if (!card || ["アーカイブ", "削除済み"].includes(String(card.status))) throw new Error("CARD_NOT_FOUND");
+    if (operation && Number(card.review_count) !== operation.expectedReviewCount) throw new Error("REVIEW_STATE_CONFLICT");
     const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const schedule = scheduleBinaryReview(rating, Number(card.interval_days), nowMs);
@@ -208,7 +222,7 @@ export async function reviewCard(userId: string, cardId: string, rating: BinaryR
     const previous = { status: card.status, dueAt: card.due_at, intervalDays: card.interval_days, reviewCount: card.review_count, correctCount: card.correct_count, lastStudiedAt: set?.last_studied_at ?? null };
     const reviewId = id("review");
     await tx.execute({ sql: "UPDATE cards SET status = ?, due_at = ?, interval_days = ?, review_count = review_count + 1, correct_count = correct_count + ?, updated_at = ? WHERE id = ? AND user_id = ?", args: [schedule.status, new Date(schedule.dueAtMs).toISOString(), schedule.intervalDays, schedule.correctDelta, now, cardId, userId] });
-    await tx.execute({ sql: "INSERT INTO review_logs (id,user_id,card_id,session_id,rating,response_ms,reviewed_at,previous_state) VALUES (?,?,?,?,?,?,?,?)", args: [reviewId, userId, cardId, sessionId, rating, Number.isFinite(responseMs) ? Math.max(0, Math.min(responseMs, 3_600_000)) : 0, now, JSON.stringify(previous)] });
+    await tx.execute({ sql: "INSERT INTO review_logs (id,user_id,card_id,session_id,rating,response_ms,reviewed_at,previous_state,operation_id) VALUES (?,?,?,?,?,?,?,?,?)", args: [reviewId, userId, cardId, sessionId, rating, Number.isFinite(responseMs) ? Math.max(0, Math.min(responseMs, 3_600_000)) : 0, now, JSON.stringify(previous), operation?.operationId ?? null] });
     await tx.execute({ sql: "UPDATE card_sets SET last_studied_at = ?, updated_at = ?, next_review_at = (SELECT MIN(due_at) FROM cards WHERE set_id = ? AND user_id = ? AND status NOT IN ('アーカイブ', '削除済み')) WHERE id = ? AND user_id = ?", args: [now, now, setId, userId, setId, userId] });
     return reviewId;
   });

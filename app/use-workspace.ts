@@ -28,5 +28,6 @@ export function useWorkspace() {
     try { localStorage.setItem(WORKSPACE_KEY, JSON.stringify(next)); setSaveError(false); }
     catch { setSaveError(true); }
   }, []);
-  return { workspace, setWorkspace: update, workspaceReady: ready, saveError };
+  const getWorkspace = useCallback(() => latest.current, []);
+  return { getWorkspace, workspace, setWorkspace: update, workspaceReady: ready, saveError };
 }
