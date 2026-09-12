@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "schemaChecksum": "4cb3fc86ba5879433003775a3fd5a2185c2a8d9ebfdd263adcec14d2050a6bd2",
+  "schemaChecksum": "59359485aa9bb029c19220691b5761b61b904950874735fbd57611ba10bad233",
   "migrations": [
     {
       "name": "0000_special_shaman.sql",
@@ -33,6 +33,10 @@
     {
       "name": "0007_tired_king_cobra.sql",
       "checksum": "f83c649316e15207b294dd3fd6db394a05da986f10cdbf227939504d1343d486"
+    },
+    {
+      "name": "0008_ancient_albert_cleary.sql",
+      "checksum": "22bc82428fef55f76a0991716f475226082233da4463f1446ac08cd121f2dc8b"
     }
   ]
 }

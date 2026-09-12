@@ -4,7 +4,7 @@ import { registerHooks } from 'node:module';
 import { createClient } from '@libsql/client';
 import { createDatabase } from '../db/client.ts';
 import { headers } from './auth-fixture.mjs';
-registerHooks({ resolve(specifier, context, next) { if (specifier === './client')
+registerHooks({ resolve(specifier, context, next) { if ((specifier === './client' || specifier === '../../../../db/client'))
         return { url: 'data:text/javascript,export function database(){return globalThis.__infraEmptyDb} export async function initializeDatabase(){await globalThis.__infraEmptyDb.initialize()}', shortCircuit: true }; if (specifier.startsWith('.') && !/\.[a-z]+$/.test(specifier))
         return next(new URL(specifier + '.ts', context.parentURL).href, context); return next(specifier, context); } });
 const { GET } = await import('../app/api/data/route.ts');

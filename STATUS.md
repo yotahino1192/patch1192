@@ -149,3 +149,5 @@ Simulatorの接続先は一時DB `/tmp/patch-ios-phase1.db` を使用したロ�
 ## Production Infrastructure Hardening Phase 1
 
 Environment/release guards, explicit checksum migrations, encrypted backups and isolated restore checks are implemented on codex/production-infra. Production allowlists intentionally remain empty. Provider setup, hosted migration/restore acceptance, maintenance controls and actual promotion remain unperformed. See [runbook](docs/production-infrastructure.md). AI budget/rate limits and Privacy/Consent are outside this branch.
+
+- Production Backend Hardening (dedicated branch): DB-backed Free/global AI budgets, concurrency, idempotency/unknown state, safe logging, explicit operator gate, ledger restore regression and release endpoint checks. See `docs/production-hardening.md`; no Dev merge or deployment.

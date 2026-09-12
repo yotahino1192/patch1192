@@ -76,6 +76,8 @@ export async function restoreCheck(directory, key, { verify } = {}) {
     try {
         const tx = await c.transaction('write');
         try {
+            // Restore dependency cycles/order within one transaction; validate all FKs at commit.
+            await tx.execute('PRAGMA defer_foreign_keys=ON');
             // Preserve every original rowid explicitly (review/undo depend on this order).
             for (const t of payload.tables)
                 await tx.execute(t.sql);

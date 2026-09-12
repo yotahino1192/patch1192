@@ -28,6 +28,12 @@ jobs:
       - run: npm run scan:secrets
       - run: npm run mobile:build:local
       - run: npm run test:infra
+      - run: npm run test:auth-browser
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+      - run: npm run test:onboarding-browser
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
   release-check:
     if: github.event_name == 'workflow_dispatch' && inputs.release_candidate
     needs: check

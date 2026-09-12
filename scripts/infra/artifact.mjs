@@ -3,7 +3,19 @@ import { join, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { hash } from './schema.mjs';
 import { filesUnder, scanFiles } from './scan.mjs';
-import { validatePublic } from '../../lib/env/public.ts';
+import { safeOrigin, validatePublic } from '../../lib/env/public.ts';
+export function checkArtifactEndpoints(text) {
+    // Actual URL literals only; words in validator regexes are not environment configuration.
+    for (const match of text.replaceAll('\\/', '/').matchAll(/https?:\/\/[^\s\x22\x27\x60<>\\]+/g)) {
+        let url;
+        try { url = new URL(match[0]); } catch { continue; }
+        const host = url.hostname;
+        if (host.endsWith('.clerk.accounts.dev')) throw new Error('DEVELOPMENT_CLERK_IN_ARTIFACT');
+        if (host === 'localhost' || /^[\d.]+$/.test(host) || host.includes(':') || /(^|\.)(local|internal|test|invalid)$/.test(host) || /(^|\.)example\.(com|org|net)$/.test(host) || /(^|[.-])(dummy|fixture)([.-]|$)/.test(host)) {
+            safeOrigin(url.origin, 'ARTIFACT_ENDPOINT', true);
+        }
+    }
+}
 export const GUARD_VERSION = 1;
 export function releaseSha() {
     let sha;
@@ -33,6 +45,7 @@ export async function validateArtifact(root, policy, expectedEnv, { kind, sha = 
         throw new Error('ARTIFACT_HASH_MISMATCH');
     const payloadFiles = (await filesUnder(root)).filter(p => p !== join(root, 'patch-build.json'));
     const text = (await Promise.all(payloadFiles.filter(p => /\.(js|html|json)$/.test(p)).map(p => readFile(p, 'utf8')))).join('\n');
+    if (expectedEnv === 'production') checkArtifactEndpoints(text);
     if (expectedEnv === 'production' && /pk_test_[A-Za-z0-9_-]{12,}/.test(text))
         throw new Error('DEVELOPMENT_CLERK_IN_ARTIFACT');
     if (expectedEnv !== 'development' && !text.includes(m.publishableKey))

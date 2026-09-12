@@ -6,6 +6,7 @@ export function readPolicy(): ReleasePolicy { return JSON.parse(readFileSync(res
 export function validateServer(input: EnvInput, policy: ReleasePolicy = readPolicy()) {
     const env = environment(input);
     rejectUnsafeFlags(input, env);
+    if (input.AI_ENABLED !== undefined && !['true', 'false'].includes(input.AI_ENABLED)) throw new ConfigError('AI_ENABLED');
     const publicConfig = validatePublic(input, policy);
     const databaseUrl = input.TURSO_DATABASE_URL || (env === 'development' ? 'file:.data/loop.db' : '');
     if (env !== 'development') {

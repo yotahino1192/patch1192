@@ -52,7 +52,7 @@ test('simultaneous duplicate delivery returns the original result; reused ID wit
 });
 test('failed transaction leaves the operation retryable and retry after undo never reapplies it', async () => {
   const {send,card,session}=await setup('rollback');
-  await client.execute(`CREATE TRIGGER fail_delivery BEFORE INSERT ON review_logs WHEN NEW.card_id='${card.id}' BEGIN SELECT RAISE(ABORT, 'delivery rollback'); END`);
+  await client.execute(`CREATE TEMP TRIGGER fail_delivery BEFORE INSERT ON review_logs WHEN NEW.card_id='${card.id}' BEGIN SELECT RAISE(ABORT, 'delivery rollback'); END`);
   await assert.rejects(send());
   assert.equal((await loadAppData('rollback')).sets[0].cards[0].reviewCount,0);
   await client.execute('DROP TRIGGER fail_delivery');

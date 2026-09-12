@@ -1,3 +1,4 @@
+import { execution, inputUpperBound, limits, AiError, ProviderError } from './ai/execution.ts';
 import type { CardFormat, GeneratedMaterial } from "./types";
 
 type RuntimeEnv = {
@@ -12,12 +13,13 @@ function runtime(): RuntimeEnv {
 
 function apiKey(): string {
   const key = runtime().OPENAI_API_KEY?.trim();
-  if (!key) throw new Error("AI_NOT_CONFIGURED");
+  if (!key) throw new AiError("AI_NOT_CONFIGURED");
   return key;
 }
 
 type OpenAIResponse = {
-  error?: { message?: string };
+  status?: string;
+  usage?: { input_tokens?: number; output_tokens?: number };
   output?: Array<{
     type?: string;
     content?: Array<{ type?: string; text?: string; refusal?: string }>;
@@ -28,25 +30,34 @@ function outputText(response: OpenAIResponse): string {
   for (const item of response.output || []) {
     for (const content of item.content || []) {
       if (content.type === "output_text" && content.text) return content.text;
-      if (content.type === "refusal" && content.refusal) throw new Error(content.refusal);
+      if (content.type === "refusal" && content.refusal) throw new ProviderError(false);
     }
   }
   throw new Error("AI_EMPTY_RESPONSE");
 }
 
 async function createResponse(body: Record<string, unknown>): Promise<OpenAIResponse> {
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    signal: AbortSignal.timeout(45000),
-    headers: {
-      Authorization: `Bearer ${apiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ store: false, ...body }),
-  });
-  const json = await response.json() as OpenAIResponse;
-  if (!response.ok) throw new Error(json.error?.message || `OPENAI_${response.status}`);
-  return json;
+  const context = execution.getStore();
+  if (!context) throw new AiError('AI_ADMISSION_REQUIRED');
+  const key = apiKey();
+  if (body.model !== 'gpt-5-nano') throw new AiError('AI_MODEL_INVALID');
+  if (inputUpperBound(body) > limits[context.endpoint].input) throw new AiError('AI_INPUT_TOO_LARGE', 413);
+  body.max_output_tokens = limits[context.endpoint].output;
+  // Persist dispatching before the only network send. Native fetch has no automatic retry.
+  await context.dispatch();
+  try {
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(45000),
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store: false, ...body }),
+    });
+    if (!response.ok) { await response.body?.cancel(); throw new ProviderError(response.status >= 500 || response.status === 408); }
+    const json = await response.json() as OpenAIResponse;
+    const input = json.usage?.input_tokens, output = json.usage?.output_tokens;
+    if (Number.isSafeInteger(input) && Number.isSafeInteger(output) && input! >= 0 && output! >= 0) context.usage = { input: input!, output: output! };
+    if (json.status !== 'completed') throw new ProviderError(false);
+    return json;
+  } catch (error) { throw error instanceof ProviderError ? error : new ProviderError(true); }
 }
 
 export async function generateMaterial(input: {

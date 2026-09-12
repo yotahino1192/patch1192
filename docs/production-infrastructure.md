@@ -1,3 +1,5 @@
+> Updated backend implementation and AI-specific recovery constraints: [Production Hardening](production-hardening.md). The Phase 1 verification record below is historical.
+
 # Production Infrastructure Hardening Phase 1
 
 This is infrastructure, not AI budget/rate limiting or Privacy/Consent/Account Lifecycle.

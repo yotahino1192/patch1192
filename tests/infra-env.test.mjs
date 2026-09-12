@@ -57,3 +57,9 @@ test('complete offline release gate passes synthetic bound artifacts and rejects
 finally {
     await rm(dir, { recursive: true, force: true });
 } });
+
+test('production artifact rejects literal local/dummy/dev issuer endpoints', async () => {
+ const { checkArtifactEndpoints } = await import('../scripts/infra/artifact.mjs');
+ for (const url of ['http://localhost:3001/api/data','https://example.invalid','https://dummy.patch.tld','https://instance.clerk.accounts.dev','http://127.0.0.1/api']) assert.throws(() => checkArtifactEndpoints(JSON.stringify({ url })));
+ assert.doesNotThrow(() => checkArtifactEndpoints('https://api.patch-app.tld/api/data'));
+});

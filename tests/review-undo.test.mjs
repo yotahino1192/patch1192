@@ -65,7 +65,7 @@ test("undo preserves content edits and fails atomically if a database write fail
   const card = await makeCard("atomic-owner");
   const reviewId = await reviewCard("atomic-owner", card.id, "good", 100, "lesson");
   await manageMaterial("atomic-owner", { action: "editCard", cardId: card.id, question: "Edited question", answer: "Edited answer", choices: [] });
-  await client.execute("CREATE TRIGGER fail_undo BEFORE UPDATE ON cards WHEN NEW.review_count < OLD.review_count BEGIN SELECT RAISE(ABORT, 'test rollback'); END");
+  await client.execute("CREATE TEMP TRIGGER fail_undo BEFORE UPDATE ON cards WHEN NEW.review_count < OLD.review_count BEGIN SELECT RAISE(ABORT, 'test rollback'); END");
   await assert.rejects(undoReview("atomic-owner", reviewId, "lesson"));
   assert.equal((await loadAppData("atomic-owner")).reviews.length, 1);
   await client.execute("DROP TRIGGER fail_undo");

@@ -38,7 +38,9 @@
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "check:release": "node scripts/check-release.mjs",
     "postmobile:build": "node scripts/seal-mobile-artifact.mjs",
-    "test:infra": "node --test tests/infra-*.test.mjs"
+    "test:infra": "node --test tests/infra-*.test.mjs",
+    "ai:control": "node scripts/ai-control.mjs",
+    "test:ai": "node --test tests/ai-*.test.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",

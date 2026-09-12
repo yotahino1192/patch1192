@@ -65,7 +65,7 @@ test('3 answers including again finish once, recover from DB and mark Day 1 once
 });
 test('failed preset transaction rolls back profile and material together',async()=>{
  const user='rollback';await loadProfile(user);await updateOnboarding(user,{step:'name',displayName:'名前'});await updateOnboarding(user,{step:'interests',interests:['生成AI','ChatGPT','AIエージェント']});await updateOnboarding(user,{step:'goal',learningGoal:'仕事で使いたい'});
- await db.prepare("CREATE TRIGGER fail_preset BEFORE INSERT ON cards WHEN NEW.user_id='rollback' BEGIN SELECT RAISE(ABORT,'test failure'); END").run();
+ await db.prepare("CREATE TEMP TRIGGER fail_preset BEFORE INSERT ON cards WHEN NEW.user_id='rollback' BEGIN SELECT RAISE(ABORT,'test failure'); END").run();
  await assert.rejects(updateOnboarding(user,{step:'select',presetId:'ai-basics'}));
  assert.equal((await loadProfile(user)).initialSetId,null);assert.equal((await loadAppData(user)).sets.length,0);
  await db.prepare('DROP TRIGGER fail_preset').run();await updateOnboarding(user,{step:'select',presetId:'ai-basics'});assert.equal((await loadAppData(user)).sets.length,1);

@@ -11,7 +11,7 @@ const db = createDatabase(client);
 globalThis.__authDatabase = db;
 after(() => client.close());
 registerHooks({resolve(specifier, context, next) {
-  if (specifier === './client') return {url:'data:text/javascript,export function database(){return globalThis.__authDatabase} export async function initializeDatabase(){await globalThis.__authDatabase.initialize()}',shortCircuit:true};
+  if ((specifier === './client' || specifier === '../../../../db/client')) return {url:'data:text/javascript,export function database(){return globalThis.__authDatabase} export async function initializeDatabase(){await globalThis.__authDatabase.initialize()}',shortCircuit:true};
   if (specifier.startsWith('.') && !/\.[a-z]+$/.test(specifier)) return next(new URL(specifier+'.ts',context.parentURL).href,context);
   return next(specifier,context);
 }});
@@ -96,7 +96,7 @@ test('all resource mutations and AI context deny foreign IDs identically to miss
     const absent=await POST(request('user_A',a.userId,missing));assert.equal(absent.status,denied.status);assert.deepEqual(await absent.json(),await denied.json());
   }
   const chat={setId:target.id,cardId:card.id,sessionId:'lesson_shared',question:'tell me private context'};
-  assert.equal((await CHAT(request('user_A',a.userId,chat,{},'/api/ai/chat'))).status,404);
+  assert.equal((await CHAT(request('user_A',a.userId,chat,{'Idempotency-Key':'foreign-card-test-key'},'/api/ai/chat'))).status,404);
   await assert.rejects(store.saveChatPair(a.userId,target.id,card.id,'lesson_shared','Q','A'),/CARD_NOT_FOUND/);
   const own=(await store.loadAppData(a.userId)).sets[0];
   await assert.rejects(store.loadAiCardContext(a.userId,own.id,card.id,'lesson_shared'),/CARD_NOT_FOUND/);

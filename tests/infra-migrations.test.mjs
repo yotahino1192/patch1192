@@ -18,7 +18,7 @@ test('explicit migration is repeatable, runtime read-only and history records ch
     await migrate(c);
     await migrate(c);
     const rows = (await c.execute('SELECT * FROM _patch_migrations')).rows;
-    assert.equal(rows.length, 8);
+    assert.equal(rows.length, (await loadMigrations()).length);
     assert.ok(rows.every(r => /^[a-f0-9]{64}$/.test(r.checksum) && r.status === 'applied' && r.applied_at && r.runner_version));
     await createDatabase(c).initialize();
     await validateDatabase(c, await loadMigrations());
@@ -73,7 +73,7 @@ test('lost COMMIT response is reconciled with committed checksum without replay'
     throw new Error('lost response');
 } }; return tx; }; try {
     await migrate(c);
-    assert.equal((await c.execute('SELECT * FROM _patch_migrations')).rows.length, 8);
+    assert.equal((await c.execute('SELECT * FROM _patch_migrations')).rows.length, (await loadMigrations()).length);
 }
 finally {
     c.close();

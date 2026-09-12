@@ -6,7 +6,6 @@ import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 export function createDatabase(client: Client) {
-  let initialization: Promise<void> | undefined;
   // Local SQLite connections cannot interleave commands with an open transaction.
   // Remote libSQL retains concurrency and serializes writes at the database.
   let localTail: Promise<unknown> = Promise.resolve();
@@ -17,8 +16,7 @@ export function createDatabase(client: Client) {
     return result;
   }
   function initialize() {
-    initialization ??= checkSchema(client).catch(() => { initialization = undefined; throw new SchemaNotReady(); });
-    return initialization;
+    return access(() => checkSchema(client)).catch(() => { throw new SchemaNotReady(); });
   }
   function prepare(sql: string, args: InValue[] = []) {
     return {
