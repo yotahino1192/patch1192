@@ -20,7 +20,7 @@
 | `lib/review.ts`、`lib/daily-review.ts`、`lib/long-term-review.ts` | 復習間隔、日本時間の日付・ストリーク、長期記憶の計算 |
 | `app/api/**/route.ts` / `lib/api-input.ts` | HTTP境界、JSON読み取り・入力制限、エラー応答 |
 | `db/store.ts` | 所有者で絞ったSQL、教材・履歴・復習計画・会話の保存と読出し |
-| `db/client.ts` | DB接続、自動マイグレーション、トランザクション、ローカル接続の直列化 |
+| `db/client.ts` | DB接続、読取り専用スキーマ検証、トランザクション、ローカル接続の直列化 |
 | `db/schema.ts` / `drizzle/` | Drizzleで宣言したスキーマと生成SQL。実際のCRUDは主にパラメーター付きSQL |
 | `lib/openai.ts` | サーバー側AI呼び出しと出力の整形 |
 | `lib/document-import.ts` | ブラウザーで資料をテキスト化。PDFはpdfjs-distのlegacy build |
@@ -53,10 +53,10 @@
 
 - 登録済み教材と回答履歴はDB、編集中内容・中断状態・送信待ち操作はlocalStorage。ブラウザーをまたぐ下書き同期はない。
 - ストレージ容量不足・利用不可は画面で通知する。ブラウザーデータ削除後の下書き復元は保証しない。
-- `db/client.ts` が初回アクセスで `drizzle/*.sql` を番号順にトランザクション内で適用し、`_loop_migrations` に記録する。GETでも初期化・当日の復習計画作成が発生し得る。
+- request初期化はmanifestと実DBの読取り専用検証のみ。未適用は503 SCHEMA_NOT_READY。適用は独立した npm run db:migrate で明示的に行い、_patch_migrations にchecksumを記録する。GETで当日復習計画の作成が発生することはある。
 - 現在は0000〜0008。0007はClerk identityと内部user、0008はPrivacy/Lifecycle（詳細は後述）。0006は所有者IDを主キーとするプロフィールテーブルの追加。0005は `review_logs.operation_id` と2つの索引の追加だけ。旧履歴はNULLのまま維持し、削除・重複修復・データ移送はしない。
 - 既存DBを採用する処理はテーブル・列の存在を確認するが、任意のスキーマ破損を自動修復する仕組みではない。
-- 配備後の最初のDBアクセスで未適用migrationが実行される。既存データが大きい場合は索引作成時間を事前確認する。本番適用は今回未実施。
+- 配備前にバックアップ・明示migration・schema検証を行う。リクエスト時migrationは実行しない。既存データが大きい場合は索引作成時間を事前確認する。本番適用は今回未実施。
 
 ## 入力とセキュリティ境界
 
@@ -116,3 +116,7 @@ PDF本体とWorkerは同じpdfjs-distのlegacy buildを使用し、Workerと日�
 - 公開 `/privacy` `/support` `/terms` とアプリ内の共有コンテンツは公開準備中。正式運営者・連絡先・保持期間は未確定と表示する。完成した法務文書として配布しない。
 
 追加API: `GET/PUT /api/privacy/consents`、`POST /api/account/deletion`（challenge/delete）、`GET /api/account/deletion`（receiptで状態のみ）、`POST /api/internal/account-deletions`（worker専用）。一般利用者がworkerを起動するAPIは提供しない。
+
+## Production Infrastructure統合
+
+PATCH_ENVを明示し、Production Environment Validation、explicit migration runner、Release Guardrails、暗号化Backup/Restoreを維持する。復元時は外部キーをtransaction終端で検証し、Privacyの同意・tombstone・削除job・inactiveトリガーも保持する。詳細は [Production Infrastructure](docs/production-infrastructure.md)。

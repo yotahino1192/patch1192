@@ -13,6 +13,9 @@ export class AuthError extends Error {
 
 export function authErrorResponse(error: unknown): Response | undefined {
   const privacy = privacyErrorResponse(error); if (privacy) return privacy;
+  if (error && typeof error === 'object' && 'code' in error && ['SCHEMA_NOT_READY', 'CONFIG_INVALID'].includes(String(error.code))) {
+    return Response.json({ error: 'サービスの準備が完了していません。', code: String(error.code) }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+  }
   if (error instanceof AuthError) return Response.json({ error: error.message, code: error.code }, { status: error.status, headers: { "Cache-Control": "no-store", "X-Patch-Auth-Error": error.code } });
 }
 

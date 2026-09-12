@@ -1,3 +1,4 @@
+import {migrate} from '../scripts/infra/migrations.mjs';
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
@@ -5,6 +6,7 @@ import {createClient} from '@libsql/client';
 import {createDatabase} from '../db/client.ts';
 import {token,issuer,origin,headers} from './auth-fixture.mjs';
 const client=createClient({url:':memory:'}),db=createDatabase(client);
+await migrate(client);
 globalThis.__privacyDb=db;after(()=>client.close());
 registerHooks({resolve(s,c,next){if(s==='./client'||s==='../db/client')return {url:'data:text/javascript,export function database(){return globalThis.__privacyDb} export async function initializeDatabase(){await globalThis.__privacyDb.initialize()}',shortCircuit:true};if(s.startsWith('.')&&!/\.[a-z]+$/.test(s))return next(new URL(s+'.ts',c.parentURL).href,c);return next(s,c);}});
 const {resolveInternalUser}=await import('../db/auth-store.ts');

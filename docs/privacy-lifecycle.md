@@ -89,7 +89,7 @@ Clerkの公式仕様: [reverification](https://clerk.com/docs/guides/secure/reve
 
 ## マイグレーションと統合
 
-`0008_privacy_lifecycle.sql` + meta snapshot/journal。usersに2列、6テーブル、所有者のINSERT/UPDATE防止trigger。初回DBアクセスが自動適用する既存方式を維持。本番未適用。down migration、既存データ移送/削除、loop-owner引継ぎなし。
+`0008_privacy_lifecycle.sql` + meta snapshot/journal。usersに2列、6テーブル、所有者のINSERT/UPDATE防止trigger。Production Infrastructure統合後は明示的runnerのみで適用。requestはmanifestとのschema一致を読むだけで、未適用は503。0008を含むmanifestを生成済み。本番未適用。down migration、既存データ移送/削除、loop-owner引継ぎなし。
 
 Retention/Widget統合で新しい所有データを作る場合、worker削除リスト・inactive書込み防止・cleanup hook・テストに同時追加する。hookは `(userId) => Promise<void>`、対象UUID以外は操作しない。再起動で繰り返し呼ばれるので冪等にする。
 

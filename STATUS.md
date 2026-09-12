@@ -1,5 +1,18 @@
 # Status
 
+## Dev統合検証（2026-09-13）
+
+Privacy `eb4c9e1` にProduction Infrastructure `1e84fca` を取り込み、双方を維持してDevへ統合する検証済み状態。以下の以前の「Dev未merge」はPrivacy単独実装時の記録。
+
+- 競合3件（auth-server / package.json / database-client test）を双方の機能を残して解消。
+- request時migrationは復活させず、0008をschema manifestへ登録。Privacyテストもexplicit runnerで準備する。
+- Releaseのimport検査をJSON・絶対パス解決へ対応。server module拒否を維持。
+- 復元時のClerk identity→user参照をcommit時に検証。pending削除jobのbackup/restore再開を追加テスト。
+- Node 22.23.2、PATCH_ENV=development: typecheck / lint（0 errors・既存41 warnings）/ unit **117件成功** / build / check 成功。
+- auth・privacy・onboardingのブラウザテスト成功。mobile:build:localとartifact seal成功。Infrastructure **22件成功**（117件にも含む）。
+- Xcode Debug Simulator build成功。署名・Apple Teamなし。
+- production設定未確定の実環境Release検証は行わず、guardrailsは隔離fixtureで拒否/成功を検証。本番DB・Clerk・push・deploy・mainへの操作なし。
+
 ## 現在の状態（2026-09-13 / Privacy・Account Lifecycle）
 
 Phase 2A統合済みDev `c774ed0863d8eb25cddc6db35022e6f124b6fb44` を起点に、専用worktree `/Users/hinoyouta/Documents/Yota-privacy`、branch `codex/privacy-lifecycle` で実装。Dev/mainへ未merge。本番・Clerk Dashboard・Apple Developer Team・既存DBには変更なし。作業中に別CLIのDevは進んでいるため、統合時は最新Devとの差分を改めて確認する。
@@ -15,7 +28,7 @@ Phase 2A統合済みDev `c774ed0863d8eb25cddc6db35022e6f124b6fb44` を起点に�
 - 対象workspace・pending操作・消去intent・同意状態のscoped cleanup、logout失敗時のロックと再開、Native Keychainの待機可能消去、将来のRetention cleanup hook。
 - Account/Privacy/Language/About、Web/iOS共有のPrivacy/Terms/Support導線と公開準備中コンテンツ。アプリバージョンはWeb package / Native Bundleの実値。
 
-DB: `0008_privacy_lifecycle.sql` とDrizzle meta。users 2列・6テーブル・inactive書込み防止trigger。テストDBのみで適用・rollback/再実行検証。既存の初回アクセス自動migration方式を維持しているため、将来このコードを配備すると0008が適用される。
+DB: `0008_privacy_lifecycle.sql` とDrizzle meta。users 2列・6テーブル・inactive書込み防止trigger。テストDBのみで適用・rollback/再実行検証。Production Infrastructure統合後は明示的runnerで適用する。request時migrationは実行せず、未適用は503で拒否する。
 
 ### 検証結果
 
@@ -201,3 +214,7 @@ Simulatorの接続先は一時DB `/tmp/patch-ios-phase1.db` を使用したロ�
 - インストール後の全依存監査は21件（高11・中9・低1）。既存の開発依存指摘に加えCapacitor CLI→xcode→uuidの指摘がある。確認したxcode呼び出しはuuid.v4で、報告対象のv3/v5/v6＋buffer経路ではない。強制ダウングレード/メジャーoverrideはせず、上流修正を追跡する。前フェーズの監査件数は当時の記録として残している。
 
 次は、このシェルでの実機スモーク確認を完了し、認証・ユーザー別データ分離のPhase 2へ進む。正式な認証サービスと既存データの帰属は実装前に決める。
+
+## Production Infrastructure Hardening Phase 1
+
+Environment/release guards, explicit checksum migrations, encrypted backups and isolated restore checks are implemented on codex/production-infra. Production allowlists intentionally remain empty. Provider setup, hosted migration/restore acceptance, maintenance controls and actual promotion remain unperformed. See [runbook](docs/production-infrastructure.md). AI budget/rate limits and Privacy/Consent are outside this branch.

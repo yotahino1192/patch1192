@@ -6,14 +6,9 @@ if [ ! -f "$bundle/index.html" ] || [ ! -f "$bundle/patch-build.json" ]; then
   exit 1
 fi
 if [ "$CONFIGURATION" = "Release" ]; then
-  mode=$(/usr/bin/plutil -extract mode raw -o - "$bundle/patch-build.json")
-  origin=$(/usr/bin/plutil -extract apiOrigin raw -o - "$bundle/patch-build.json")
-  if [ "$mode" != "production" ]; then
-    echo "error: Release requires npm run ios:sync with a production PATCH_API_URL. Local development bundles cannot be archived."
-    exit 1
-  fi
-  case "$origin" in
-    https://*) ;;
-    *) echo "error: Release requires an HTTPS API origin."; exit 1 ;;
-  esac
+  # Node is required for the same cryptographic artifact and allowlist checks used by CI.
+  # Fail closed if unavailable; do not downgrade Release to the Debug check.
+  command -v node >/dev/null 2>&1 || { echo "error: Node 22 required for release validation"; exit 1; }
+  repo=$(CDPATH= cd -- "$SRCROOT/../.." && pwd)
+  (cd "$repo" && node scripts/check-mobile-artifact.mjs --bundle "$bundle")
 fi

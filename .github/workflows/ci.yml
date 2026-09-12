@@ -2,12 +2,20 @@ name: Quality checks
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: Run protected Production artifact checks (no remote DB access)
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      PATCH_ENV: development
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,3 +24,43 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npm run check:schema
+      - run: npm run scan:secrets
+      - run: npm run mobile:build:local
+      - run: npm run test:infra
+  release-check:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_candidate
+    needs: check
+    environment: production-validation
+    concurrency:
+      group: production-release-validation
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PATCH_ENV: production
+      VERCEL_PROJECT_PRODUCTION_URL: ${{ vars.WEB_HOST }}
+      PATCH_API_ORIGIN: ${{ vars.PATCH_API_ORIGIN }}
+      PATCH_API_URL: ${{ vars.PATCH_API_ORIGIN }}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
+      PATCH_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
+      CLERK_ISSUER: ${{ vars.CLERK_ISSUER }}
+      PATCH_CLERK_ISSUER: ${{ vars.CLERK_ISSUER }}
+      AUTH_ALLOWED_ORIGINS: ${{ vars.AUTH_ALLOWED_ORIGINS }}
+      TURSO_DATABASE_URL: ${{ vars.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_VALIDATION_TOKEN }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_CARD_MODEL: gpt-5-nano
+      OPENAI_CHAT_MODEL: gpt-5-nano
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run mobile:build
+      - run: npm run check:release
+      # Intentionally no deploy, promotion, remote migration, or backup command.
