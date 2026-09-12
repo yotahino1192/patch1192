@@ -1,7 +1,9 @@
 import { requireAuth, authErrorResponse } from "../../../../lib/auth-server";
 import { InputError, readJsonObject } from "../../../../lib/api-input";
-import { loadAiCardContext, saveChatPair } from "../../../../db/store";
+import { loadAiCardContext } from "../../../../db/store";
 import { answerQuestion } from "../../../../lib/openai";
+
+import { runAi } from "../../../../lib/ai-gateway";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
     const sessionId = String(body.sessionId || "").trim().slice(0, 120);
     if (!setId || !cardId || !sessionId) return json({ error: "学習セッションを確認できませんでした。" }, 400);
     const context = await loadAiCardContext(userId, setId, cardId, sessionId);
-    const answer = await answerQuestion({
+    const answer = await runAi(userId, String(body.operationId || ""), "chat", body, () => answerQuestion({
       language: body.language === "en" ? "en" : "ja",
       question,
       depth: String(body.depth || "かんたん"),
@@ -32,20 +34,25 @@ export async function POST(request: Request): Promise<Response> {
       sourceContent: context.sourceContent,
       category: context.category,
       history: context.history,
+    }), async (tx, answer) => {
+      // Recheck resource ownership after the external call, in the same transaction as insertion.
+      if (!(await tx.execute({sql:"SELECT id FROM cards WHERE id=? AND set_id=? AND user_id=? AND status <> '削除済み'",args:[cardId,setId,userId]})).rows.length) throw new Error("CARD_NOT_FOUND");
+      for (const [index,role,content] of [[0,"user",question],[1,"assistant",answer]] as const) {
+        await tx.execute({sql:"INSERT INTO chat_messages (id,user_id,set_id,card_id,session_id,role,content,created_at) VALUES (?,?,?,?,?,?,?,?)",args:[crypto.randomUUID(),userId,setId,cardId,sessionId,role,content,new Date(Date.now()+index).toISOString()]});
+      }
     });
-    await saveChatPair(userId, context.setId, context.cardId, sessionId, question, answer);
     return json({ answer });
   } catch (error) {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;
     if (error instanceof InputError) return json({ error: error.message }, error.status);
-    console.error("AI chat failed", error);
+    console.error("AI request failed");
     if (error instanceof Error && error.message === "AI_NOT_CONFIGURED") {
       return json({ error: "OpenAI APIの設定がまだ完了していません。管理者がAPIキーを設定すると利用できます。", code: "AI_NOT_CONFIGURED" }, 503);
     }
     if (error instanceof Error && error.message === "CARD_NOT_FOUND") {
       return json({ error: "このカードの学習データを確認できませんでした。" }, 404);
     }
-    return json({ error: "AIから回答を受け取れませんでした。少し待ってからもう一度お試しください。" }, 502);
+    return json({ error: "AIの送信結果を確認できません。自動再送はしません。再実行すると新しいAI処理として扱われます。" }, 502);
   }
 }

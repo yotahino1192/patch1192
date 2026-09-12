@@ -27,7 +27,8 @@
     "ios:sync:local": "npm run mobile:build:local && cap sync ios",
     "ios:open": "cap open ios",
     "ios:run": "npm run ios:sync:local && cap run ios",
-    "test:auth-browser": "node scripts/check-auth-browser.mjs"
+    "test:auth-browser": "node scripts/check-auth-browser.mjs",
+    "test:privacy-browser": "node scripts/check-privacy-browser.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",

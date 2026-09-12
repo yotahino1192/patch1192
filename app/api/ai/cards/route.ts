@@ -2,6 +2,8 @@ import { requireAuth, authErrorResponse } from "../../../../lib/auth-server";
 import { InputError, readJsonObject } from "../../../../lib/api-input";
 import { generateMaterial } from "../../../../lib/openai";
 
+import { runAi } from "../../../../lib/ai-gateway";
+
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,30 +14,30 @@ function json(data: unknown, status = 200): Response {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    await requireAuth(request);
+    const {userId} = await requireAuth(request);
     const body = await readJsonObject(request);
     const text = String(body.text || "").trim();
     const mode = body.mode === "lesson_summary" ? "lesson_summary" : "source";
     const minimumLength = mode === "lesson_summary" ? 20 : 80;
     if (text.length < minimumLength) return json({ error: mode === "lesson_summary" ? "要約するAI解説が不足しています。" : "カードを作るには、80文字以上の文章を入力してください。" }, 400);
     if (text.length > 30000) return json({ error: "一度に解析できる文章は30,000文字までです。" }, 400);
-    const material = await generateMaterial({
+    const material = await runAi(userId, String(body.operationId || ""), mode, body, () => generateMaterial({
       language: body.language === "en" ? "en" : "ja",
       text,
       detail: String(body.detail || "標準"),
       style: String(body.style || "一問一答"),
       category: String(body.category || ""),
       mode,
-    });
+    }));
     return json(material);
   } catch (error) {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;
     if (error instanceof InputError) return json({ error: error.message }, error.status);
-    console.error("card generation failed", error);
+    console.error("AI request failed");
     if (error instanceof Error && error.message === "AI_NOT_CONFIGURED") {
       return json({ error: "OpenAI APIの設定がまだ完了していません。管理者がAPIキーを設定すると利用できます。", code: "AI_NOT_CONFIGURED" }, 503);
     }
-    return json({ error: "AIがカードを生成できませんでした。少し待ってからもう一度お試しください。" }, 502);
+    return json({ error: "AIの送信結果を確認できません。自動再送はしません。再実行すると新しいAI処理として扱われます。" }, 502);
   }
 }
