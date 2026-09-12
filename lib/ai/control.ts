@@ -1,3 +1,5 @@
+import { privacyPermit, checkAiPrivacy } from './privacy.ts';
+import { PrivacyError } from '../privacy-error.ts';
 import { InputError } from '../api-input.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Transaction } from '@libsql/client';
@@ -16,20 +18,30 @@ const clock = async (tx: Transaction) => Number((await tx.execute("SELECT CAST(s
 const active = "state IN ('reserved','dispatching','unknown')";
 const countCaps = { cards: [2, 5, 10, 100], chat: [6, 30, 60, 1000] };
 const windows = [60000, 3600000, 86400000, 31 * 86400000]; // month = conservative rolling 31 days
-export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: string | null, payload: unknown, work: () => Promise<T>, finalize?: (tx: Transaction, result: T) => Promise<void>): Promise<T> {
+export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: string | null, payload: unknown, work: () => Promise<T>, finalize?: (tx: Transaction, result: T) => Promise<void>, validate?: () => Promise<void>): Promise<T> {
+  // Gate even cached results before validation/key lookup; repeat under the admission lock.
+  const permit = await db.transaction(tx => privacyPermit(tx, userId)).catch(e => { throw e instanceof PrivacyError ? e : new AiError('AI_DATABASE_UNAVAILABLE'); });
+  await validate?.();
   if (!key || !/^[a-zA-Z0-9_-]{16,128}$/.test(key)) throw new AiError('IDEMPOTENCY_KEY_REQUIRED', 400);
   const keyHash = sha(key), fingerprint = sha(canonical({ endpoint, payload })), id = randomUUID();
   const reserveCost = costMicros(limits[endpoint].input, limits[endpoint].output);
   let prior;
   try {
     prior = await db.transaction(async tx => {
+      await checkAiPrivacy(tx, permit);
       const now = await clock(tx);
       // No network call can start after its reservation expires. Dispatching never returns to reserved.
       await tx.execute({ sql: "UPDATE ai_requests SET state='failed_pre_dispatch',cost_micros=0 WHERE state='reserved' AND lease_until<=?", args: [now] });
       await tx.execute({ sql: "UPDATE ai_requests SET state='unknown' WHERE state='dispatching' AND lease_until<=?", args: [now] });
       await tx.execute({ sql: "UPDATE ai_requests SET state='expired',result_json=NULL WHERE state='succeeded' AND result_until<=?", args: [now] });
       const existing = (await tx.execute({ sql: 'SELECT * FROM ai_requests WHERE user_id=? AND key_hash=?', args: [userId, keyHash] })).rows[0];
-      if (existing) return existing;
+      if (existing) {
+        await checkAiPrivacy(tx, { userId, generation: Number(existing.generation), revision: Number(existing.consent_revision) });
+        return existing;
+      }
+      const operation = payload && typeof payload === 'object' && 'operationId' in payload ? String(payload.operationId) : key;
+      const legacy = (await tx.execute({ sql: 'SELECT 1 FROM ai_operations WHERE user_id=? AND operation_id=?', args: [userId, operation] })).rows.length;
+      if (legacy) throw new AiError('AI_OPERATION_ALREADY_STARTED', 409);
       if (process.env.AI_ENABLED === 'false' || (await tx.execute('SELECT enabled FROM ai_control WHERE id=1')).rows[0]?.enabled !== 1) throw new AiError('AI_STOPPED');
       const running = (await tx.execute({ sql: `SELECT count(*) total,coalesce(sum(user_id=?),0) own FROM ai_requests WHERE ${active}`, args: [userId] })).rows[0];
       if (Number(running.own) >= 1 || Number(running.total) >= 10) throw new AiError('AI_CONCURRENCY_LIMIT', 429);
@@ -40,10 +52,11 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
         const globalCost = [Infinity, 1e6, 5e6, 30e6][i], userCost = [Infinity, Infinity, 150000, 1e6][i];
         if (Number(r.cost) + reserveCost > globalCost || Number(r.own_cost) + reserveCost > userCost) throw new AiError('AI_COST_LIMIT', 429);
       }
-      await tx.execute({ sql: "INSERT INTO ai_requests(id,user_id,key_hash,payload_hash,endpoint,state,created_at,lease_until,result_until,cost_micros) VALUES(?,?,?,?,?,'reserved',?,?,?,?)", args: [id, userId, keyHash, fingerprint, endpoint, now, now + 30000, now + 86400000, reserveCost] });
+      await tx.execute({ sql: "INSERT INTO ai_requests(id,user_id,key_hash,payload_hash,endpoint,state,created_at,lease_until,result_until,cost_micros,generation,consent_revision) VALUES(?,?,?,?,?,'reserved',?,?,?,?,?,?)", args: [id, userId, keyHash, fingerprint, endpoint, now, now + 30000, now + 86400000, reserveCost, permit.generation, permit.revision] });
+      await tx.execute({ sql: 'INSERT INTO ai_operations VALUES(?,?,?,?,?,?,?,?)', args: [userId, operation, endpoint, fingerprint, permit.generation, permit.revision, 'started', new Date(now).toISOString()] });
       return undefined;
     });
-  } catch (e) { logEvent('ai_denied', { endpoint, status: e instanceof AiError ? e.status : 503 }); throw e instanceof AiError ? e : new AiError('AI_DATABASE_UNAVAILABLE'); }
+  } catch (e) { logEvent('ai_denied', { endpoint, status: e instanceof AiError ? e.status : 503 }); throw e instanceof AiError || e instanceof PrivacyError ? e : new AiError('AI_DATABASE_UNAVAILABLE'); }
   if (prior) {
     if (prior.payload_hash !== fingerprint) throw new AiError('IDEMPOTENCY_CONFLICT', 409);
     if (prior.state === 'succeeded') return JSON.parse(String(prior.result_json)) as T;
@@ -54,6 +67,7 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
   const context: Execution = { endpoint, dispatch: async () => {
     if (dispatched) throw new AiError('AI_DUPLICATE_DISPATCH');
     await db.transaction(async tx => {
+      await checkAiPrivacy(tx, permit);
       const now = await clock(tx);
       if (process.env.AI_ENABLED === 'false' || (await tx.execute('SELECT enabled FROM ai_control WHERE id=1')).rows[0]?.enabled !== 1) throw new AiError('AI_STOPPED');
       const changed = await tx.execute({ sql: "UPDATE ai_requests SET state='dispatching',lease_until=? WHERE id=? AND state='reserved' AND lease_until>?", args: [now + 120000, id, now] });
@@ -67,6 +81,7 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
     const usage = context.usage;
     const charged = usage ? costMicros(usage.input, usage.output) : reserveCost;
     await db.transaction(async tx => {
+      await checkAiPrivacy(tx, permit);
       const row = (await tx.execute({ sql: 'SELECT state FROM ai_requests WHERE id=?', args: [id] })).rows[0];
       if (row?.state !== 'dispatching') throw new AiError('AI_UNKNOWN');
       await finalize?.(tx, result);
@@ -76,12 +91,13 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
     logEvent('ai_complete', { endpoint, durationMs: Date.now() - start, costMicros: charged, inputTokens: usage?.input, outputTokens: usage?.output });
     return result;
   } catch (e) {
-    const state = !dispatched ? 'failed_pre_dispatch' : e instanceof ProviderError && !e.uncertain ? 'failed_final' : 'unknown';
+    const state = !dispatched ? 'failed_pre_dispatch' : e instanceof PrivacyError || e instanceof ProviderError && !e.uncertain ? 'failed_final' : 'unknown';
     try { await db.transaction(async tx => {
       // A lost COMMIT acknowledgement must never overwrite a committed success.
-      await tx.execute({ sql: "UPDATE ai_requests SET state=?,cost_micros=CASE WHEN ?='failed_pre_dispatch' THEN 0 ELSE cost_micros END WHERE id=? AND state IN ('reserved','dispatching')", args: [state, state, id] });
+      await tx.execute({ sql: "UPDATE ai_requests SET state=?,cost_micros=CASE WHEN ?='failed_pre_dispatch' THEN 0 ELSE cost_micros END WHERE id=? AND state IN ('reserved','dispatching','unknown')", args: [state, state, id] });
     }); } catch { /* Durable dispatch marker retains the maximum reservation; never resend. */ }
     logEvent(state === 'unknown' ? 'ai_unknown' : 'ai_denied', { endpoint, status: 503 });
+    if (e instanceof PrivacyError) throw e;
     if (state === 'unknown') throw new AiError('AI_UNKNOWN');
     if (!dispatched && e instanceof InputError) throw e;
     if (!dispatched && e instanceof Error && e.message === 'CARD_NOT_FOUND') throw new AiError('CARD_NOT_FOUND', 404);

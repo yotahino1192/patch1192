@@ -60,14 +60,14 @@ async function createResponse(body: Record<string, unknown>): Promise<OpenAIResp
   } catch (error) { throw error instanceof ProviderError ? error : new ProviderError(true); }
 }
 
-export async function generateMaterial(input: {
+export function prepareMaterial(input: {
   text: string;
   detail: string;
   style: string;
   category?: string;
   mode?: "source" | "lesson_summary";
   language?: "ja" | "en";
-}): Promise<GeneratedMaterial> {
+}): () => Promise<GeneratedMaterial> {
   const formatByStyle: Record<string, CardFormat> = {
     "一問一答": "qa",
     "4択問題": "multiple_choice",
@@ -81,7 +81,7 @@ export async function generateMaterial(input: {
   const minCards = isLessonSummary ? 1 : 3;
   const maxCards = isLessonSummary ? 6 : 20;
   const choiceCount = format === "multiple_choice" ? 4 : 0;
-  const response = await createResponse({
+  const body = {
     model: runtime().OPENAI_CARD_MODEL || "gpt-5-nano",
     reasoning: { effort: "low" },
     max_output_tokens: 6000,
@@ -139,16 +139,20 @@ ${isLessonSummary ? "AIとの学習対話を要約し、新しく学んだ内容
         },
       },
     },
-  });
+  };
+  validateProvider(body, 'cards');
+  return async () => {
+  const response = await createResponse(body);
   const parsed = JSON.parse(outputText(response)) as GeneratedMaterial;
   if (!Array.isArray(parsed.cards) || parsed.cards.length === 0) throw new Error("AI_INVALID_CARDS");
   if (format === "multiple_choice" && parsed.cards.some((card) => card.choices.length !== 4 || !card.choices.includes(card.answer))) {
     throw new Error("AI_INVALID_CHOICES");
   }
   return parsed;
+  };
 }
 
-export async function answerQuestion(input: {
+export function prepareQuestion(input: {
   question: string;
   language?: "ja" | "en";
   depth: string;
@@ -157,7 +161,7 @@ export async function answerQuestion(input: {
   sourceContent?: string;
   category?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
-}): Promise<string> {
+}): () => Promise<string> {
   const context = [
     input.category ? `カテゴリー: ${input.category}` : "",
     input.cardQuestion ? `カードの質問: ${input.cardQuestion}` : "",
@@ -168,7 +172,7 @@ export async function answerQuestion(input: {
     role: message.role,
     content: message.content,
   }));
-  const response = await createResponse({
+  const body = {
     model: runtime().OPENAI_CHAT_MODEL || "gpt-5-nano",
     reasoning: { effort: "low" },
     max_output_tokens: 1800,
@@ -179,6 +183,21 @@ export async function answerQuestion(input: {
 
 ${context}`,
     input: [...history, { role: "user", content: input.question }],
-  });
-  return outputText(response);
+  };
+  validateProvider(body, 'chat');
+  return async () => outputText(await createResponse(body));
+}
+
+export async function generateMaterial(input: Parameters<typeof prepareMaterial>[0]) {
+  if (!execution.getStore()) throw new AiError('AI_ADMISSION_REQUIRED');
+  return prepareMaterial(input)();
+}
+export async function answerQuestion(input: Parameters<typeof prepareQuestion>[0]) {
+  if (!execution.getStore()) throw new AiError('AI_ADMISSION_REQUIRED');
+  return prepareQuestion(input)();
+}
+function validateProvider(body: Record<string, unknown>, endpoint: 'cards' | 'chat') {
+  apiKey();
+  if (body.model !== 'gpt-5-nano') throw new AiError('AI_MODEL_INVALID');
+  if (inputUpperBound(body) > limits[endpoint].input) throw new AiError('AI_INPUT_TOO_LARGE', 413);
 }

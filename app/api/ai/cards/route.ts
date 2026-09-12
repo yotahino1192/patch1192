@@ -3,7 +3,7 @@ import { runAi, aiErrorResponse } from '../../../../lib/ai/control';
 import { logEvent } from '../../../../lib/safe-log';
 import { requireAuth, authErrorResponse } from "../../../../lib/auth-server";
 import { InputError, readJsonObject } from "../../../../lib/api-input";
-import { generateMaterial } from "../../../../lib/openai";
+import { prepareMaterial } from "../../../../lib/openai";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,13 +17,14 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const { userId } = await requireAuth(request);
     const body = await readJsonObject(request, 128 * 1024);
-    const material = await runAi(database(), userId, 'cards', request.headers.get('Idempotency-Key'), body, async () => {
+    let send: ReturnType<typeof prepareMaterial>;
+    const material = await runAi(database(), userId, 'cards', request.headers.get('Idempotency-Key'), body, () => send(), undefined, async () => {
       const text = String(body.text || '').trim();
       const mode = body.mode === 'lesson_summary' ? 'lesson_summary' : 'source';
       const minimumLength = mode === 'lesson_summary' ? 20 : 80;
       if (text.length < minimumLength) throw new InputError(mode === 'lesson_summary' ? '要約するAI解説が不足しています。' : 'カードを作るには、80文字以上の文章を入力してください。');
       if (text.length > 30000) throw new InputError('一度に解析できる文章は30,000文字までです。');
-      return generateMaterial({
+      send = prepareMaterial({
       language: body.language === "en" ? "en" : "ja",
       text,
       detail: String(body.detail || "標準"),

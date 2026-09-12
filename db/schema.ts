@@ -2,6 +2,8 @@ import { primaryKey, index, uniqueIndex, integer, sqliteTable, text } from "driz
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
+  lifecycleState: text("lifecycle_state").notNull().default("active"),
+  generation: integer("generation").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
 
@@ -120,3 +122,18 @@ export const userProfiles = sqliteTable("user_profiles", {
   initialSessionId: text("initial_session_id"),
   firstLearningCompletedAt: text("first_learning_completed_at"),
 });
+
+export const userConsents = sqliteTable("user_consents", {
+ userId:text("user_id").notNull(),scope:text("scope").notNull(),state:text("state").notNull(),consentVersion:text("consent_version").notNull(),policyVersion:text("policy_version").notNull(),revision:integer("revision").notNull(),operationId:text("operation_id").notNull(),textHash:text("text_hash").notNull(),language:text("language").notNull(),updatedAt:text("updated_at").notNull(),
+},t=>[primaryKey({columns:[t.userId,t.scope]})]);
+export const consentEvents = sqliteTable("consent_events", {
+ userId:text("user_id").notNull(),operationId:text("operation_id").notNull(),payloadHash:text("payload_hash").notNull(),state:text("state").notNull(),consentVersion:text("consent_version").notNull(),policyVersion:text("policy_version").notNull(),revision:integer("revision").notNull(),textHash:text("text_hash").notNull(),language:text("language").notNull(),createdAt:text("created_at").notNull(),
+},t=>[primaryKey({columns:[t.userId,t.operationId]})]);
+export const aiOperations = sqliteTable("ai_operations", {
+ userId:text("user_id").notNull(),operationId:text("operation_id").notNull(),kind:text("kind").notNull(),payloadHash:text("payload_hash").notNull(),generation:integer("generation").notNull(),consentRevision:integer("consent_revision").notNull(),state:text("state").notNull(),createdAt:text("created_at").notNull(),
+},t=>[primaryKey({columns:[t.userId,t.operationId]})]);
+export const deletionChallenges=sqliteTable("deletion_challenges",{id:text("id").primaryKey(),userId:text("user_id").notNull(),sessionId:text("session_id").notNull(),previousVerificationId:text("previous_verification_id").notNull(),expiresAt:integer("expires_at").notNull(),used:integer("used").notNull().default(0)});
+export const accountDeletionJobs=sqliteTable("account_deletion_jobs",{
+ id:text("id").primaryKey(),userId:text("user_id").notNull().unique(),issuer:text("issuer").notNull(),subject:text("subject").notNull(),operationId:text("operation_id").notNull(),receiptHash:text("receipt_hash").notNull(),state:text("state").notNull().default("pending"),dbStep:text("db_step").notNull().default("pending"),clerkStep:text("clerk_step").notNull().default("pending"),appleStep:text("apple_step").notNull().default("not_applicable"),attempts:integer("attempts").notNull().default(0),nextAttemptAt:integer("next_attempt_at").notNull().default(0),leaseToken:text("lease_token"),leaseUntil:integer("lease_until").notNull().default(0),lastError:text("last_error"),createdAt:text("created_at").notNull(),completedAt:text("completed_at"),
+},t=>[index("deletion_jobs_due_idx").on(t.state,t.nextAttemptAt,t.leaseUntil)]);
+export const deletedIdentityTombstones=sqliteTable("deleted_identity_tombstones",{identityHash:text("identity_hash").primaryKey(),userId:text("user_id").notNull(),createdAt:text("created_at").notNull()});

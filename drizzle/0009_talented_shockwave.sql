@@ -12,6 +12,8 @@ CREATE TABLE `ai_requests` (
 	`payload_hash` text NOT NULL,
 	`endpoint` text NOT NULL,
 	`state` text NOT NULL,
+	`generation` integer DEFAULT 0 NOT NULL,
+	`consent_revision` integer DEFAULT 0 NOT NULL,
 	`created_at` integer NOT NULL,
 	`lease_until` integer NOT NULL,
 	`result_until` integer NOT NULL,
@@ -31,3 +33,11 @@ CREATE INDEX `ai_requests_user_created` ON `ai_requests` (`user_id`,`created_at`
 CREATE INDEX `ai_requests_state` ON `ai_requests` (`state`);
 --> statement-breakpoint
 INSERT INTO ai_control(id,enabled) VALUES(1,1);
+--> statement-breakpoint
+CREATE TRIGGER ai_requests_active_insert BEFORE INSERT ON ai_requests
+WHEN NOT EXISTS (SELECT 1 FROM users WHERE id=NEW.user_id AND lifecycle_state='active')
+BEGIN SELECT RAISE(ABORT, 'ACCOUNT_INACTIVE'); END;
+--> statement-breakpoint
+CREATE TRIGGER ai_requests_result_active_update BEFORE UPDATE OF result_json ON ai_requests
+WHEN NEW.result_json IS NOT NULL AND NOT EXISTS (SELECT 1 FROM users WHERE id=NEW.user_id AND lifecycle_state='active')
+BEGIN SELECT RAISE(ABORT, 'ACCOUNT_INACTIVE'); END;

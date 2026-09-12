@@ -1,3 +1,4 @@
+import { grantAi } from './ai-consent-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient } from '@libsql/client';
@@ -7,7 +8,7 @@ import { runAi } from '../lib/ai/control.ts';
 import { execution, ProviderError, AiError } from '../lib/ai/execution.ts';
 import { randomUUID } from 'node:crypto';
 const key = () => randomUUID();
-async function fixture(fn) { const c=createClient({url:':memory:'}); try { await migrate(c); await c.execute("INSERT INTO users VALUES ('a','now'),('b','now')"); await fn(createDatabase(c),c); } finally { c.close(); } }
+async function fixture(fn) { const c=createClient({url:':memory:'}); try { await migrate(c); await c.execute("INSERT INTO users(id,created_at) VALUES ('a','now'),('b','now')"); await grantAi(c,'a'); await grantAi(c,'b'); await fn(createDatabase(c),c); } finally { c.close(); } }
 const work = async () => { const ctx=execution.getStore(); await ctx.dispatch(); ctx.usage={input:100,output:100}; return {answer:'safe test result'}; };
 const rejects = (p, code) => assert.rejects(p, e => e.code === code);
 async function seed(c,{owner='a',endpoint='cards',age=0,cost=0,state='succeeded',count=1}={}) { for(let i=0;i<count;i++) await c.execute({sql:"INSERT INTO ai_requests(id,user_id,key_hash,payload_hash,endpoint,state,created_at,lease_until,result_until,cost_micros,result_json) VALUES(?,?,?,?,?,?,CAST(strftime('%s','now') AS INTEGER)*1000-?,0,9999999999999,?,'{}')",args:[key(),owner,key(),key(),endpoint,state,age,cost]}); }
@@ -64,7 +65,7 @@ test('database failures before admission and before dispatch fail closed',()=>fi
  await rejects(runAi(db,'a','cards',key(),{},async()=>{await c.execute('UPDATE ai_control SET enabled=0');await execution.getStore().dispatch();assert.fail();}),'AI_STOPPED');
 }));
 test('atomic result/side effect rollback becomes unknown; expiry cannot replay',()=>fixture(async(db,c)=>{
- const k=key();await rejects(runAi(db,'a','chat',k,{},work,async(tx)=>{await tx.execute("INSERT INTO users VALUES ('rollback','now')");throw Error('private body');}),'AI_UNKNOWN');
+ const k=key();await rejects(runAi(db,'a','chat',k,{},work,async(tx)=>{await tx.execute("INSERT INTO users(id,created_at) VALUES ('rollback','now')");throw Error('private body');}),'AI_UNKNOWN');
  assert.equal((await c.execute("SELECT id FROM users WHERE id='rollback'")).rows.length,0);
  const k2=key();await runAi(db,'b','cards',k2,{},work);await c.execute("UPDATE ai_requests SET result_until=0 WHERE user_id='b'");await rejects(runAi(db,'b','cards',k2,{},work),'AI_RESULT_EXPIRED');
  assert.equal((await c.execute("SELECT result_json FROM ai_requests WHERE user_id='b'")).rows[0].result_json,null);
@@ -89,9 +90,25 @@ test('expired pre-dispatch reservation is fenced from late workers',()=>fixture(
 test('admission is shared across independent connections',async()=>{
  const {mkdtemp,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');const dir=await mkdtemp(join(tmpdir(),'patch-ai-race-'));
  const a=createClient({url:'file:'+join(dir,'db')}),b=createClient({url:'file:'+join(dir,'db')});
- try{await migrate(a);await a.execute("INSERT INTO users VALUES ('a','now')");let release,ready;const started=new Promise(r=>ready=r),pause=new Promise(r=>release=r);
+ try{await migrate(a);await a.execute("INSERT INTO users(id,created_at) VALUES ('a','now')");await grantAi(a,'a');let release,ready;const started=new Promise(r=>ready=r),pause=new Promise(r=>release=r);
  const pending=runAi(createDatabase(a),'a','chat',key(),{},async()=>{await execution.getStore().dispatch();ready();await pause;return {};});await started;
  try{await rejects(runAi(createDatabase(b),'a','cards',key(),{},()=>assert.fail('sent')),'AI_CONCURRENCY_LIMIT');}finally{release();await pending;}
  assert.equal((await a.execute('SELECT count(*) n FROM ai_requests')).rows[0].n,1);
  }finally{a.close();b.close();await rm(dir,{recursive:true,force:true});}
 });
+test('consent/lifecycle gate precedes validation, key lookup and reservation; dispatch repeats the gate',()=>fixture(async(db,c)=>{
+ await c.execute("UPDATE user_consents SET state='revoked' WHERE user_id='a'");
+ await rejects(runAi(db,'a','cards',null,{},()=>assert.fail('send'),undefined,async()=>assert.fail('validation before consent')),'AI_CONSENT_REQUIRED');
+ assert.equal((await c.execute('SELECT count(*) n FROM ai_requests')).rows[0].n,0);
+ await grantAi(c,'a');
+ await rejects(runAi(db,'a','cards',key(),{},work,undefined,async()=>{await c.execute("UPDATE users SET lifecycle_state='deleting',generation=generation+1 WHERE id='a'");}),'ACCOUNT_INACTIVE');
+ assert.equal((await c.execute('SELECT count(*) n FROM ai_requests')).rows[0].n,0);
+ await rejects(runAi(db,'b','cards',key(),{},async()=>{await c.execute("UPDATE user_consents SET state='revoked' WHERE user_id='b'");await execution.getStore().dispatch();assert.fail('sent');}),'AI_CONSENT_REQUIRED');
+ assert.equal((await c.execute("SELECT cost_micros FROM ai_requests WHERE user_id='b'")).rows[0].cost_micros,0);
+}));
+test('successful replay is denied after withdrawal and after a revoke/regrant revision change',()=>fixture(async(db,c)=>{
+ const k=key();await runAi(db,'a','cards',k,{},work);
+ await c.execute("UPDATE user_consents SET state='revoked' WHERE user_id='a'");await rejects(runAi(db,'a','cards',k,{},()=>assert.fail('sent')),'AI_CONSENT_REQUIRED');
+ await grantAi(c,'a');await rejects(runAi(db,'a','cards',k,{},()=>assert.fail('sent')),'AI_CONSENT_CHANGED');
+ await c.execute("UPDATE users SET lifecycle_state='deleted' WHERE id='a'");await rejects(runAi(db,'a','cards',k,{},()=>assert.fail('sent')),'ACCOUNT_INACTIVE');
+}));

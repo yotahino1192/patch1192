@@ -28,6 +28,7 @@
     "ios:open": "cap open ios",
     "ios:run": "npm run ios:sync:local && cap run ios",
     "test:auth-browser": "node scripts/check-auth-browser.mjs",
+    "test:privacy-browser": "node scripts/check-privacy-browser.mjs",
     "postbuild": "node scripts/seal-web-artifact.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:validate": "node scripts/db-validate.mjs",

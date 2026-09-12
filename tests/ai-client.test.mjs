@@ -29,3 +29,10 @@ test('confirmed terminal response permits a later explicit action with a new key
  assert.notEqual(seen[0],seen[1]);assert.equal(seen.length,2);
  }finally {if(original)Object.defineProperty(globalThis,'sessionStorage',original);else delete globalThis.sessionStorage;}
 });
+test('Privacy-generated operation UUID changes do not bypass an unknown pending request',async()=>{
+ const original=Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');Object.defineProperty(globalThis,'sessionStorage',{value:storage(),configurable:true});
+ try {const sent=[];for(let i=0;i<2;i++)await sendAi(async(_u,init)=>{sent.push({key:init.headers.get('Idempotency-Key'),body:JSON.parse(init.body)});return Response.json({code:'AI_UNKNOWN'},{status:503});},'/api/ai/cards',{method:'POST',headers:{'X-Patch-Account':'a'},body:JSON.stringify({text:'private',operationId:crypto.randomUUID()})});
+ assert.equal(sent[0].key,sent[1].key);assert.deepEqual(sent[0].body,sent[1].body);assert.equal(sent[0].key,sent[0].body.operationId);
+ const controller=new AbortController();controller.abort();await assert.rejects(sendAi(async()=>assert.fail('stale native dispatch'),'/api/ai/cards',{method:'POST',headers:{'X-Patch-Account':'a'},body:'{}',signal:controller.signal}),{name:'AbortError'});
+ }finally{if(original)Object.defineProperty(globalThis,'sessionStorage',original);else delete globalThis.sessionStorage;}
+});

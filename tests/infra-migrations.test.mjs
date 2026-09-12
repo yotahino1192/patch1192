@@ -89,3 +89,21 @@ finally {
     c.close();
     await rm(dir, { recursive: true, force: true });
 } });
+test('upgrade from Dev preserves applied Privacy checksums/data and blocks legacy AI operation replay', async () => {
+ const dir=await mkdtemp(join(tmpdir(),'patch-upgrade-')),c=createClient({url:':memory:'});
+ try {
+  const {writeFile}=await import('node:fs/promises');const all=await loadMigrations();
+  const previous=all.filter(m=>!m.name.startsWith('0009_'));
+  for(const m of previous)await writeFile(join(dir,m.name),m.sql);
+  await migrate(c,{directory:dir});await c.execute("INSERT INTO users(id,created_at) VALUES('upgrade-owner','now')");
+  const {grantAi}=await import('./ai-consent-fixture.mjs');await grantAi(c,'upgrade-owner');
+  await c.execute("INSERT INTO ai_operations VALUES('upgrade-owner','legacy-operation-uuid','source','old-hash',0,1,'started','now')");
+  const before=(await c.execute('SELECT name,checksum FROM _patch_migrations ORDER BY name')).rows;
+  await migrate(c);await migrate(c);await validateDatabase(c,all);
+  const after=(await c.execute('SELECT name,checksum FROM _patch_migrations ORDER BY name')).rows;
+  assert.deepEqual(after.slice(0,before.length),before);assert.equal(after.length,before.length+1);
+  const {runAi}=await import('../lib/ai/control.ts');
+  await assert.rejects(runAi(createDatabase(c),'upgrade-owner','cards','new-request-uuid-123',{operationId:'legacy-operation-uuid'},async()=>assert.fail('legacy paid request replayed')),e=>e.code==='AI_OPERATION_ALREADY_STARTED');
+  assert.equal((await c.execute('SELECT count(*) n FROM ai_requests')).rows[0].n,0);
+ }finally{c.close();await rm(dir,{recursive:true,force:true});}
+});

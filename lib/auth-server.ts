@@ -1,3 +1,4 @@
+import { privacyErrorResponse } from "./privacy-error";
 import { verifyToken } from "@clerk/backend";
 import { resolveInternalUser } from "../db/auth-store";
 
@@ -11,13 +12,14 @@ export class AuthError extends Error {
 }
 
 export function authErrorResponse(error: unknown): Response | undefined {
+  const privacy = privacyErrorResponse(error); if (privacy) return privacy;
   if (error && typeof error === 'object' && 'code' in error && ['SCHEMA_NOT_READY', 'CONFIG_INVALID'].includes(String(error.code))) {
     return Response.json({ error: 'サービスの準備が完了していません。', code: String(error.code) }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
   }
   if (error instanceof AuthError) return Response.json({ error: error.message, code: error.code }, { status: error.status, headers: { "Cache-Control": "no-store", "X-Patch-Auth-Error": error.code } });
 }
 
-export async function requireAuth(request: Request, bootstrap = false) {
+export async function verifiedIdentity(request: Request) {
   const authorization = request.headers.get("authorization");
   const cookies = (request.headers.get("cookie") || "").split(";").map(v => v.trim()).filter(v => v.startsWith("__session="));
   if (cookies.length > 1) throw new AuthError();
@@ -43,6 +45,12 @@ export async function requireAuth(request: Request, bootstrap = false) {
     if (!origin || !origins.includes(origin)) throw new AuthError(403, "INVALID_ORIGIN");
   }
   if (request.headers.get("x-patch-session") !== claims.sid) throw new AuthError(409, "ACCOUNT_CHANGED");
+  return { issuer: claims.iss, subject: claims.sub, sessionId: claims.sid, claims };
+}
+
+export async function requireAuth(request: Request, bootstrap = false) {
+  const identity = await verifiedIdentity(request);
+  const claims = {iss:identity.issuer,sub:identity.subject,sid:identity.sessionId};
   const userId = await resolveInternalUser(claims.iss, claims.sub);
   if (!bootstrap && request.headers.get("x-patch-account") !== userId) throw new AuthError(409, "ACCOUNT_CHANGED");
   return { userId, subject: claims.sub, sessionId: claims.sid };

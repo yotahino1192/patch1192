@@ -1,14 +1,18 @@
 "use client";
 
+import { DeletionStatus } from "./deletion-status";
+import { PrivacyProvider } from "./privacy-provider";
+import { LegalLinks } from "./legal-content";
+import { cleanupAccount, cleanupIntentKey, resumeAccountCleanup } from "../lib/account-cleanup";
 import { ClerkProvider, SignIn, SignUp, useAuth, useClerk } from "@clerk/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AccountContext } from "./account-context";
 import { createAccountScope, loadAccount, type AccountScope, type Identity, type SessionTransport } from "../lib/account-scope";
-import { clearAccountWorkspace, logoutKey } from "../lib/account-storage";
+import { logoutKey } from "../lib/account-storage";
 import { getNativeAuth, type NativeAuth } from "../lib/auth-platform";
 
 function AuthMessage({ children }: { children: ReactNode }) {
-  return <main className="auth-screen"><section className="auth-card"><h1>Patch</h1>{children}</section></main>;
+  return <main className="auth-screen"><section className="auth-card"><h1>Patch</h1><DeletionStatus/>{children}<LegalLinks /></section></main>;
 }
 
 export function AuthBoundary({ children, signUp = false }: { children?: ReactNode; signUp?: boolean }) {
@@ -28,7 +32,7 @@ function useAccountDeparture(identity: Identity | null) {
   useLayoutEffect(() => {
     if (owner.current && (!identity || owner.current.account.sessionId !== identity.sessionId || owner.current.account.subject !== identity.subject)) {
       owner.current.invalidate();
-      try { clearAccountWorkspace(localStorage, owner.current.account.userId); } catch { /* Namespaces still prevent another account from reading it. */ }
+      try { void cleanupAccount(localStorage, owner.current.account.userId).catch(()=>{}); } catch { /* Namespaces still prevent another account from reading it. */ }
       owner.current = null;
     }
   }, [identity]);
@@ -42,9 +46,15 @@ function WebBoundary({ children, signUp }: { children?: ReactNode; signUp: boole
   const captureScope = useAccountDeparture(identity);
   const signOut = useCallback(async (id: string) => { await clerk.signOut({ sessionId: id }); }, [clerk]);
   const session = useMemo<SessionTransport>(() => ({}), []);
+  const reauthenticate = async (code?:string) => {
+    const current=clerk.session;
+    if(!current||current.id!==identity?.sessionId)throw Error("Session changed");
+    if(code){const result=await current.attemptFirstFactorVerification({strategy:"email_code",code});if(result.status!=="complete")throw Error("追加認証が必要です。");await current.getToken({skipCache:true});}
+    else {const verification=await current.startVerification({level:"first_factor"});const factor=verification.supportedFirstFactors?.find(f=>f.strategy==="email_code");if(!factor||factor.strategy!=="email_code")throw Error("メールによる再認証を設定してください。");await current.prepareFirstFactorVerification({strategy:"email_code",emailAddressId:factor.emailAddressId});}
+  };
   if (!isLoaded) return <AuthMessage><p>ログインを確認しています…</p></AuthMessage>;
   if (!identity) return <AuthMessage>{signUp ? <SignUp routing="hash" signInUrl="/" forceRedirectUrl="/" /> : <SignIn routing="hash" signUpUrl="/sign-up" forceRedirectUrl="/" />}</AuthMessage>;
-  return <SessionBoundary key={identity.sessionId} captureScope={captureScope} identity={identity} session={session} signOut={signOut}>{children || <form action="/" method="get"><button>学習へ進む</button></form>}</SessionBoundary>;
+  return <SessionBoundary email={clerk.user?.primaryEmailAddress?.emailAddress} reauthenticate={reauthenticate} key={identity.sessionId} captureScope={captureScope} identity={identity} session={session} signOut={signOut}>{children || <form action="/" method="get"><button>学習へ進む</button></form>}</SessionBoundary>;
 }
 
 function NativeBoundary({ native, children }: { native: NativeAuth; children?: ReactNode }) {
@@ -62,11 +72,11 @@ function NativeBoundary({ native, children }: { native: NativeAuth; children?: R
   }, [native]);
   const captureScope = useAccountDeparture(identity);
   const session = useMemo<SessionTransport>(() => ({ getToken: () => identity ? native.getToken(identity.sessionId) : Promise.resolve(null) }), [identity, native]);
-  const signOut = useCallback(async (id: string) => { await native.signOut(id); setIdentity(previous => previous?.sessionId === id ? null : previous); }, [native]);
+  const signOut = useCallback(async (id: string, deleting=false) => { await native.signOut(id,deleting); setIdentity(previous => previous?.sessionId === id ? null : previous); }, [native]);
   if (error) return <AuthMessage><p role="alert">{error}</p><button onClick={() => location.reload()}>再試行</button></AuthMessage>;
   if (!loaded) return <AuthMessage><p>ログインを確認しています…</p></AuthMessage>;
   if (!identity) return <EmailForm native={native} onSignedIn={setIdentity} />;
-  return <SessionBoundary key={identity.sessionId} captureScope={captureScope} identity={identity} session={session} signOut={signOut}>{children}</SessionBoundary>;
+  return <SessionBoundary email={identity.email} reauthenticate={native.reauthenticate ? code=>native.reauthenticate!(identity.sessionId,code) : undefined} key={identity.sessionId} captureScope={captureScope} identity={identity} session={session} signOut={signOut}>{children}</SessionBoundary>;
 }
 
 function EmailForm({ native, onSignedIn }: { native: NativeAuth; onSignedIn: (identity: Identity | null) => void }) {
@@ -93,7 +103,7 @@ function EmailForm({ native, onSignedIn }: { native: NativeAuth; onSignedIn: (id
   </form></AuthMessage>;
 }
 
-function SessionBoundary({ identity, session, signOut, captureScope, children }: { captureScope: (scope: AccountScope) => void; identity: Identity; session: SessionTransport; signOut: (id: string) => Promise<void>; children: ReactNode }) {
+function SessionBoundary({ identity, session, signOut, captureScope, children, email, reauthenticate }: { email?:string; reauthenticate?:(code?:string)=>Promise<void>; captureScope: (scope: AccountScope) => void; identity: Identity; session: SessionTransport; signOut: (id: string, deleting?:boolean) => Promise<void>; children: ReactNode }) {
   const [scope, setScope] = useState<AccountScope | null>(null);
   const current = useRef<AccountScope | null>(null);
   const [error, setError] = useState("");
@@ -106,13 +116,28 @@ function SessionBoundary({ identity, session, signOut, captureScope, children }:
     let owned: AccountScope | null = null;
     const bootstrap = async () => {
       if (localStorage.getItem(logoutKey(identity.sessionId))) {
-        await signOut(identity.sessionId);
+        await resumeAccountCleanup(localStorage,identity.sessionId);
+        await signOut(identity.sessionId,localStorage.getItem(logoutKey(identity.sessionId))==="deleting");
         localStorage.removeItem(logoutKey(identity.sessionId));
         return;
       }
       const account = await loadAccount(identity, session);
       if (!active) return;
-      owned = createAccountScope(account, session, undefined, () => { owned?.invalidate(); setError("ログインを再確認してください。"); });
+      owned = createAccountScope(account, session, undefined, reason => {
+        owned?.invalidate(); setError("ログインを再確認してください。");
+        if(reason && ["ACCOUNT_DELETED","ACCOUNT_DELETING","ACCOUNT_INACTIVE"].includes(reason)) {
+          // A different device has accepted deletion: lock and purge on next contact.
+          setLoggingOut(true);
+          const purge=async()=>{
+            localStorage.setItem(logoutKey(identity.sessionId),"deleting");
+            localStorage.setItem(cleanupIntentKey(identity.sessionId),JSON.stringify({userId:account.userId,deleting:true}));
+            await resumeAccountCleanup(localStorage,identity.sessionId);
+            await signOut(identity.sessionId,true);
+            localStorage.removeItem(logoutKey(identity.sessionId));
+          };
+          void purge().catch(()=>setError("このアカウントは利用できません。端末内データの消去を再試行してください。"));
+        }
+      });
       current.current = owned; captureScope(owned);
       setScope(owned); setError("");
     };
@@ -120,14 +145,16 @@ function SessionBoundary({ identity, session, signOut, captureScope, children }:
     return () => { active = false; owned?.invalidate(); };
   }, [identity, session, signOut, captureScope, attempt]);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (deleting=false) => {
     const departing = current.current;
     departing?.invalidate(); setLoggingOut(true); setError("");
     try {
       // Mark before the network call so an interrupted logout cannot restore private data.
-      localStorage.setItem(logoutKey(identity.sessionId), "pending");
-      if (departing) clearAccountWorkspace(localStorage, departing.account.userId);
-      await signOut(identity.sessionId);
+      deleting=deleting || localStorage.getItem(logoutKey(identity.sessionId))==="deleting";
+      localStorage.setItem(logoutKey(identity.sessionId), deleting ? "deleting" : "pending");
+      if (departing)localStorage.setItem(cleanupIntentKey(identity.sessionId),JSON.stringify({userId:departing.account.userId,deleting}));
+      await resumeAccountCleanup(localStorage,identity.sessionId);
+      await signOut(identity.sessionId,deleting);
       localStorage.removeItem(logoutKey(identity.sessionId));
     } catch { setError("ログアウトを完了できません。接続を確認して再試行してください。学習画面はロックされています。"); }
   }, [identity.sessionId, signOut]);
@@ -146,5 +173,5 @@ function SessionBoundary({ identity, session, signOut, captureScope, children }:
   if (loggingOut) return <AuthMessage><p role={error ? "alert" : "status"}>{error || "ログアウトしています…"}</p>{error && <button onClick={() => void logout()}>ログアウトを再試行</button>}</AuthMessage>;
   if (error) return <AuthMessage><p role="alert">{error}</p><button onClick={() => { setError(""); setAttempt(n => n + 1); }}>再試行</button><button onClick={() => void logout()}>ログアウト</button></AuthMessage>;
   if (!scope?.isCurrent() || scope.account.sessionId !== identity.sessionId) return <AuthMessage><p>アカウントを準備しています…</p></AuthMessage>;
-  return <AccountContext.Provider value={{ scope, logout }}><div key={scope.account.userId + scope.account.sessionId}>{children}</div></AccountContext.Provider>;
+  return <AccountContext.Provider value={{ scope, logout, email, reauthenticate }}><PrivacyProvider key={scope.account.userId + scope.account.sessionId}><div>{children}</div></PrivacyProvider></AccountContext.Provider>;
 }

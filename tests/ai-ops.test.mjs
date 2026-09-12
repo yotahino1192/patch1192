@@ -9,7 +9,7 @@ import { migrate } from '../scripts/infra/migrations.mjs';
 test('operator stop/status/reconcile/resume is explicit and retains maximum charge in isolated DB',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'patch-ai-ops-')),url='file:'+join(dir,'db'),c=createClient({url});
  const run=(...args)=>execFileSync(process.execPath,['scripts/ai-control.mjs',...args,'--url',url],{env:{...process.env,PATCH_ENV:'development'},encoding:'utf8',stdio:['ignore','pipe','pipe']});
- try{await migrate(c);await c.execute("INSERT INTO users VALUES ('a','now')");const id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+ try{await migrate(c);await c.execute("INSERT INTO users(id,created_at) VALUES ('a','now')");const id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
  await c.execute({sql:"INSERT INTO ai_requests(id,user_id,key_hash,payload_hash,endpoint,state,created_at,lease_until,result_until,cost_micros) VALUES(?,'a','key','payload','cards','unknown',0,0,0,3600)",args:[id]});
  assert.match(run('stop'),/AI_CONTROL_UPDATED/);assert.equal((await c.execute('SELECT enabled FROM ai_control')).rows[0].enabled,0);
  assert.equal(JSON.parse(run('status')).states[0].cost_micros,3600);

@@ -1,3 +1,72 @@
+# Status
+
+## Dev統合検証（2026-09-13）
+
+Privacy `eb4c9e1` にProduction Infrastructure `1e84fca` を取り込み、双方を維持してDevへ統合する検証済み状態。以下の以前の「Dev未merge」はPrivacy単独実装時の記録。
+
+- 競合3件（auth-server / package.json / database-client test）を双方の機能を残して解消。
+- request時migrationは復活させず、0008をschema manifestへ登録。Privacyテストもexplicit runnerで準備する。
+- Releaseのimport検査をJSON・絶対パス解決へ対応。server module拒否を維持。
+- 復元時のClerk identity→user参照をcommit時に検証。pending削除jobのbackup/restore再開を追加テスト。
+- Node 22.23.2、PATCH_ENV=development: typecheck / lint（0 errors・既存41 warnings）/ unit **117件成功** / build / check 成功。
+- auth・privacy・onboardingのブラウザテスト成功。mobile:build:localとartifact seal成功。Infrastructure **22件成功**（117件にも含む）。
+- Xcode Debug Simulator build成功。署名・Apple Teamなし。
+- production設定未確定の実環境Release検証は行わず、guardrailsは隔離fixtureで拒否/成功を検証。本番DB・Clerk・push・deploy・mainへの操作なし。
+
+## 現在の状態（2026-09-13 / Privacy・Account Lifecycle）
+
+Phase 2A統合済みDev `c774ed0863d8eb25cddc6db35022e6f124b6fb44` を起点に、専用worktree `/Users/hinoyouta/Documents/Yota-privacy`、branch `codex/privacy-lifecycle` で実装。Dev/mainへ未merge。本番・Clerk Dashboard・Apple Developer Team・既存DBには変更なし。作業中に別CLIのDevは進んでいるため、統合時は最新Devとの差分を改めて確認する。
+
+**以前からの改善**: AIの同意を画面だけでなくAPIでも必須化。二重送信は操作IDで止め、撤回/削除後のAI応答は保存しない。アカウント削除は受付時点で利用停止し、ClerkやDBの一時障害でも永続jobから再開できる。
+
+実装:
+- ユーザー別のunset/granted/denied/revoked、version・revision・操作ID・表示文hash・言語・時刻の証跡。
+- カード生成、AI Chat、lesson summaryの共通サーバーゲート。初回同意、拒否して学習継続、撤回、account switch。
+- deleting/deletedのAPI遮断、identity tombstone、DBトリガーによる遅延書込み防止。
+- Settings削除説明→Clerk email再認証→最終確認→受付。receiptによる応答消失時の状態確認。
+- 永続削除job、DB消去、Clerk連携、lease、指数backoff、安全なPOST worker endpoint。Apple連携がある場合は未実装revocationを完了扱いにしない。
+- 対象workspace・pending操作・消去intent・同意状態のscoped cleanup、logout失敗時のロックと再開、Native Keychainの待機可能消去、将来のRetention cleanup hook。
+- Account/Privacy/Language/About、Web/iOS共有のPrivacy/Terms/Support導線と公開準備中コンテンツ。アプリバージョンはWeb package / Native Bundleの実値。
+
+DB: `0008_privacy_lifecycle.sql` とDrizzle meta。users 2列・6テーブル・inactive書込み防止trigger。テストDBのみで適用・rollback/再実行検証。Production Infrastructure統合後は明示的runnerで適用する。request時migrationは実行せず、未適用は503で拒否する。
+
+### 検証結果
+
+Node **22.23.2**。外部AI・Clerkはmock/署名済みfixture、DBは隔離SQLite。実サービスでの削除や有料AI送信は実行しない。
+
+| チェック | 結果 |
+| --- | --- |
+| `npm run typecheck` | 成功 |
+| `npm run lint` | 成功、0 errors / 既存41 warnings |
+| `npm run test:unit` | **95/95成功** |
+| `npm run build` | production build成功、Privacy/Support/Termsと新APIを生成 |
+| `npm run check` | 成功 |
+| `npm run test:auth-browser` | 成功。既存認証・scope・account switch・logout・再起動 |
+| `npm run test:privacy-browser` | 成功。未同意summary、許可/拒否/撤回、モーダル中の切替、再認証UI、削除応答消失、対象端末データ消去、別端末削除検知 |
+| `npm run test:onboarding-browser` | 成功。既存初回3枚、通信応答消失、DB復元、学習完了、レスポンシブ幅 |
+| `npm run mobile:build:local` | 成功。既存大きいchunkの警告あり |
+| Xcode Debug / generic iOS Simulator | **BUILD SUCCEEDED**。`CODE_SIGNING_ALLOWED=NO`、`DEVELOPMENT_TEAM=''`。Swift reauthentication / appInfo / Keychain APIをコンパイル |
+
+追加integration testsは各consent state・version conflict・operation retry・外部timeout・削除中AI結果・generation・Clerk/DB failure・lease競合・stale JWT・B/loop-owner保持・Apple未実装step・cleanup hook failureを検証。公開workerの未認証は401。
+
+### 本番前に必要な設定・未検証
+
+1. Clerk session tokenに `reverification_id: "{{session.reverification_id}}"` を追加し、Email再認証を実ユーザーで確認。未設定は削除拒否。Clerk Productionの実際の再認証/削除は未検証。
+2. `ACCOUNT_DELETION_WORKER_SECRET` と **POSTで呼ぶスケジューラー** を配備。pending滞留・retry監視も必要。worker実装だけで本番削除が自動稼働するわけではない。
+3. 運営者・正式Support/Privacy/Terms・保持/backup方針を確定。現行は準備中表示であり、完成した公開法務文書ではない。
+4. ステージングTursoでmigration/削除/backup復元を確認。削除台帳を別保全し、復元で削除済みデータが復活しない運用を構築する。job/tombstoneの保持期限と監視は未整備。
+5. 実機のClerkメール再認証、Keychain消去失敗/再起動、複数端末、iOS全操作を確認。今回のXcode確認はコンパイルであり実動作認証を代用しない。
+
+対象外: Apple Sign-in/token revocationの実動作、通知/Widget/App Groups、TestFlight/App Store、Production DB操作、AI利用枠/料金上限、MFA/SIWA導入時の追加factor UX。未同意でも既存学習は利用できるが、アプリログイン自体は必要。
+
+設定・API契約・障害時の扱い・Retention統合ポイントは [docs/privacy-lifecycle.md](docs/privacy-lifecycle.md)。全体構成は [ARCHITECTURE.md](ARCHITECTURE.md)。
+
+---
+
+## 過去フェーズの記録
+
+以下は当時の検証記録。認証未実装/loop-owner共有と書かれた箇所、件数・次の予定は当時の状態であり、現在は上記とArchitectureを正本とする。
+
 # Project status
 
 最終確認: 2026-09-12。実装構成は [ARCHITECTURE.md](ARCHITECTURE.md)。以下はローカル作業ツリーを確認した状態であり、本番反映済みという意味ではない。
@@ -151,3 +220,5 @@ Simulatorの接続先は一時DB `/tmp/patch-ios-phase1.db` を使用したロ�
 Environment/release guards, explicit checksum migrations, encrypted backups and isolated restore checks are implemented on codex/production-infra. Production allowlists intentionally remain empty. Provider setup, hosted migration/restore acceptance, maintenance controls and actual promotion remain unperformed. See [runbook](docs/production-infrastructure.md). AI budget/rate limits and Privacy/Consent are outside this branch.
 
 - Production Backend Hardening (dedicated branch): DB-backed Free/global AI budgets, concurrency, idempotency/unknown state, safe logging, explicit operator gate, ledger restore regression and release endpoint checks. See `docs/production-hardening.md`; no Dev merge or deployment.
+
+- Integrated AI Hardening with Privacy/Lifecycle Dev: gated admission/replay/dispatch/result, deletion-safe replay cleanup with budget preservation, unapplied AI migration renumbered to 0009, and combined regression coverage.

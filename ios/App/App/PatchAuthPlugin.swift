@@ -15,6 +15,8 @@ public class PatchAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "PatchAuthPlugin"
     public let jsName = "PatchAuth"
     public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "appInfo", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "reauthenticate", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "initialize", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getSession", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getToken", returnType: CAPPluginReturnPromise),
@@ -28,12 +30,14 @@ public class PatchAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     @MainActor private var pendingSignIn: SignIn?
     @MainActor private var pendingSignUp: SignUp?
     @MainActor private var initialized = false
+    @MainActor private var cleaning = false
+    @MainActor private var configuredKey: String?
 
     @MainActor private func identity() -> JSObject {
-        guard let clerk, let session = clerk.session, session.status == .active, let user = clerk.user else {
+        guard !cleaning, let clerk, let session = clerk.session, session.status == .active, let user = clerk.user else {
             return ["identity": NSNull()]
         }
-        return ["identity": ["subject": user.id, "sessionId": session.id]]
+        return ["identity": ["subject": user.id, "sessionId": session.id, "email": user.primaryEmailAddress?.emailAddress ?? ""]]
     }
 
     private func keyDomain(_ key: String) -> String? {
@@ -49,6 +53,7 @@ public class PatchAuthPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func initialize(_ call: CAPPluginCall) {
         Task { @MainActor in
             do {
+                guard !cleaning else { call.reject("Auth cleanup in progress"); return }
                 if setupTask == nil {
                     guard let key = call.getString("publishableKey"),
                           let domain = keyDomain(key) else {
@@ -56,6 +61,7 @@ public class PatchAuthPlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                     let instance = clerk ?? Clerk.configure(publishableKey: key, options: .init(telemetryEnabled: false, keychainConfig: .init(service: "\(Bundle.main.bundleIdentifier ?? "com.patch.learning").clerk.\(domain)")))
                     clerk = instance
+                    configuredKey = key
                     setupTask = Task { @MainActor in
                         _ = try await instance.refreshEnvironment()
                         _ = try await instance.refreshClient()
@@ -85,7 +91,7 @@ public class PatchAuthPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func getSession(_ call: CAPPluginCall) {
         Task { @MainActor in
-            guard initialized, let clerk else { call.reject("Auth not initialized"); return }
+            guard !cleaning, initialized, let clerk else { call.reject("Auth not initialized"); return }
             do { _ = try await clerk.refreshClient(); call.resolve(identity()) }
             catch { call.reject("ログインを確認できません。") }
         }
@@ -93,7 +99,7 @@ public class PatchAuthPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func getToken(_ call: CAPPluginCall) {
         Task { @MainActor in
-            guard initialized, let clerk, let expected = call.getString("sessionId"), clerk.session?.id == expected else {
+            guard !cleaning, initialized, let clerk, let expected = call.getString("sessionId"), clerk.session?.id == expected else {
                 call.reject("Session changed"); return
             }
             do {
@@ -106,7 +112,7 @@ public class PatchAuthPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func startEmail(_ call: CAPPluginCall) {
         Task { @MainActor in
-            guard initialized, let clerk, let email = call.getString("email"), clerk.session?.status != .active else { call.reject("Auth unavailable"); return }
+            guard !cleaning, initialized, let clerk, let email = call.getString("email"), clerk.session?.status != .active else { call.reject("Auth unavailable"); return }
             pendingSignIn = nil; pendingSignUp = nil
             do {
                 if call.getBool("signUp") == true {
@@ -122,7 +128,7 @@ public class PatchAuthPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func verifyEmail(_ call: CAPPluginCall) {
         Task { @MainActor in
-            guard initialized, let clerk, let code = call.getString("code") else { call.reject("Auth unavailable"); return }
+            guard !cleaning, initialized, let clerk, let code = call.getString("code") else { call.reject("Auth unavailable"); return }
             do {
                 let sessionId: String?
                 if call.getBool("signUp") == true, let attempt = pendingSignUp {
@@ -138,13 +144,50 @@ public class PatchAuthPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func appInfo(_ call: CAPPluginCall) {
+        call.resolve(["version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown", "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"])
+    }
+
+    @objc func reauthenticate(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            guard !cleaning, let clerk, let session = clerk.session,
+                  session.id == call.getString("sessionId") else { call.reject("Session changed"); return }
+            do {
+                if let code = call.getString("code") {
+                    let result = try await session.verifyWithEmailCode(code: code)
+                    guard result.status == .complete else { call.reject("追加認証が必要です。"); return }
+                    _ = try await session.getToken(.init(skipCache: true))
+                } else {
+                    guard let email = clerk.user?.primaryEmailAddress else { call.reject("メールアドレスが必要です。"); return }
+                    _ = try await session.startVerification(level: .firstFactor)
+                    _ = try await session.sendEmailCode(emailAddressId: email.id)
+                }
+                guard clerk.session?.id == session.id else { call.reject("Session changed"); return }
+                call.resolve()
+            } catch { call.reject("再認証できません。コードと接続を確認してください。") }
+        }
+    }
+
     @objc func signOut(_ call: CAPPluginCall) {
         Task { @MainActor in
-            guard initialized, let clerk, let sessionId = call.getString("sessionId") else { call.reject("Auth unavailable"); return }
+            guard !cleaning, initialized, let clerk, let sessionId = call.getString("sessionId") else { call.reject("Auth unavailable"); return }
             do {
-                // Never sign out a different active account because an old JS call arrived late.
-                if clerk.session?.id == sessionId { try await clerk.auth.signOut(sessionId: sessionId) }
+                // A delayed A request must never purge B's credentials.
+                if let current = clerk.session?.id, current != sessionId { call.resolve(); return }
+                cleaning = true
+                defer { cleaning = false }
+                if clerk.session?.id == sessionId {
+                    do { try await clerk.auth.signOut(sessionId: sessionId) }
+                    catch { if call.getBool("deleting") != true { throw error } }
+                }
                 pendingSignIn = nil; pendingSignUp = nil
+                if call.getBool("deleting") == true {
+                    try await Clerk.clearAllKeychainItemsAndWait()
+                    guard let key = configuredKey, let domain = keyDomain(key) else { call.reject("Auth configuration unavailable"); return }
+                    self.clerk = try await Clerk.reconfigure(publishableKey: key, options: .init(telemetryEnabled: false, keychainConfig: .init(service: "\(Bundle.main.bundleIdentifier ?? "com.patch.learning").clerk.\(domain)")))
+                    eventsTask?.cancel(); eventsTask = nil
+                    setupTask = nil; initialized = false
+                }
                 call.resolve()
             } catch { call.reject("ログアウトを完了できません。接続を確認してください。") }
         }

@@ -6,15 +6,21 @@ export async function sendAi(transport: ApiTransport, url: string, options: Requ
   if (typeof options.body !== 'string') throw new Error('AI_JSON_REQUIRED');
   const account = headers.get('X-Patch-Account');
   if (!account) throw new Error('AI_ACCOUNT_REQUIRED');
-  const bytes = new TextEncoder().encode(JSON.stringify([account, url, options.body]));
+  const payload = JSON.parse(options.body) as Record<string, unknown>;
+  const fingerprintPayload = { ...payload };
+  delete fingerprintPayload.operationId;
+  const bytes = new TextEncoder().encode(JSON.stringify([account, url, fingerprintPayload]));
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), x => x.toString(16).padStart(2, '0')).join('');
   const storageKey = 'patch.ai.' + digest;
   // If durable session storage is unavailable, fail before dispatch rather than lose retry identity.
   const storage = globalThis.sessionStorage;
-  const key = headers.get('Idempotency-Key') || storage.getItem(storageKey) || crypto.randomUUID();
+  const key = headers.get('Idempotency-Key') || storage.getItem(storageKey) || (typeof payload.operationId === 'string' ? payload.operationId : crypto.randomUUID());
   storage.setItem(storageKey, key);
   headers.set('Idempotency-Key', key);
-  const response = await transport(url, { ...options, headers });
+  // Privacy's operationId must remain the same on an uncertain retry, even if the UI minted another UUID.
+  const body = headers.has('Idempotency-Key') && options.headers && new Headers(options.headers).has('Idempotency-Key') ? options.body : JSON.stringify({ ...payload, operationId: key });
+  if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  const response = await transport(url, { ...options, body, headers });
   // Definitive completion allows a subsequent user action with identical input to be a new operation.
   // Ambiguous responses, non-terminal conflicts and transport exceptions preserve this key.
   let terminal = false;

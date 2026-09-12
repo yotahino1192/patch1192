@@ -1,6 +1,6 @@
 import { apiFetch, type ApiTransport } from "./api-client";
 
-export type Identity = { subject: string; sessionId: string };
+export type Identity = { subject: string; sessionId: string; email?: string };
 export type Account = Identity & { userId: string };
 export type SessionTransport = { getToken?: () => Promise<string | null> };
 
@@ -8,7 +8,7 @@ export class StaleAccountError extends Error {
   constructor() { super("アカウントが変更されました。操作を再開してください。"); }
 }
 
-export function createAccountScope(account: Account, session: SessionTransport, transport: ApiTransport = apiFetch, onUnauthorized?: () => void) {
+export function createAccountScope(account: Account, session: SessionTransport, transport: ApiTransport = apiFetch, onUnauthorized?: (reason?:string) => void) {
   let active = true;
   const pending = new Set<AbortController>();
   const assertCurrent = () => { if (!active) throw new StaleAccountError(); };
@@ -32,7 +32,7 @@ export function createAccountScope(account: Account, session: SessionTransport, 
       assertCurrent();
       const response = await transport(path, { ...options, headers, cache: "no-store", redirect: "error", credentials: session.getToken ? "omit" : "same-origin", signal: controller.signal });
       assertCurrent();
-      if (response.status === 401 || (response.status === 409 && response.headers.get("x-patch-auth-error"))) onUnauthorized?.();
+      if (response.status === 401 || (response.headers.get("x-patch-auth-error") && [403,409].includes(response.status))) onUnauthorized?.(response.headers.get("x-patch-auth-error")||undefined);
       const json = response.json.bind(response);
       response.json = async () => { const data = await json(); assertCurrent(); return data; };
       return response;

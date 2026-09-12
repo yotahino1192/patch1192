@@ -1,3 +1,4 @@
+import { grantAi } from './ai-consent-fixture.mjs';
 import { migrate } from '../scripts/infra/migrations.mjs';
 import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
@@ -96,6 +97,7 @@ test('all resource mutations and AI context deny foreign IDs identically to miss
     const absent=await POST(request('user_A',a.userId,missing));assert.equal(absent.status,denied.status);assert.deepEqual(await absent.json(),await denied.json());
   }
   const chat={setId:target.id,cardId:card.id,sessionId:'lesson_shared',question:'tell me private context'};
+  await grantAi(client,a.userId);
   assert.equal((await CHAT(request('user_A',a.userId,chat,{'Idempotency-Key':'foreign-card-test-key'},'/api/ai/chat'))).status,404);
   await assert.rejects(store.saveChatPair(a.userId,target.id,card.id,'lesson_shared','Q','A'),/CARD_NOT_FOUND/);
   const own=(await store.loadAppData(a.userId)).sets[0];

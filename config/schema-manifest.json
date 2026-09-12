@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "schemaChecksum": "59359485aa9bb029c19220691b5761b61b904950874735fbd57611ba10bad233",
+  "schemaChecksum": "cef6ee37b69bbcbe3924ef90dc39c6c5f99c4cce0233ff8ae4d94a3df099c1a3",
   "migrations": [
     {
       "name": "0000_special_shaman.sql",
@@ -35,8 +35,12 @@
       "checksum": "f83c649316e15207b294dd3fd6db394a05da986f10cdbf227939504d1343d486"
     },
     {
-      "name": "0008_ancient_albert_cleary.sql",
-      "checksum": "22bc82428fef55f76a0991716f475226082233da4463f1446ac08cd121f2dc8b"
+      "name": "0008_privacy_lifecycle.sql",
+      "checksum": "ffcb59e930bf4f9f940b71e7cd16d8030d97d0d63c1ad0fa9bdbe04d3886e434"
+    },
+    {
+      "name": "0009_talented_shockwave.sql",
+      "checksum": "636ca0f3b169c637e0231609ad1ab18eb7ca243f7b473a5dee4ff5b7d225bd25"
     }
   ]
 }

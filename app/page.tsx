@@ -1103,5 +1103,5 @@ function App() {
 }
 
 export default function LocalizedApp() {
-  return <AuthBoundary><LanguageProvider><App /></LanguageProvider></AuthBoundary>;
+  return <LanguageProvider><AuthBoundary><App /></AuthBoundary></LanguageProvider>;
 }
