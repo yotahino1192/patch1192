@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "schemaChecksum": "4cb3fc86ba5879433003775a3fd5a2185c2a8d9ebfdd263adcec14d2050a6bd2",
+  "migrations": [
+    {
+      "name": "0000_special_shaman.sql",
+      "checksum": "690c2227b857155187215fa308f1aeea42b012cbfaffd0d8b78ceedc407aba42"
+    },
+    {
+      "name": "0001_new_firedrake.sql",
+      "checksum": "2461ca2943fb2d488ecdebbf5168e66a43028c1acbf0b3bd4e03ed4cb81258eb"
+    },
+    {
+      "name": "0002_peaceful_sumo.sql",
+      "checksum": "fd68c4a9b8fff14614bef7a06b8baf03478b39a1b5ed9d3081e7ad75f906e6b1"
+    },
+    {
+      "name": "0003_past_firedrake.sql",
+      "checksum": "1612849fca67eb7f7d4da5e6d64692fe1ef2cd2cf25f43e1b0be01d7721a7b1b"
+    },
+    {
+      "name": "0004_melted_thunderball.sql",
+      "checksum": "33a7186fb9b87bc722942491604b5319fd0ce3086ca8f478a7f7465f6b153078"
+    },
+    {
+      "name": "0005_mysterious_xavin.sql",
+      "checksum": "35ab87cf9c0dc906106ebdcdaeb5e3123b7d41683de139bcc66086ec03a7d8a2"
+    },
+    {
+      "name": "0006_broad_boomerang.sql",
+      "checksum": "582f05e545de45b2bcf3eea11b1d1ccf798631ffafd4cacec7451f72196a6415"
+    },
+    {
+      "name": "0007_tired_king_cobra.sql",
+      "checksum": "f83c649316e15207b294dd3fd6db394a05da986f10cdbf227939504d1343d486"
+    }
+  ]
+}

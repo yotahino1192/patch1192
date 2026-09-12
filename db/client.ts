@@ -1,9 +1,11 @@
+import { checkSchema, SchemaNotReady } from './runtime-schema.ts';
+import { validateServer } from '../lib/env/server.ts';
 import { createClient, type Client, type InValue, type Transaction } from "@libsql/client";
-import { mkdir, readFile, readdir } from "node:fs/promises";
+
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
-export function createDatabase(client: Client, migrationsDirectory = resolve(process.cwd(), "drizzle")) {
+export function createDatabase(client: Client) {
   let initialization: Promise<void> | undefined;
   // Local SQLite connections cannot interleave commands with an open transaction.
   // Remote libSQL retains concurrency and serializes writes at the database.
@@ -14,34 +16,8 @@ export function createDatabase(client: Client, migrationsDirectory = resolve(pro
     localTail = result.catch(() => undefined);
     return result;
   }
-  async function migrate() {
-    // A write transaction also serializes initialization across serverless instances.
-    const tx = await client.transaction("write");
-    try {
-      await tx.execute("CREATE TABLE IF NOT EXISTS _loop_migrations (name TEXT PRIMARY KEY NOT NULL)");
-      const applied = new Set((await tx.execute("SELECT name FROM _loop_migrations")).rows.map((row) => String(row.name)));
-      const files = (await readdir(migrationsDirectory)).filter((name) => /^\d+_.*\.sql$/.test(name)).sort();
-      for (const name of files) {
-        if (applied.has(name)) continue;
-        const sql = await readFile(resolve(migrationsDirectory, name), "utf8");
-        for (let statement of sql.split("--> statement-breakpoint").map((part) => part.trim()).filter(Boolean)) {
-          // Existing D1 exports already contain these tables/columns. Adopt them without dropping data.
-          statement = statement.replace(/^CREATE TABLE\s+(?!IF NOT EXISTS)/i, "CREATE TABLE IF NOT EXISTS ").replace(/^CREATE (UNIQUE )?INDEX\s+(?!IF NOT EXISTS)/i, "CREATE $1INDEX IF NOT EXISTS ");
-          const add = statement.match(/^ALTER TABLE [`"]?(\w+)[`"]? ADD (?:COLUMN )?[`"]?(\w+)[`"]?/i);
-          if (add) {
-            const columns = await tx.execute(`PRAGMA table_info("${add[1]}")`);
-            if (columns.rows.some((column) => column.name === add[2])) continue;
-          }
-          await tx.execute(statement);
-        }
-        await tx.execute({ sql: "INSERT INTO _loop_migrations (name) VALUES (?)", args: [name] });
-      }
-      await tx.commit();
-    } catch (error) { await tx.rollback(); throw error; }
-    finally { tx.close(); }
-  }
   function initialize() {
-    initialization ??= migrate().catch((error) => { initialization = undefined; throw error; });
+    initialization ??= checkSchema(client).catch(() => { initialization = undefined; throw new SchemaNotReady(); });
     return initialization;
   }
   function prepare(sql: string, args: InValue[] = []) {
@@ -80,15 +56,15 @@ let client: Client | undefined;
 let db: ReturnType<typeof createDatabase> | undefined;
 export function getClient() {
   if (!client) {
-    const url = process.env.TURSO_DATABASE_URL?.trim();
+    const config = validateServer(process.env);
+    const url = config.databaseUrl;
     if (process.env.VERCEL && (!url || url.startsWith("file:"))) throw new Error("DATABASE_NOT_CONFIGURED");
-    if (!url) mkdirSync(resolve(process.cwd(), ".data"), { recursive: true });
-    client = createClient({ url: url || "file:.data/loop.db", authToken: process.env.TURSO_AUTH_TOKEN });
+    if (url === "file:.data/loop.db") mkdirSync(resolve(process.cwd(), ".data"), { recursive: true });
+    client = createClient({ url: url || "file:.data/loop.db", authToken: config.databaseToken });
   }
   return client;
 }
 export function database() { return db ??= createDatabase(getClient()); }
 export async function initializeDatabase() {
-  if (!process.env.TURSO_DATABASE_URL && !process.env.VERCEL) await mkdir(resolve(process.cwd(), ".data"), { recursive: true });
   await database().initialize();
 }

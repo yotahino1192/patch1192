@@ -1,3 +1,4 @@
+import { migrate } from '../scripts/infra/migrations.mjs';
 import { headers as authHeaders } from './auth-fixture.mjs';
 import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
@@ -9,6 +10,7 @@ const { mkdtemp, rm } = await import('node:fs/promises');
 const { tmpdir } = await import('node:os');
 const directory = await mkdtemp(tmpdir() + '/loop-delivery-');
 const client = createClient({ url: 'file:' + directory + '/test.db' });
+await migrate(client);
 const db = createDatabase(client);
 globalThis.__deliveryDatabase = db;
 after(async () => { client.close(); await rm(directory, { recursive:true, force:true }); });

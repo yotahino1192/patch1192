@@ -58,7 +58,7 @@ npm run db:import-local
    ビルドコマンドは `npm run build`、Output Directoryはデフォルトのままにします。
 4. 以下の環境変数をVercelのProject Settings → Environment Variablesに設定します。
    利用するProduction/Preview環境それぞれに設定してください。
-5. Deployします。以降mainへのpushで、連携されたVercelプロジェクトが再デプロイされます。
+5. Deployします。Productionへの自動昇格は有効にせず、[Production運用手順](docs/production-infrastructure.md)に従ってbackup・migration検証後にreleaseしてください。
 
 | 環境変数 | 必須 | 値 |
 | --- | --- | --- |
@@ -69,7 +69,7 @@ npm run db:import-local
 | `OPENAI_CHAT_MODEL` | 任意 | AI解説モデル。未設定は `gpt-5-nano` |
 
 秘密情報に `NEXT_PUBLIC_` は付けないでください。`.env` をGitHubに追加する必要はありません。
-Vercelでは `file:` のDBは使用できません。環境変数が未設定でもビルドはできますが、教材の保存・読み込みにはホスト型DBの設定が必要です。
+Vercelでは `file:` のDBは使用できません。PATCH_ENV=productionでは環境変数とallowlistが未設定の場合buildが失敗します。DB schemaはrequestから更新せず、npm run db:migrateで明示的に準備してください。
 APIはNode.jsで動作し、実行時間上限は60秒に設定しています。
 PDFのWorkerと日本語文字マップはprebuild/predevで同じ依存パッケージからコピーされます。
 
@@ -78,7 +78,7 @@ PDFのWorkerと日本語文字マップはprebuild/predevで同じ依存パッ�
 既存仕様を保ち、この版にはログインや利用者別データ分離を追加していません。
 利用者は同じ教材・記録を共有し、AI利用は設定したAPIキーに課金されます。
 限定利用する場合はVercel側のDeployment Protectionなどでアクセス範囲を設定してください。
-Cloudflare専用の認証ヘッダーはVercelでは信頼せず、従来のローカル利用者 `loop-owner` を使用します。
+APIはClerk認証と内部user IDによる所有権確認を使用します。`loop-owner`への自動割当はありません。
 
 ## データベースと確認
 
@@ -95,3 +95,7 @@ Cloudflare専用の認証ヘッダーはVercelでは信頼せず、従来のロ�
 既存のCloudflareローカルDBをコピーした場合も、既に存在するテーブルや列は維持します。
 
 参考: [VercelのNext.js対応](https://vercel.com/docs/frameworks/full-stack/nextjs) · [Turso TypeScriptクライアント](https://docs.turso.tech/sdk/ts/reference)
+
+## Infrastructure Phase 1
+
+Set `PATCH_ENV=development` locally, run `npm run db:migrate` before first use, then start the app. Production/Staging require reviewed allowlists and explicit configuration. See [Production runbook](docs/production-infrastructure.md). No Production operation has been executed by this branch.

@@ -1,3 +1,4 @@
+import { migrate } from '../scripts/infra/migrations.mjs';
 import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
 import { registerHooks } from 'node:module';
@@ -5,6 +6,7 @@ import { createClient } from '@libsql/client';
 import { createDatabase } from '../db/client.ts';
 import { headers, token, issuer, origin } from './auth-fixture.mjs';
 const client = createClient({url: ':memory:'});
+await migrate(client);
 const db = createDatabase(client);
 globalThis.__authDatabase = db;
 after(() => client.close());

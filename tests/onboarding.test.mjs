@@ -1,3 +1,4 @@
+import { migrate } from '../scripts/infra/migrations.mjs';
 import assert from 'node:assert/strict';
 import test, {after} from 'node:test';
 import {mkdtemp,rm} from 'node:fs/promises';
@@ -8,6 +9,7 @@ import {PRESETS,INTEREST_GROUPS,GOALS,recommend,validInterests} from '../lib/onb
 import {EMPTY_SESSION,reconcileSession} from '../lib/workspace.ts';
 const dir=await mkdtemp('/tmp/patch-onboarding-');
 const client=createClient({url:`file:${dir}/test.db`});
+await migrate(client);
 const db=createDatabase(client);globalThis.__onboardingDb=db;
 after(async()=>{client.close();await rm(dir,{recursive:true,force:true});});
 registerHooks({resolve(specifier,context,next){

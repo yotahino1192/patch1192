@@ -145,3 +145,7 @@ Simulatorの接続先は一時DB `/tmp/patch-ios-phase1.db` を使用したロ�
 - インストール後の全依存監査は21件（高11・中9・低1）。既存の開発依存指摘に加えCapacitor CLI→xcode→uuidの指摘がある。確認したxcode呼び出しはuuid.v4で、報告対象のv3/v5/v6＋buffer経路ではない。強制ダウングレード/メジャーoverrideはせず、上流修正を追跡する。前フェーズの監査件数は当時の記録として残している。
 
 次は、このシェルでの実機スモーク確認を完了し、認証・ユーザー別データ分離のPhase 2へ進む。正式な認証サービスと既存データの帰属は実装前に決める。
+
+## Production Infrastructure Hardening Phase 1
+
+Environment/release guards, explicit checksum migrations, encrypted backups and isolated restore checks are implemented on codex/production-infra. Production allowlists intentionally remain empty. Provider setup, hosted migration/restore acceptance, maintenance controls and actual promotion remain unperformed. See [runbook](docs/production-infrastructure.md). AI budget/rate limits and Privacy/Consent are outside this branch.

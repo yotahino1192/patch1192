@@ -1,3 +1,5 @@
+import { createClient } from '@libsql/client';
+import { migrate } from './infra/migrations.mjs';
 // Run after npm run build. Real UI + authenticated APIs, isolated browser/DB and test-only SDK entry.
 import {createServer} from 'vite';
 import react from '@vitejs/plugin-react';
@@ -11,6 +13,7 @@ const root=process.cwd(), dir=await mkdtemp(join(tmpdir(),'patch-onboarding-brow
 const chromePath=process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const appPort=Number(process.env.TEST_APP_PORT || 3138), debugPort=Number(process.env.TEST_DEBUG_PORT || 9344);
 const origin=`http://127.0.0.1:${appPort}`;
+const prep=createClient({url:`file:${dir}/test.db`});await migrate(prep);prep.close();
 const server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p',String(appPort),'--hostname','127.0.0.1'],{cwd:root,env:{...process.env,TURSO_DATABASE_URL:`file:${dir}/test.db`,TURSO_AUTH_TOKEN:'',OPENAI_API_KEY:'',VERCEL:''},stdio:'ignore'});
 const chrome=spawn(chromePath,['--headless=new','--no-first-run','--no-default-browser-check',`--remote-debugging-port=${debugPort}`,`--user-data-dir=${dir}/chrome`,'about:blank'],{stdio:'ignore'});
 let startupError;server.on('error',e=>startupError=e);chrome.on('error',e=>startupError=e);

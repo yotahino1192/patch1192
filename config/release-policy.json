@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "staging": { "apiOrigins": [], "webOrigins": [], "clerkIssuers": [], "databaseUrls": [], "databaseId": "", "models": ["gpt-5-nano"] },
+  "production": { "apiOrigins": [], "webOrigins": [], "clerkIssuers": [], "databaseUrls": [], "databaseId": "", "models": ["gpt-5-nano"] }
+}
