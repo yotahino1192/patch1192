@@ -35,7 +35,7 @@ export async function GET(request: Request): Promise<Response> {
     const { userId } = await requireAuth(request);
     const sessionIds = [...new Set(new URL(request.url).searchParams.getAll("sessionId"))];
     if (sessionIds.length > 100 || !sessionIds.every(validId)) return json({ error: "学習セッションの指定を確認してください。" }, 400);
-    return json(await loadAppData(userId, sessionIds));
+    return json(await loadAppData(userId, sessionIds, request.headers.get("x-patch-timezone") || undefined));
   } catch (error) {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;

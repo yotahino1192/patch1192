@@ -1,3 +1,7 @@
+## Retention architecture — 2026-09-13
+
+Retention is implemented on `codex/retention`, based on Dev `7f2800e`, not merged/deployed. Server-authoritative Study Sessions/Streak/Due Count, shared Continue resolver, native deep links/local notifications and the embedded Small/Medium Widget use an App Group snapshot. Migration 0010 is explicit and unapplied to hosted databases. See [Retention implementation and limitations](docs/retention.md). Older phase entries below are historical.
+
 # Architecture
 
 最終確認: 2026-09-13。この文書は現在の実装を説明する。予定・未実装・検証結果は [STATUS.md](STATUS.md)。起動・環境変数は [README.md](README.md)。コード変更時は関連する記述も更新する。

@@ -67,11 +67,15 @@ test('deletion requires fresh signed reverification, not a client boolean or reu
 });
 test('accepted deletion locks APIs, rejects stale JWT bootstrap, survives failure and preserves B/legacy',async()=>{
  const a=await user(),b=await user();for(const id of [a.userId,b.userId,'loop-owner'])await store.saveGeneratedSet(id,material);
+ const retention=await import('../db/retention.ts');
+ const aData=await store.loadAppData(a.userId);const bSnapshot=await retention.retentionSnapshot(b.userId);
+ await retention.startStudySession(a.userId,'retention-delete',aData.sets[0].cards.map(c=>c.id));
  const {input,result}=await deletion(a);assert.equal((await deletionStatus(input.receipt)).state,'pending');
  assert.deepEqual(await requestDeletion(a,input),result);
  assert.equal((await SESSION(req(a))).status,403);assert.equal((await GETDATA(req(a))).status,403);assert.equal((await POSTDATA(req(a,{action:'sample'}))).status,403);
  await assert.rejects(store.saveGeneratedSet(a.userId,material),/ACCOUNT_INACTIVE/);
- const failure=await runDeletionJob({inspectApple:async()=>false,deleteUser:async()=>{throw Error('Clerk failed');}});assert.equal(failure.state,'retry');
+ const failure=await runDeletionJob({inspectApple:async()=>false,deleteUser:async()=>{throw Error('Clerk failed');}});assert.equal(failure.state,'retry');assert.equal((await db.prepare('SELECT count(*) n FROM study_sessions WHERE user_id=?').bind(a.userId).first()).n,0);assert.equal((await db.prepare('SELECT count(*) n FROM retention_state WHERE user_id=?').bind(a.userId).first()).n,0);assert.equal((await retention.retentionSnapshot(b.userId)).day,bSnapshot.day);
+
  assert.equal((await db.prepare('SELECT count(*) n FROM cards WHERE user_id=?').bind(a.userId).first()).n,0);
  assert.equal((await GETDATA(req(b))).status,200);assert.equal((await store.loadAppData('loop-owner')).sets.length,1);
  await db.prepare("UPDATE account_deletion_jobs SET next_attempt_at=0 WHERE id=?").bind(result.jobId).run();
@@ -125,4 +129,14 @@ test('local cleanup is scoped, preserves pending withdrawal at logout and report
  await cleanupAccount(storage,a);assert.equal(values.has('patch:workspace:v2:'+a),false);assert.equal(values.get(privacyStopKey(a)),'pending');assert.equal(values.get('patch:workspace:v2:'+b),'B');assert.equal(values.get('loop-workspace'),'legacy');
  await cleanupAccount(storage,a,true);assert.equal(values.has(privacyStopKey(a)),false);assert.deepEqual(seen,[a,a]);unregister();
  const off=registerAccountCleanup(async()=>{throw Error('device unavailable');});try{await assert.rejects(cleanupAccount(storage,a,true),/ACCOUNT_CLEANUP_PENDING/);}finally{off();}
+});
+
+test('Retention endpoints require active auth, validate preferences and reject another owner cards',async()=>{
+ const {GET,POST}=await import('../app/api/retention/route.ts');
+ assert.equal((await GET(new Request(origin+'/api/retention'))).status,401);
+ const a=await user(),b=await user();await store.saveGeneratedSet(b.userId,material);const cards=(await store.loadAppData(b.userId)).sets[0].cards;
+ assert.equal((await POST(req(a,{action:'preferences',reminderTime:'25:00',reviewReminder:true,streakWarning:true},'/api/retention'))).status,400);
+ assert.equal((await POST(req(a,{action:'start',id:'foreign-session',cardIds:cards.map(c=>c.id)},'/api/retention'))).status,404);
+ assert.equal((await POST(req(a,{action:'preferences',reminderTime:'19:30',reviewReminder:true,streakWarning:true},'/api/retention'))).status,200);
+ await deletion(a);assert.equal((await GET(req(a,null,'/api/retention'))).status,403);
 });

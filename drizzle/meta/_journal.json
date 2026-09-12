@@ -71,6 +71,13 @@
       "when": 1789234733192,
       "tag": "0009_talented_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1789236102422,
+      "tag": "0010_gifted_hitman",
+      "breakpoints": true
     }
   ]
 }

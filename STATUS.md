@@ -1,3 +1,9 @@
+## Retention implementation status — 2026-09-13
+
+Retention is implemented on `codex/retention`, based on Dev `7f2800e`, not merged/deployed. Server-authoritative Study Sessions/Streak/Due Count, shared Continue resolver, native deep links/local notifications and the embedded Small/Medium Widget use an App Group snapshot. Migration 0010 is explicit and unapplied to hosted databases. See [Retention implementation and limitations](docs/retention.md). Older phase entries below are historical.
+
+Verified on Node 22.23.2: `npm run check` (180/180 unit tests, TypeScript, lint with 0 errors / 41 warnings, production web build), auth/privacy/onboarding+Retention browser suites, encrypted restore/Undo regression, Swift Widget/notification policy checks, `mobile:build:local`, Capacitor sync, unsigned iOS Simulator App + Widget build. A temporary Simulator installed/launched Patch and accepted `patch://continue`; it was removed afterward. Physical-device App Group sharing, OS delivery/widget display and signed release acceptance remain pending personal Apple Developer setup. No external configuration, hosted migration, Dev merge or deployment was performed.
+
 # Status
 
 ## Dev統合検証（2026-09-13）

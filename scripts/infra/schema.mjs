@@ -23,7 +23,8 @@ export async function schema(client) {
 export async function validateOwnership(c) {
     const hasAi = (await c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_requests'")).rows.length;
     if (hasAi && (await c.execute('SELECT 1 FROM ai_requests a LEFT JOIN users u ON u.id=a.user_id WHERE u.id IS NULL LIMIT 1')).rows.length) throw new Error('OWNERSHIP_INVALID');
-    const tables = ['sources', 'folders', 'card_sets', 'cards', 'review_logs', 'chat_messages', 'daily_review_plans', 'user_profiles'];
+    const retentionTables=(await c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('retention_state','study_sessions')")).rows.map(r=>String(r.name));
+    const tables = [...retentionTables, 'sources', 'folders', 'card_sets', 'cards', 'review_logs', 'chat_messages', 'daily_review_plans', 'user_profiles'];
     for (const t of tables)
         if ((await c.execute(`SELECT 1 FROM ${quote(t)} x LEFT JOIN users u ON u.id=x.user_id WHERE u.id IS NULL LIMIT 1`)).rows.length)
             throw new Error('OWNERSHIP_INVALID');
