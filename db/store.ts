@@ -1,5 +1,6 @@
+import { reconcileStudy, retentionSnapshot } from "./retention.ts";
 import { PRESETS, GOALS, validInterests, recommend } from "../lib/onboarding";
-import { InputError } from "../lib/api-input";
+import { InputError } from "../lib/api-input.ts";
 import type { UserProfile } from "../lib/types";
 import { studyDayBounds, streakLength } from "../lib/daily-review";
 import type { DailyReview } from "../lib/types";
@@ -57,7 +58,7 @@ export async function seedIfEmpty(userId: string, language: "ja" | "en" = "ja"):
   });
 }
 
-export async function loadAppData(userId: string, sessionIds: string[] = []): Promise<AppData> {
+export async function loadAppData(userId: string, sessionIds: string[] = [], timezone?:string): Promise<AppData> {
   await ensureDatabase();
   const profile = await loadProfile(userId);
   const db = database();
@@ -120,7 +121,7 @@ export async function loadAppData(userId: string, sessionIds: string[] = []): Pr
   }));
 
   const folders = (folderResult.results || []).map((row) => ({ id: String(row.id), parentId: row.parent_id ? String(row.parent_id) : null, name: String(row.name) }));
-  return { profile, undoneOperationIds: sessionRows.filter((row) => row.undone_at && row.operation_id).map((row) => String(row.operation_id)), sets, reviews, ...(requestedSessions.length ? { sessionReviews } : {}), chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: [...(reviewResult.results || []), ...sessionRows].filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
+  return { retention: await retentionSnapshot(userId,timezone), profile, undoneOperationIds: sessionRows.filter((row) => row.undone_at && row.operation_id).map((row) => String(row.operation_id)), sets, reviews, ...(requestedSessions.length ? { sessionReviews } : {}), chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: [...(reviewResult.results || []), ...sessionRows].filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
 }
 
 function mapCard(row: Record<string, unknown>): Card {
@@ -230,6 +231,7 @@ export async function reviewCard(userId: string, cardId: string, rating: BinaryR
     await tx.execute({ sql: "INSERT INTO review_logs (id,user_id,card_id,session_id,rating,response_ms,reviewed_at,previous_state,operation_id) VALUES (?,?,?,?,?,?,?,?,?)", args: [reviewId, userId, cardId, sessionId, rating, Number.isFinite(responseMs) ? Math.max(0, Math.min(responseMs, 3_600_000)) : 0, now, JSON.stringify(previous), operation?.operationId ?? null] });
     await tx.execute({ sql: "UPDATE card_sets SET last_studied_at = ?, updated_at = ?, next_review_at = (SELECT MIN(due_at) FROM cards WHERE set_id = ? AND user_id = ? AND status NOT IN ('アーカイブ', '削除済み')) WHERE id = ? AND user_id = ?", args: [now, now, setId, userId, setId, userId] });
     await completeFirstLearning(tx, userId, sessionId, now);
+    await reconcileStudy(tx, userId, sessionId, now);
     return reviewId;
   });
 }
@@ -255,6 +257,7 @@ export async function undoReview(userId: string, reviewId: string, sessionId: st
       SELECT 1 FROM json_each(daily_review_plans.card_ids) assignment JOIN cards c ON c.id = assignment.value AND c.user_id = daily_review_plans.user_id
       WHERE c.status NOT IN ('削除済み', 'アーカイブ') AND c.id NOT IN (SELECT card_id FROM review_logs WHERE user_id = ? AND reviewed_at >= ? AND reviewed_at < ? AND rating IN ('good','easy') AND undone_at IS NULL)
     )`, args: [userId, day, userId, start, end] });
+    await reconcileStudy(tx,userId,sessionId,now);
   });
 }
 

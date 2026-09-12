@@ -5,6 +5,7 @@ import ClerkKit
 final class PatchBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(PatchAuthPlugin())
+        bridge?.registerPluginInstance(PatchRetentionPlugin())
     }
 }
 

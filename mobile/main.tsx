@@ -1,4 +1,6 @@
 import { createRoot } from "react-dom/client";
+import { registerPlugin } from "@capacitor/core";
+import { configureRetention, type RetentionPlatform } from "../lib/retention-platform";
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { configureNativeAuth } from "../lib/auth-platform";
 import { createNativeAuth } from "./native-auth";
@@ -12,6 +14,7 @@ declare const __PATCH_CLERK_PUBLISHABLE_KEY__: string;
 
 // Only JSON APIs cross the bridge; assets/PDF workers use the local WebView.
 if (Capacitor.isNativePlatform()) {
+  configureRetention(registerPlugin<RetentionPlatform>("PatchRetention"));
   configureNativeAuth(createNativeAuth(__PATCH_CLERK_PUBLISHABLE_KEY__));
   configureApi(__PATCH_API_URL__, async (url, options = {}) => {
     if (options.body != null && typeof options.body !== "string") {

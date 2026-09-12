@@ -38,7 +38,7 @@ export async function runDeletionJob(remote:DeletionProvider=provider,now=Date.n
       await tx.execute({sql: `UPDATE ai_requests SET result_json=NULL,key_hash=id,payload_hash=id,
         state=CASE WHEN state='succeeded' THEN 'expired' WHEN state='reserved' THEN 'failed_pre_dispatch' WHEN state='dispatching' THEN 'unknown' ELSE state END,
         cost_micros=CASE WHEN state='reserved' THEN 0 ELSE cost_micros END WHERE user_id=?`,args:[job.user_id]});
-      for(const table of ["chat_messages","review_logs","daily_review_plans","cards","card_sets","sources","folders","user_profiles","consent_events","user_consents","ai_operations","deletion_challenges"]) {
+      for(const table of ["study_sessions","retention_state","chat_messages","review_logs","daily_review_plans","cards","card_sets","sources","folders","user_profiles","consent_events","user_consents","ai_operations","deletion_challenges"]) {
         await tx.execute({sql:`DELETE FROM ${table} WHERE user_id=?`,args:[job.user_id]});
       }
       await tx.execute({sql:"UPDATE account_deletion_jobs SET db_step='completed' WHERE id=? AND lease_token=?",args:[job.id,lease]});

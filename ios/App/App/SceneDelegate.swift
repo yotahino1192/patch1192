@@ -11,10 +11,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window?.rootViewController = PatchBridgeViewController()
         window?.makeKeyAndVisible()
 
+        if let response = connectionOptions.notificationResponse,
+           let raw = response.notification.request.content.userInfo["url"] as? String,
+           let url = URL(string: raw), let owner = response.notification.request.content.userInfo["owner"] as? String {
+            RetentionLinks.capture(url, owner: owner)
+        }
+        for context in connectionOptions.urlContexts { RetentionLinks.capture(context.url) }
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts { RetentionLinks.capture(context.url) }
         SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
     }
 

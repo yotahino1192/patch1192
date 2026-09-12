@@ -1,6 +1,7 @@
 "use client";
 
 import { DeletionStatus } from "./deletion-status";
+import { signedOutRetention } from "../lib/retention-platform";
 import { PrivacyProvider } from "./privacy-provider";
 import { LegalLinks } from "./legal-content";
 import { cleanupAccount, cleanupIntentKey, resumeAccountCleanup } from "../lib/account-cleanup";
@@ -60,6 +61,7 @@ function WebBoundary({ children, signUp }: { children?: ReactNode; signUp: boole
 function NativeBoundary({ native, children }: { native: NativeAuth; children?: ReactNode }) {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [loaded, setLoaded] = useState(false);
+  useEffect(()=>{if(loaded&&!identity)void signedOutRetention().catch(()=>{});},[loaded,identity]);
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;

@@ -1,5 +1,6 @@
 "use client";
 
+import { RetentionSettings } from "./retention-settings";
 import { useId, useState, useEffect, type RefObject } from "react";
 import packageInfo from "../package.json" with { type: "json" };
 import { getNativeAuth } from "../lib/auth-platform";
@@ -30,6 +31,7 @@ export function SettingsDialog({ dialogRef }: { dialogRef: RefObject<HTMLDialogE
     </fieldset>
     {account && <div className="settings-account"><h3>Account</h3><p>{account.email || "Email：認証情報を確認中"}</p><p>ログアウトすると、この端末の未保存の下書きは削除されます。</p><button onClick={() => void account.logout()}>ログアウト</button><button className="danger" onClick={()=>setDeleting(!deleting)}>Delete Account</button>{deleting&&<AccountDeletion close={()=>setDeleting(false)}/>}</div>}
     {privacy&&<section><h3>Privacy</h3><LegalLinks kinds={["privacy"]}/><p>AI Data Sharing</p><button onClick={()=>void change("granted")}>説明を確認して許可</button><button onClick={()=>void change("revoked")}>AI送信を停止</button><button onClick={()=>void privacy.refresh().then(c=>setMessage(`AI Data Sharing: ${c.state}`)).catch(()=>setMessage("確認できません。"))}>現在の状態を確認</button>{message&&<p role="status">{message}</p>}</section>}
+    <RetentionSettings />
     <section><h3>About</h3><LegalLinks kinds={["support","terms"]}/><p>App Version: {appVersion}</p></section>
   </dialog>;
 }

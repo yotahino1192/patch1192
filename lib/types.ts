@@ -71,6 +71,7 @@ export type DailyReview = {
 };
 
 export type AppData = {
+  retention?: import("./retention").RetentionSnapshot;
   profile?: UserProfile;
   sessionReviews?: ReviewLog[];
   undoneReviewIds?: string[];

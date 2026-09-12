@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "schemaChecksum": "cef6ee37b69bbcbe3924ef90dc39c6c5f99c4cce0233ff8ae4d94a3df099c1a3",
+  "schemaChecksum": "ede96bab8e97dd77a3800d9d4b6bc67efffecedf4ce605db15c1be808486b80c",
   "migrations": [
     {
       "name": "0000_special_shaman.sql",
@@ -41,6 +41,10 @@
     {
       "name": "0009_talented_shockwave.sql",
       "checksum": "636ca0f3b169c637e0231609ad1ab18eb7ca243f7b473a5dee4ff5b7d225bd25"
+    },
+    {
+      "name": "0010_gifted_hitman.sql",
+      "checksum": "17862d4f55c17125309a5ce780ceb872fc1e74a809f35f6f779f8ffbdf6d2e83"
     }
   ]
 }
