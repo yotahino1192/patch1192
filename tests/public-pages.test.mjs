@@ -32,8 +32,19 @@ test('all unresolved publication fields are explicit and cannot accidentally ena
  for(const email of ['javascript:alert(1)','a@example.com\r\nBcc:private','not-an-email'])assert.equal(contactHref({...publicLegalConfig,fields:{...publicLegalConfig.fields,contactEmail:email}}),undefined);
 });
 test('support has all required sections, internal anchors resolve, and no feature or legal conditions are invented',()=>{
- const ids=legalDocuments.support.sections.map(s=>s.id);for(const id of ['about','account','verification','learning-data','ai','privacy','deletion','contact'])assert.ok(ids.includes(id));
+ const ids=legalDocuments.support.sections.map(s=>s.id);for(const id of ['about','account','verification','learning-data','ai','study-progress','notifications-widget','privacy','deletion','contact'])assert.ok(ids.includes(id));
  for(const doc of Object.values(legalDocuments))for(const section of doc.sections)for(const link of section.links||[]){if(link.href.startsWith('/')){const [path,anchor]=link.href.slice(1).split('#');assert.ok(legalKinds.includes(path));if(anchor)assert.ok(legalDocuments[path].sections.some(s=>`${path}-${s.id}`===anchor));}else assert.ok(link.href.startsWith('https://'));}
  const content=JSON.stringify(legalDocuments);for(const text of ['Clerk','Turso','Vercel','OpenAI','同意の撤回','最小限','バックアップ','端末内','ユーザー設定'])assert.ok(content.includes(text));
- assert.doesNotMatch(content,/Sentry|APNs|Sign in with Apple|Streak|位置情報を収集|通知トークンを収集|30日以内に削除|東京地方裁判所|返金しません/);
+ assert.doesNotMatch(content,/Sentry|Sign in with Apple|位置情報を収集|通知トークンを収集|30日以内に削除|東京地方裁判所|返金しません/);
+});
+
+test('Retention privacy disclosures match the implemented local-only delivery and cleanup', () => {
+ const privacy = legalDocuments.privacy.sections.find(s => s.id === 'notifications-widget');
+ const support = legalDocuments.support.sections.find(s => s.id === 'notifications-widget');
+ assert.ok(privacy && support);
+ const text = privacy.paragraphs.join(' ');
+ for (const phrase of ['App Group', 'Clerkの認証情報', 'デバイストークン登録は実装していません', '次に同期するまで通知が残る', 'ログアウト・アカウント切替・削除']) assert.ok(text.includes(phrase));
+ assert.ok(support.paragraphs.join(' ').includes('当日分だけ'));
+ assert.ok(legalDocuments.privacy.sections.find(s => s.id === 'study-progress').paragraphs.join(' ').includes('GPSの位置情報を取得するものではありません'));
+ assert.ok(legalDocuments.privacy.sections.find(s => s.id === 'deletion').paragraphs.join(' ').includes('Streakの達成記録・通知設定'));
 });

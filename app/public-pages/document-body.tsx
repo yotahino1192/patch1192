@@ -13,13 +13,13 @@ function LegalFields({ fields, classes: styles = {} }: { fields: readonly LegalF
   })}</dl>;
 }
 /** No routing, auth, browser storage or Next APIs: can also be rendered inside Capacitor. */
-export function DocumentBody({ kind, headingLevel = 2, anchorPrefix, classes: styles = {} }: { kind: LegalKind; headingLevel?: 2 | 3; anchorPrefix?: string; classes?: Classes }) {
+export function DocumentBody({ kind, headingLevel = 2, anchorPrefix, onNavigate, classes: styles = {} }: { kind: LegalKind; headingLevel?: 2 | 3; anchorPrefix?: string; onNavigate?: (href: string) => void; classes?: Classes }) {
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
   return <div className={styles.body}>{legalDocuments[kind].sections.map(section => <section key={section.id} className={styles.section} style={styles.section ? undefined : {marginBottom: 28}}>
-    <Heading style={styles.section ? undefined : {fontSize: 18, lineHeight: 1.6}} id={anchorPrefix ? `${anchorPrefix}-${section.id}` : undefined}>{section.title}</Heading>
+    <Heading style={styles.section ? undefined : {fontSize: "var(--text-important, 16px)", lineHeight: 1.6}} id={anchorPrefix ? `${anchorPrefix}-${section.id}` : undefined}>{section.title}</Heading>
     {section.paragraphs.map(p => <p key={p}>{p}</p>)}
     {section.bullets && <ul>{section.bullets.map(item => <li key={item}>{item}</li>)}</ul>}
     {section.fields && <LegalFields fields={section.fields} classes={styles}/>}
-    {section.links && <ul className={styles.references}>{section.links.map(link => <li key={link.href}><a href={link.href}>{link.label}</a></li>)}</ul>}
+    {section.links && <ul className={styles.references}>{section.links.map(link => <li key={link.href}><>{onNavigate && link.href.startsWith("/") ? <button type="button" onClick={() => onNavigate(link.href)} style={{textDecoration: "underline", textUnderlineOffset: ".2em", color: "var(--color-tertiary)", textAlign: "left", minHeight: 44}}>{link.label}</button> : <a href={link.href}>{link.label}</a>}</></li>)}</ul>}
   </section>)}</div>;
 }

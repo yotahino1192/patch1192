@@ -8,7 +8,7 @@ const dir=await mkdtemp(join(tmpdir(),'patch-public-browser-')),port=Number(proc
 const env={...process.env,PATCH_ENV:'development',OPENAI_API_KEY:'',CLERK_SECRET_KEY:'',CLERK_JWT_KEY:'',NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:'',TURSO_DATABASE_URL:'file:'+join(dir,'must-not-exist.db'),VERCEL:''};
 const server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p',String(port),'--hostname','127.0.0.1'],{env,stdio:'ignore'});
 const chrome=spawn(process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--disable-extensions','--no-first-run','--no-default-browser-check',`--remote-debugging-port=${debugPort}`,`--user-data-dir=${dir}/chrome`,'about:blank'],{stdio:'ignore'});
-let startupError,ws;server.on('error',e=>startupError=e);chrome.on('error',e=>startupError=e);
+let startupError,ws,embedded;server.on('error',e=>startupError=e);chrome.on('error',e=>startupError=e);
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn){for(let n=0;n<200;n++){if(startupError)throw startupError;try{if(await fn())return;}catch{}await delay(100);}throw Error('Public page readiness timeout');}
 try{
@@ -40,4 +40,23 @@ try{
  assert.ok(!requests.some(url=>/\/api\/|clerk\.accounts|api\.openai/.test(url)));assert.deepEqual(exceptions,[]);
  const {access}=await import('node:fs/promises');await assert.rejects(access(join(dir,'must-not-exist.db')));
  console.log('PASS: anonymous HTTP 200, noindex, headings/anchors, 320/768/1280 reflow, keyboard skip/focus, no-JS content, no auth/API/DB access');
-}finally{ws?.close();chrome.kill('SIGTERM');server.kill('SIGTERM');await delay(350);await rm(dir,{recursive:true,force:true});}
+
+ await cdp('Emulation.setScriptExecutionDisabled',{value:false});
+ const {createServer}=await import('vite');const {default:react}=await import('@vitejs/plugin-react');
+ embedded=await createServer({configFile:false,root:process.cwd(),plugins:[react()],server:{host:'127.0.0.1',port:5198,strictPort:true}});
+ await embedded.listen();
+ const embeddedURL='http://127.0.0.1:5198/tests/fixtures/public-legal.html';
+ await cdp('Page.navigate',{url:embeddedURL});
+ await until(()=>evaluate('document.querySelector("#root .legal-content h2")?.textContent.includes("プライバシー")'));
+ await evaluate('Array.from(document.querySelectorAll("#root .legal-content button")).find(b=>b.textContent.includes("通知・Widgetの使い方")).click()');
+ await until(()=>evaluate('document.querySelector("#root .legal-content h2")?.textContent==="サポート"'));
+ assert.equal(await evaluate('document.activeElement.textContent'),'Notification / Widget — 通知とホーム画面');
+ assert.equal(await evaluate('location.href'),embeddedURL);
+ await evaluate('Array.from(document.querySelectorAll("#root .legal-content button")).find(b=>b.textContent.includes("通知・Widgetが扱うデータ")).click()');
+ await until(()=>evaluate('document.querySelector("#root .legal-content h2")?.textContent==="プライバシーポリシー"'));
+ assert.equal(await evaluate('document.activeElement.textContent'),'Local Notification / Widget');
+ assert.equal(await evaluate('location.href'),embeddedURL);
+ assert.equal(await evaluate('new Set(Array.from(document.querySelectorAll("[id]"),e=>e.id)).size===document.querySelectorAll("[id]").length'),true);
+ assert.ok(!requests.some(url=>/\/api\/|clerk\.accounts|api\.openai/.test(url)));assert.deepEqual(exceptions,[]);
+ console.log('PASS: embedded legal navigation stays inside React, focuses the destination heading, and has unique anchors');
+}finally{await embedded?.close();ws?.close();chrome.kill('SIGTERM');server.kill('SIGTERM');await delay(350);await rm(dir,{recursive:true,force:true});}
