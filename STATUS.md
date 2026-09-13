@@ -1,3 +1,37 @@
+## Patch Domain — Dev統合検証
+
+Domain `a23d6cb1876162a3e9b45a66fc96bec7e473f210` をDev `40957db35100b7b02d115a39971bb38c6750cc73` へ統合。両worktree clean、Devの追加更新・競合なし。機能コードの修正不要。以下のcheckpointにある「Dev未merge」は作成時点の履歴。
+
+統合直前にNode 22.23.2で再検証: **224/224 tests PASS**、typecheck、Lint（0 errors / 既存41 warnings）、production Web build、mobile build/Capacitor sync、Swift tests、署名なしiOS Simulator App + Widget buildが成功。auth/privacy/onboarding/reliability/public-pagesの全ブラウザー回帰とhealth/readiness HTTP検証も成功。
+
+Migration **0011** は隔離local/test DBで旧0010からの追加移行、旧CardSet/Card/review/session保持、checksum/drift、ownership、encrypted backup/restore、削除retryを確認。本番DBへの適用なし。main・production・deploy・Apple Developer設定は変更していない。新Lesson→Streak/Due接続等の次フェーズ範囲はcheckpoint記載の通り。
+
+## Patch Product Domain / Data Foundation checkpoint — 2026-09-13
+
+Base Dev **40957db35100b7b02d115a39971bb38c6750cc73**、branch **codex/patch-domain**、worktree `~/Documents/Yota-domain`。Dev未merge・未deploy。今回の現在仕様とCLI2契約: [docs/patch-domain.md](docs/patch-domain.md)。以下の過去フェーズの記録よりこの節を優先する。
+
+- 独立Patch、Objective、5種類固定Activity、idempotent Attempt/Undo、version付きObjectiveState、順序付きLessonActivityを追加。Source再利用、Lessonはstudy_sessions拡張で実現。
+- 0011 additive migrationのみ。旧migration変更・旧データ自動変換なし。新Domainをowner/lifecycle/loop-owner隔離、account deletion、backup/restore、schema/ownershipチェックへ追加。
+- 旧Card/Review/Onboarding/Retentionを維持。新Lessonは旧Streak/Due/Continueへ混入させない。UI・AI呼出し・nativeコード変更なし。
+
+Node **22.23.2**、`PATCH_ENV=development`で検証:
+
+| 検証 | 結果 |
+| --- | --- |
+| `npm run check` | PASS: typecheck、Lint 0 errors/既存41 warnings、**224/224 unit/API/DB tests**、Next production Web build、env/schema/secret guards、artifact seal |
+| Domain追加テスト | **15/15 PASS**。DB制約、Lesson全体完了、再送/二重送信/通信断、UndoとDB rollback、CAS、signed auth、A/B/loop-owner、旧0010→0011データ保持、encrypted restore、DB/Clerk失敗後削除retry。復元後のAttempt再送も最後に再確認 |
+| 追加型検証 | PASS: 公開型とDrizzle insert型でActivityが5種類に閉じていることをcompile-time確認 |
+| auth / privacy / onboarding browser | 全PASS: SDK fixtureのsession復元、A/B分離、同意撤回/切替/logout中AI取消、削除UX、初回学習Day 1、Review/Undo/Retention、Deep Link/復元 |
+| reliability browser / HTTP | 全PASS: offline/reconnect、API障害、再送抑止、draft保持、fatal recovery、health/readiness、未準備DBにrequest時DDLなし |
+| public-pages browser | PASS: 非認証閲覧、responsive/a11y/no-JS、アプリ内共有導線 |
+| `npm run ios:sync:local` | PASS: mobile development bundle、artifact seal、Capacitor sync |
+| Swift snapshot/policy tests | PASS |
+| Xcode Debug generic iOS Simulator | **BUILD SUCCEEDED**: App + embedded Widget、arm64/x86_64、署名なし・Teamなし・キャッシュ済みSPM |
+
+未実装（今回の対象外）: CLI2の新UI、Lesson Composer、Domain ActivityのAI生成/採点、ObjectiveStateの自動mastery/Due、Onboarding/新Lesson完了からStreakへの接続。新Domainは保存/API foundationであり、既存UIは引き続きCard経路を使う。独自local cacheは追加していない。
+
+本番DB・Apple Developer・Clerkの外部設定には触れていない。テストDBは隔離。実Clerk/AI、署名付き実機、Archive/TestFlight・Production設定/移行は今回の検証対象外。既存41 Lint warningsとmobile chunk-size warningは残る。
+
 ## Integration + Reliability 最終Regression — 2026-09-13
 
 Integration `dc8f3f2bd3be193c1be856cb69ba2c12a35401a8` に最新Dev/Reliability `976916b7aeffde203470bd38670b6b1e6a0a287c` を取り込んだ検証済み状態。Gitのテキスト競合なし。以下の過去の「Dev未統合」は各checkpoint時点の記録。

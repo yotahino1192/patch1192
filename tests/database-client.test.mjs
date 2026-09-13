@@ -1,4 +1,4 @@
-import { migrate } from '../scripts/infra/migrations.mjs';
+import { migrate, loadMigrations } from '../scripts/infra/migrations.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient } from '@libsql/client';
@@ -13,7 +13,7 @@ test('fresh libSQL database initializes all schema and retains state on restart'
     await Promise.all([db.initialize(),db.initialize()]);
     const tables = (await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).results.map(r=>r.name);
     for(const name of ['users','auth_identities','cards','sources','card_sets','folders','daily_review_plans','review_logs','chat_messages']) assert.ok(tables.includes(name));
-    assert.equal((await db.prepare('SELECT count(*) AS n FROM _patch_migrations').first()).n,11);
+    assert.equal((await db.prepare('SELECT count(*) AS n FROM _patch_migrations').first()).n,(await loadMigrations()).length);
     await db.prepare('INSERT INTO folders VALUES (?,?,?,?,?,?)').bind('f','owner',null,'History','now','now').run();
     await createDatabase(client).initialize();
     assert.equal((await db.prepare('SELECT name FROM folders WHERE id=?').bind('f').first()).name,'History');
@@ -37,12 +37,12 @@ test('an existing Cloudflare schema requires explicit validated baseline', async
   try {
     const dir = new URL('../drizzle/',import.meta.url);
     for(const name of (await readdir(dir)).filter(n=>n.endsWith('.sql')).sort()) await client.executeMultiple(await readFile(new URL(name,dir),'utf8'));
-    await client.execute("INSERT INTO sources VALUES ('s','loop-owner','Original','Keep this text','n','n')");
+    await client.execute("INSERT INTO sources (id,user_id,title,content,created_at,updated_at) VALUES ('s','loop-owner','Original','Keep this text','n','n')");
     const db = createDatabase(client);
     await assert.rejects(db.initialize(), /SCHEMA_NOT_READY/);
     await migrate(client,{baseline:true});
     await db.initialize();
     assert.equal((await db.prepare("SELECT content FROM sources WHERE id='s'").first()).content,'Keep this text');
-    assert.equal((await db.prepare('SELECT count(*) AS n FROM _patch_migrations').first()).n,11);
+    assert.equal((await db.prepare('SELECT count(*) AS n FROM _patch_migrations').first()).n,(await loadMigrations()).length);
   } finally { client.close(); }
 });
