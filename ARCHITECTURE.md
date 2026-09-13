@@ -1,3 +1,9 @@
+## Product Domain / Data Foundation — 2026-09-13
+
+Base Dev `40957db35100b7b02d115a39971bb38c6750cc73`、専用branch `codex/patch-domain`。既存UI/API/Card中心の学習経路を維持し、独立したPatch・LearningObjective・Activity・Attempt・ObjectiveState・LessonActivityを追加。Sourceは既存テーブル、Lessonは既存`study_sessions`を再利用する。新規migration **0011_patch_domain.sql** は追加のみ、既存データの変換・本番適用なし。
+
+接続は `lib/domain/types.ts` → 認証済み `lib/domain/client.ts` → `/api/domain` → Domain Service → Repository port → `db/domain-repository.ts` → 所有者/lifecycle検証付きtransaction。新DomainのUI接続・Composer・AI生成接続は未実装。Lessonは旧Retentionの対象外で、Streak/Dueは引き続き既存カード/レビューを正とする。Account deletion・encrypted backup/restore・ownership/schema checksに新Domainを組み込んだ。正式なCLI2接続契約・状態遷移・互換境界は [Patch Domain](docs/patch-domain.md)、検証結果は [STATUS](STATUS.md)。以下は既存機能の構成と各過去フェーズの記録。
+
 ## Integration + Reliability — 2026-09-13
 
 最新の統合構成はIntegration `dc8f3f2` + Dev/Reliability `976916b`。共有UIはReliabilityBoundary/Runtime、認証・account scope・Privacyの各境界を通り、共通transportはdeadline・no-replay・sanitized diagnosticsを担う。`useApi` はReliabilityErrorのkind/status/code/Retry-Afterを保持し、Review競合はcodeで復元する。取消APIもobserveRouteを通す。Deep Linkの再開のみ、期限付きaccount inbox内で一時的なGET失敗を再試行し、権限等の非一時的失敗では停止する。汎用transportが操作を自動再送することはない。

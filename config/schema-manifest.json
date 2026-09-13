@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "schemaChecksum": "ede96bab8e97dd77a3800d9d4b6bc67efffecedf4ce605db15c1be808486b80c",
+  "schemaChecksum": "99052a58db81df23442d7e44598a0c3e407100965cdba37f3767d9310e8bbffa",
   "migrations": [
     {
       "name": "0000_special_shaman.sql",
@@ -45,6 +45,10 @@
     {
       "name": "0010_gifted_hitman.sql",
       "checksum": "17862d4f55c17125309a5ce780ceb872fc1e74a809f35f6f779f8ffbdf6d2e83"
+    },
+    {
+      "name": "0011_patch_domain.sql",
+      "checksum": "039cd64ecf8b8b3b5dd26e586677536bf9f09f3e36a28cd36dab8f313d44c0d4"
     }
   ]
 }

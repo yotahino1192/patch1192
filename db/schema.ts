@@ -15,6 +15,7 @@ export const authIdentities = sqliteTable("auth_identities", {
 }, table => [primaryKey({ columns: [table.issuer, table.subject] }), index("auth_identities_user_idx").on(table.userId)]);
 
 export const sources = sqliteTable("sources", {
+  patchId: text("patch_id"),
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   title: text("title").notNull(),
