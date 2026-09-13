@@ -1,3 +1,4 @@
+import { asFailure, retryPolicy } from './reliability/errors.ts';
 import { acceptsPendingLink } from './continue-learning.ts';
 import { parseDeepLink } from './retention.ts';
 export type PendingDeepLink = { url: string; at: number; owner?: string };
@@ -24,5 +25,12 @@ export class PendingDeepLinks {
     this.items = this.items.filter(item => item !== link);
     this.failures = 0; this.retryAt = 0;
   }
-  retry(now: number) { this.retryAt = now + Math.min(30000, 1000 * 2 ** Math.min(this.failures++, 5)); }
+  retry(now: number, minimumDelayMs = 0) {
+    this.retryAt = now + Math.max(minimumDelayMs, Math.min(30000, 1000 * 2 ** Math.min(this.failures++, 5)));
+  }
+  handleFailure(error: unknown, now: number) {
+    const policy = retryPolicy(asFailure(error), 'GET');
+    if (policy.manual) this.retry(now, policy.delayMs);
+    else { this.items = []; this.failures = 0; this.retryAt = 0; }
+  }
 }

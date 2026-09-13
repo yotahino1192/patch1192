@@ -1,3 +1,4 @@
+import {observeRoute} from "../../../lib/reliability/server";
 import { requireAuth, authErrorResponse } from "../../../lib/auth-server";
 import { InputError, readJsonObject, validId } from "../../../lib/api-input";
 import { retentionSnapshot, saveRetentionPreferences, startStudySession } from "../../../db/retention";
@@ -17,4 +18,4 @@ async function handle(request:Request){try{
  }
  return json(await retentionSnapshot(userId,timezone));
  }catch(error){return authErrorResponse(error)||json({error:error instanceof InputError?error.message:"Retentionを同期できませんでした。"},error instanceof InputError?error.status:500);}}
-export const GET=handle;export const POST=handle;
+export const GET=observeRoute(handle);export const POST=observeRoute(handle);

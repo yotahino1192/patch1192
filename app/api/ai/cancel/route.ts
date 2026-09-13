@@ -1,3 +1,4 @@
+import { observeRoute } from '../../../../lib/reliability/server';
 import { database } from '../../../../db/client';
 import { cancelAi, aiErrorResponse } from '../../../../lib/ai/control';
 import { requireAuth, authErrorResponse } from '../../../../lib/auth-server';
@@ -5,7 +6,7 @@ import { InputError, readJsonObject } from '../../../../lib/api-input';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 /** Cancellation needs authentication, but never requires permission to send data to AI. */
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const { userId } = await requireAuth(request);
     const body = await readJsonObject(request, 1024);
@@ -18,3 +19,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = observeRoute(handlePOST);

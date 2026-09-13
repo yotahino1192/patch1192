@@ -55,7 +55,7 @@ try {
  await clickText('次へ');await waitText('どんな目的で学びたいですか？');await clickText('仕事で使いたい');await clickText('次へ');await waitText('あなたに合いそうな3つを選びました');
  assert.equal(await evaluate("new Set([...document.querySelectorAll('.onboarding-preset strong')].map(e=>e.textContent)).size"),3);await responsive('recommendations');
  await evaluate(`{const original=window.fetch;let lose=true;window.fetch=async(...args)=>{const result=await original(...args);if(lose&&args[1]?.body?.includes('"step":"select"')){lose=false;throw new Error('接続が切れました');}return result;};}`);
- await click('.onboarding-preset');await waitText('接続が切れました');await click('.onboarding-preset');await waitText('まず3枚やってみる');assert.equal((await data()).sets.length,1);
+ await click('.onboarding-preset');await waitText('サーバーに接続できません');assert.equal(await evaluate("document.body.innerText.includes('接続が切れました')"),false);await click('.onboarding-preset');await waitText('まず3枚やってみる');assert.equal((await data()).sets.length,1);
  await reload();await waitText('まず3枚やってみる');await clickText('まず3枚やってみる');await waitText('答えを見る');
  assert.equal(await evaluate("document.body.innerText.includes('このカードを修正')"),false);
  await clickText('答えを見る');await clickText('まだ覚えていない');await until(async()=> (await data()).reviews.length===1);
@@ -77,6 +77,12 @@ try {
  await evaluate(`{const previous=window.fetch;window.failedLinkReads=0;window.fetch=async(...args)=>{if(!window.failedLinkReads&&String(args[0]).endsWith('/api/data')){window.failedLinkReads++;return Response.json({error:'Temporary API outage'},{status:503});}return previous(...args);};}`);
  await link('patch://set/'+set.id);await waitText('Retention browser set');assert.equal(await evaluate('window.failedLinkReads'),1);
  assert.equal(await evaluate('document.body.textContent.includes("リンクを開けませんでした")'),false);
+ // A non-transient access failure must stop the pending intent, not poll protected data.
+ await evaluate(`{window.beforeForbiddenFetch=window.fetch;window.forbiddenReads=0;window.fetch=async(...args)=>{if(String(args[0]).endsWith('/api/data')){window.forbiddenReads++;return Response.json({code:'ACCESS_DENIED',error:'private upstream detail'},{status:403});}return window.beforeForbiddenFetch(...args);};}`);
+ await link('patch://continue');await until(()=>evaluate('window.forbiddenReads===1'));await delay(2300);
+ assert.equal(await evaluate('window.forbiddenReads'),1,'403 Deep Link must not retry');
+ assert.equal(await evaluate('document.body.textContent.includes("private upstream detail")'),false);
+ await evaluate('window.fetch=window.beforeForbiddenFetch');
  await link('patch://card/'+set.cards[0].id);await until(()=>evaluate(`document.activeElement?.id===${JSON.stringify('set-card-'+set.cards[0].id)}`));
  const plan=await post('/api/retention',{action:'start',id:'browser-retention-session',cardIds:set.cards.map(c=>c.id)});assert(plan.qualifies);
  await link('patch://continue');await waitText('タップで回答を表示');

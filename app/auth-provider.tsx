@@ -1,5 +1,7 @@
 "use client";
 
+import { AuthWaiting } from './reliability/auth-waiting';
+import { withDeadline } from '../lib/reliability/transport';
 import { DeletionStatus } from "./deletion-status";
 import { signedOutRetention } from "../lib/retention-platform";
 import { PrivacyProvider } from "./privacy-provider";
@@ -53,7 +55,7 @@ function WebBoundary({ children, signUp }: { children?: ReactNode; signUp: boole
     if(code){const result=await current.attemptFirstFactorVerification({strategy:"email_code",code});if(result.status!=="complete")throw Error("追加認証が必要です。");await current.getToken({skipCache:true});}
     else {const verification=await current.startVerification({level:"first_factor"});const factor=verification.supportedFirstFactors?.find(f=>f.strategy==="email_code");if(!factor||factor.strategy!=="email_code")throw Error("メールによる再認証を設定してください。");await current.prepareFirstFactorVerification({strategy:"email_code",emailAddressId:factor.emailAddressId});}
   };
-  if (!isLoaded) return <AuthMessage><p>ログインを確認しています…</p></AuthMessage>;
+  if (!isLoaded) return <AuthMessage><AuthWaiting/></AuthMessage>;
   if (!identity) return <AuthMessage>{signUp ? <SignUp routing="hash" signInUrl="/" forceRedirectUrl="/" /> : <SignIn routing="hash" signUpUrl="/sign-up" forceRedirectUrl="/" />}</AuthMessage>;
   return <SessionBoundary email={clerk.user?.primaryEmailAddress?.emailAddress} reauthenticate={reauthenticate} key={identity.sessionId} captureScope={captureScope} identity={identity} session={session} signOut={signOut}>{children || <form action="/" method="get"><button>学習へ進む</button></form>}</SessionBoundary>;
 }
@@ -67,7 +69,7 @@ function NativeBoundary({ native, children }: { native: NativeAuth; children?: R
     let active = true;
     const accept = (next: Identity | null) => { if (active) { setIdentity(previous => previous?.sessionId === next?.sessionId && previous?.subject === next?.subject ? previous : next); setLoaded(true); setError(""); } };
     const unsubscribe = native.subscribe(accept);
-    native.initialize().then(accept).catch(() => { if (active) setError("ログインを確認できません。通信と認証設定を確認して再試行してください。"); });
+    withDeadline(()=>native.initialize(),15000).then(accept).catch(() => { if (active) setError("ログインを確認できません。通信と認証設定を確認して再試行してください。"); });
     const foreground = () => { if (document.visibilityState === "visible") native.getSession().then(accept).catch(() => { /* Preserve identity on temporary connection loss; APIs still verify credentials. */ }); };
     document.addEventListener("visibilitychange", foreground);
     return () => { active = false; unsubscribe(); document.removeEventListener("visibilitychange", foreground); };
@@ -76,7 +78,7 @@ function NativeBoundary({ native, children }: { native: NativeAuth; children?: R
   const session = useMemo<SessionTransport>(() => ({ getToken: () => identity ? native.getToken(identity.sessionId) : Promise.resolve(null) }), [identity, native]);
   const signOut = useCallback(async (id: string, deleting=false) => { await native.signOut(id,deleting); setIdentity(previous => previous?.sessionId === id ? null : previous); }, [native]);
   if (error) return <AuthMessage><p role="alert">{error}</p><button onClick={() => location.reload()}>再試行</button></AuthMessage>;
-  if (!loaded) return <AuthMessage><p>ログインを確認しています…</p></AuthMessage>;
+  if (!loaded) return <AuthMessage><AuthWaiting/></AuthMessage>;
   if (!identity) return <EmailForm native={native} onSignedIn={setIdentity} />;
   return <SessionBoundary email={identity.email} reauthenticate={native.reauthenticate ? code=>native.reauthenticate!(identity.sessionId,code) : undefined} key={identity.sessionId} captureScope={captureScope} identity={identity} session={session} signOut={signOut}>{children}</SessionBoundary>;
 }
@@ -93,7 +95,7 @@ function EmailForm({ native, onSignedIn }: { native: NativeAuth; onSignedIn: (id
     try {
       if (!sent) { await native.startEmail(email.trim(), signUp); setSent(true); }
       else { const next = await native.verifyEmail(code.trim(), signUp); if (!next) throw new Error("追加の認証が必要です。ClerkのEmail認証設定を確認してください。"); onSignedIn(next); }
-    } catch (e) { setError(e instanceof Error ? e.message : "ログインできませんでした。"); }
+    } catch { setError("ログインできませんでした。メールアドレス・確認コードと接続を確認してください。"); }
     finally { setBusy(false); }
   }}>
     <label>メールアドレス<input type="email" autoComplete="email" required value={email} disabled={sent || busy} onChange={e => setEmail(e.target.value)} /></label>
@@ -143,7 +145,7 @@ function SessionBoundary({ identity, session, signOut, captureScope, children, e
       current.current = owned; captureScope(owned);
       setScope(owned); setError("");
     };
-    bootstrap().catch(e => { if (active) setError(e instanceof Error ? e.message : "ログインを確認できません。"); });
+    bootstrap().catch(() => { if (active) setError("アカウントを読み込めません。接続を確認して再試行してください。"); });
     return () => { active = false; owned?.invalidate(); };
   }, [identity, session, signOut, captureScope, attempt]);
 

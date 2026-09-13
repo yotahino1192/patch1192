@@ -1,6 +1,6 @@
 # Integration stabilization — 2026-09-13
 
-Base: Dev `11eda5d72a2d770a59cfb7fad733b70d2835946b`. Branch: `codex/integration-stabilization`. This checkpoint is not merged into Dev or deployed. No schema migration, hosted data, authentication configuration, Apple Team, UI redesign or dependency changes.
+Base: Dev `11eda5d72a2d770a59cfb7fad733b70d2835946b`. Branch: `codex/integration-stabilization`. The original checkpoint was `dc8f3f2`; the subsequent integration includes Dev/Reliability `976916b` after final regression. No deployment was performed. No schema migration, hosted data, authentication configuration, Apple Team, UI redesign or dependency changes.
 
 ## Changes and invariants
 
@@ -37,3 +37,7 @@ Base: Dev `11eda5d72a2d770a59cfb7fad733b70d2835946b`. Branch: `codex/integration
 - Public legal/contact placeholders, production provider/environment allowlists, hosted explicit migrations, backup recovery acceptance and deletion-worker scheduling still require their existing release runbooks. No external service was configured here.
 
 Exact verified commands/results are recorded in STATUS.md after the final run.
+
+## Reliability integration
+
+Final verification: STATUS.md, Integration + Reliability section. Cancellation responses now include the common sanitized correlation envelope. Deep Link retries retain Retry-After, stop on non-transient failures, and do not replace account or review conflict guards. The full browser flow injects both 503 (resume) and 403 (stop without exposing upstream text). Existing offline cancellation/process-restart limitations remain; this integration does not claim to eliminate them.

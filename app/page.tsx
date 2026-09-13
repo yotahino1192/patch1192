@@ -1,5 +1,7 @@
 "use client";
 
+import { readApiResponse, ReliabilityError } from '../lib/reliability/errors';
+import { ReliabilityBoundary, ReliabilityRuntime } from './reliability/boundary';
 import { useAccount, useApiFetch } from "./account-context";
 import { activateRetention, publishRetention, nativeRetention } from "../lib/retention-platform";
 import { PendingDeepLinks } from "../lib/pending-deep-links";
@@ -42,14 +44,6 @@ const navItems: { id: Screen; label: string }[] = [
   { id: "records", label: "記録" },
 ];
 
-class ApiError extends Error {
-  code?: string;
-  constructor(message: string, code?: string) {
-    super(message);
-    this.code = code;
-  }
-}
-
 function useApi() {
   const apiFetch = useApiFetch();
   return useCallback(async function api<T>(url: string, options?: RequestInit): Promise<T> {
@@ -57,9 +51,7 @@ function useApi() {
     ...options,
     headers: { "Content-Type": "application/json", "x-patch-timezone": Intl.DateTimeFormat().resolvedOptions().timeZone, ...(options?.headers || {}) },
   });
-  const body = await response.json() as T & { error?: string; code?: string };
-  if (!response.ok) throw new ApiError(body.error || "通信に失敗しました。", body.code);
-  return body;
+  return readApiResponse<T>(response);
   }, [apiFetch]);
 }
 
@@ -663,7 +655,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         else { setSessionDone(true); void summarizeAiHistory(sessionAiMessages); }
       }
     } catch (e) {
-      if (e instanceof ApiError && ["REVIEW_STATE_CONFLICT", "REVIEW_OPERATION_CONFLICT"].includes(e.code || "")) {
+      if (e instanceof ReliabilityError && ["REVIEW_STATE_CONFLICT", "REVIEW_OPERATION_CONFLICT"].includes(e.code || "")) {
         try {
           const fresh = await api<AppData>(`/api/data?sessionId=${encodeURIComponent(sessionId)}`);
           setData(fresh);
@@ -983,14 +975,17 @@ function App() {
     setScreen(target.screen);
   };
 
+  const reloadBusy = useRef(false);
   const reload = async () => {
+    if(reloadBusy.current)return;
+    reloadBusy.current=true;
     try {
       const loaded = await loadWorkspaceData(getWorkspace(), api);
       setWorkspace((w) => reconcileWorkspace(w, loaded));
       setData(loaded);
       setSelectedSetId((current) => current || loaded.sets[0]?.id || null);
       setLoadingError("");
-    } catch (e) { setLoadingError(e instanceof Error ? e.message : "データを読み込めませんでした。"); }
+    } catch (e) { setLoadingError(e instanceof Error ? e.message : "データを読み込めませんでした。"); } finally { reloadBusy.current=false; }
   };
   useEffect(() => {
     if (!workspaceReady) return;
@@ -1091,7 +1086,7 @@ function App() {
         inbox.complete(link);
         setLoadingError(error=>error==="リンクを開けませんでした。ホームから再試行してください。"?"":error);
       }
-    }catch{inbox.retry(Date.now());if(active)setLoadingError("リンクを開けませんでした。ホームから再試行してください。");}finally{linksBusy=false;}};
+    }catch(error){inbox.handleFailure(error,Date.now());if(active)setLoadingError("リンクを開けませんでした。ホームから再試行してください。");}finally{linksBusy=false;}};
     const linkTimer=setInterval(()=>void readLinks(),1000);void readLinks();
     const visible=()=>{if(document.visibilityState==="visible")void refresh();};
     void refresh();const timer=setInterval(()=>void refresh(),30000);
@@ -1168,5 +1163,5 @@ function App() {
 }
 
 export default function LocalizedApp() {
-  return <LanguageProvider><AuthBoundary><App /></AuthBoundary></LanguageProvider>;
+  return <ReliabilityBoundary><ReliabilityRuntime/><LanguageProvider><AuthBoundary><App /></AuthBoundary></LanguageProvider></ReliabilityBoundary>;
 }

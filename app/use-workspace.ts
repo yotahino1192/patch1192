@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type SetStateAction } from "r
 import { EMPTY_WORKSPACE, type Workspace } from "../lib/workspace";
 
 import { useAccount } from "./account-context";
-import { readAccountWorkspace, writeAccountWorkspace } from "../lib/account-storage";
+import { isCorruptedWorkspace, workspaceKey, readAccountWorkspace, writeAccountWorkspace } from "../lib/account-storage";
 
 export function useWorkspace() {
   const scope = useAccount()?.scope;
@@ -12,6 +12,7 @@ export function useWorkspace() {
   const [workspace, setWorkspace] = useState<Workspace>(EMPTY_WORKSPACE);
   const [ready, setReady] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [recoveryWarning,setRecoveryWarning]=useState(false);
   const latest = useRef(workspace);
   useEffect(() => {
     let active = true;
@@ -19,7 +20,7 @@ export function useWorkspace() {
     // Hydrate after the server render, without writing defaults over saved work.
     Promise.resolve().then(() => {
       if (!active || !scope?.isCurrent()) return;
-      try { latest.current = readAccountWorkspace(localStorage, scope.account.userId); }
+      try { setRecoveryWarning(isCorruptedWorkspace(localStorage.getItem(workspaceKey(scope.account.userId)),scope.account.userId) || !!localStorage.getItem(workspaceKey(scope.account.userId)+':recovery')); latest.current = readAccountWorkspace(localStorage, scope.account.userId); }
       catch { setSaveError(true); }
       setWorkspace(latest.current);
       setReady(true);
@@ -36,5 +37,5 @@ export function useWorkspace() {
     catch { setSaveError(true); }
   }, [scope]);
   const getWorkspace = useCallback(() => latest.current, []);
-  return { getWorkspace, workspace, setWorkspace: update, workspaceReady: ready, saveError };
+  return { getWorkspace, workspace, setWorkspace: update, workspaceReady: ready, saveError:saveError||recoveryWarning };
 }

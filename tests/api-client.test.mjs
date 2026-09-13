@@ -7,7 +7,10 @@ test('web API requests remain same-origin and preserve request options', async (
   const options = { method: 'POST', body: '{"action":"reviewCard"}' };
   globalThis.fetch = async (url, init) => {
     assert.equal(url, '/api/data');
-    assert.equal(init, options);
+    assert.equal(init.method, options.method);
+    assert.equal(init.body, options.body);
+    assert.match(new Headers(init.headers).get('x-request-id'), /^[a-f0-9-]{36}$/);
+    assert.ok(init.signal instanceof AbortSignal);
     return new Response('{}');
   };
   try { await apiFetch('/api/data', options); } finally { globalThis.fetch = original; }

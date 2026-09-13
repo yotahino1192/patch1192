@@ -1,3 +1,4 @@
+import { observeRoute } from "../../../../lib/reliability/server";
 import { randomUUID } from 'node:crypto';
 import { database } from '../../../../db/client';
 import { runAi, aiErrorResponse } from '../../../../lib/ai/control';
@@ -15,7 +16,7 @@ function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-export async function POST(request: Request): Promise<Response> {
+async function handlePOST(request: Request): Promise<Response> {
   try {
     const { userId } = await requireAuth(request);
     const body = await readJsonObject(request, 128 * 1024);
@@ -65,3 +66,5 @@ export async function POST(request: Request): Promise<Response> {
     return json({ error: "AIから回答を受け取れませんでした。少し待ってからもう一度お試しください。" }, 502);
   }
 }
+
+export const POST = observeRoute(handlePOST);

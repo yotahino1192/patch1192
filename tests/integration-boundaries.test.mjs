@@ -16,3 +16,14 @@ test('pre-login links remain scoped, expiry and account switch cannot deliver an
  assert.equal(inbox.next(1100).url,'patch://continue');assert.equal(inbox.next(301000),undefined);
  const other=new PendingDeepLinks('A');assert.equal(other.next(1100),undefined);
 });
+
+test('Deep Link retries honor transient failures and Retry-After, never access failures', async()=>{
+ const {ReliabilityError}=await import('../lib/reliability/errors.ts');
+ const inbox=new PendingDeepLinks('A'),link={url:'patch://continue',at:1000,owner:'A'};
+ inbox.enqueue([link],1000);inbox.handleFailure(new ReliabilityError('rate_limit',429,undefined,undefined,15000),1000);
+ assert.equal(inbox.next(15999),undefined);assert.equal(inbox.next(16000),link);
+ inbox.handleFailure(new ReliabilityError('offline'),16000);assert.equal(inbox.next(16001),undefined);assert.equal(inbox.next(18000),link);
+ for(const kind of ['unauthorized','forbidden','not_found','conflict','cancelled','unknown']){
+  inbox.enqueue([link],18000);inbox.handleFailure(new ReliabilityError(kind),18000);assert.equal(inbox.next(50000),undefined);
+ }
+});

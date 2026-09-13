@@ -1,3 +1,5 @@
+import { asFailure } from './reliability/errors.ts';
+import { withDeadline } from './reliability/transport.ts';
 import { apiFetch, type ApiTransport } from "./api-client";
 
 export type Identity = { subject: string; sessionId: string; email?: string };
@@ -5,7 +7,7 @@ export type Account = Identity & { userId: string };
 export type SessionTransport = { getToken?: () => Promise<string | null> };
 
 export class StaleAccountError extends Error {
-  constructor() { super("アカウントが変更されました。操作を再開してください。"); }
+  constructor() { super("アカウントが変更されました。操作を再開してください。"); this.name="StaleAccountError"; }
 }
 
 export function createAccountScope(account: Account, session: SessionTransport, transport: ApiTransport = apiFetch, onUnauthorized?: (reason?:string) => void) {
@@ -24,7 +26,7 @@ export function createAccountScope(account: Account, session: SessionTransport, 
       headers.set("X-Patch-Account", account.userId);
       headers.set("X-Patch-Session", account.sessionId);
       if (session.getToken) {
-        const token = await session.getToken();
+        const token = await withDeadline(() => session.getToken!(), 15000).catch(error=>{throw asFailure(error);});
         assertCurrent();
         if (!token) { onUnauthorized?.(); throw new StaleAccountError(); }
         headers.set("Authorization", `Bearer ${token}`);
@@ -36,7 +38,7 @@ export function createAccountScope(account: Account, session: SessionTransport, 
       const json = response.json.bind(response);
       response.json = async () => { const data = await json(); assertCurrent(); return data; };
       return response;
-    } finally {
+    } catch(error) { assertCurrent(); throw error instanceof StaleAccountError ? error : asFailure(error); } finally {
       options.signal?.removeEventListener("abort", abort);
       pending.delete(controller);
     }
@@ -48,7 +50,7 @@ export type AccountScope = ReturnType<typeof createAccountScope>;
 export async function loadAccount(identity: Identity, session: SessionTransport, transport: ApiTransport = apiFetch): Promise<Account> {
   const headers = new Headers({ "X-Patch-Session": identity.sessionId });
   if (session.getToken) {
-    const token = await session.getToken();
+    const token = await withDeadline(() => session.getToken!(), 15000).catch(error=>{throw asFailure(error);});
     if (!token) throw new Error("ログインを確認してください。");
     headers.set("Authorization", `Bearer ${token}`);
   }

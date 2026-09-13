@@ -1,3 +1,4 @@
+import { observeRoute } from "../../../../lib/reliability/server";
 import { database } from '../../../../db/client';
 import { runAi, aiErrorResponse } from '../../../../lib/ai/control';
 import { logEvent } from '../../../../lib/safe-log';
@@ -13,7 +14,7 @@ function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-export async function POST(request: Request): Promise<Response> {
+async function handlePOST(request: Request): Promise<Response> {
   try {
     const { userId } = await requireAuth(request);
     const body = await readJsonObject(request, 128 * 1024);
@@ -47,3 +48,5 @@ export async function POST(request: Request): Promise<Response> {
     return json({ error: "AIがカードを生成できませんでした。少し待ってからもう一度お試しください。" }, 502);
   }
 }
+
+export const POST = observeRoute(handlePOST);

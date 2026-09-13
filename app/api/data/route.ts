@@ -1,3 +1,4 @@
+import { observeRoute } from "../../../lib/reliability/server";
 import { logEvent } from '../../../lib/safe-log';
 import { requireAuth, authErrorResponse } from "../../../lib/auth-server";
 import { InputError, readJsonObject, validId, boundedText } from "../../../lib/api-input";
@@ -30,7 +31,7 @@ function validCards(value: unknown): value is GeneratedCard[] {
   });
 }
 
-export async function GET(request: Request): Promise<Response> {
+async function handleGET(request: Request): Promise<Response> {
   try {
     const { userId } = await requireAuth(request);
     const sessionIds = [...new Set(new URL(request.url).searchParams.getAll("sessionId"))];
@@ -44,7 +45,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 }
 
-export async function POST(request: Request): Promise<Response> {
+async function handlePOST(request: Request): Promise<Response> {
   try {
     const { userId } = await requireAuth(request);
     const body = await readJsonObject(request);
@@ -133,3 +134,7 @@ export async function POST(request: Request): Promise<Response> {
     return json({ error: "データを保存できませんでした。" }, 500);
   }
 }
+
+export const GET = observeRoute(handleGET);
+
+export const POST = observeRoute(handlePOST);

@@ -1,3 +1,9 @@
+## Integration + Reliability — 2026-09-13
+
+最新の統合構成はIntegration `dc8f3f2` + Dev/Reliability `976916b`。共有UIはReliabilityBoundary/Runtime、認証・account scope・Privacyの各境界を通り、共通transportはdeadline・no-replay・sanitized diagnosticsを担う。`useApi` はReliabilityErrorのkind/status/code/Retry-Afterを保持し、Review競合はcodeで復元する。取消APIもobserveRouteを通す。Deep Linkの再開のみ、期限付きaccount inbox内で一時的なGET失敗を再試行し、権限等の非一時的失敗では停止する。汎用transportが操作を自動再送することはない。
+
+`GET /api/health` は外部呼出しなしの生存確認、`GET /api/ready` は既存の読み取り専用スキーマ検証。request時migrationなし。詳細: [Reliability](docs/reliability.md)、[Integration](docs/integration-stabilization.md)、最新検証: [STATUS](STATUS.md)。
+
 ## Integration stabilization — 2026-09-13
 
 Current cross-feature boundaries and regression scope: [integration stabilization](docs/integration-stabilization.md). AI requests now have complete-body idempotency acknowledgement, client revision fences and an authenticated per-operation cancellation endpoint. Cancellation markers reuse the existing owner-scoped AI operation ledger; admission/dispatch/finalization check them without request-time migrations. Native Deep Link resolution uses an account-scoped retry inbox. Network cancellation is best effort; see the documented offline and process-restart limits. Historical phase descriptions below do not supersede this section or the linked current Retention/Production runbooks.

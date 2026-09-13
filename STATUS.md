@@ -1,3 +1,26 @@
+## Integration + Reliability 最終Regression — 2026-09-13
+
+Integration `dc8f3f2bd3be193c1be856cb69ba2c12a35401a8` に最新Dev/Reliability `976916b7aeffde203470bd38670b6b1e6a0a287c` を取り込んだ検証済み状態。Gitのテキスト競合なし。以下の過去の「Dev未統合」は各checkpoint時点の記録。
+
+- AI再送ID保持・同意撤回後の結果破棄・ユーザー別取消・Deep Link retryと、ReliabilityのError Boundary・Network検知・deadline・safe retry・correlation ID・sanitized diagnostics・health/readiness・stale rejectionを維持。
+- 取消APIを共通observeRouteで包み、401を含む応答へ安全なcorrelation ID/no-storeを付加。
+- 画面の独自ApiErrorへの変換が失っていたkind/status/Retry-Afterを保持。復習競合のcode判定を維持したまま共通ReliabilityErrorへ統一。
+- Deep Linkは一時障害のみ再試行し、Retry-Afterを尊重。認証・権限・競合・取消では未処理intentを停止。実画面で「403で2回読取り」の失敗を再現し、修正後は1回、503では復帰を確認。
+
+Node **22.23.2** / `PATCH_ENV=development` 最終結果:
+
+| 検証 | 結果 |
+| --- | --- |
+| `npm run check` | PASS: typecheck、Lint（0 errors / 既存41 warnings）、**209/209 tests**、production Web build、env/schema/secret guards、artifact seal |
+| `npm run ios:sync:local` | PASS: mobile build、artifact seal、Capacitor sync |
+| Swift snapshot/policy tests | PASS |
+| Xcode Debug generic iOS Simulator | **BUILD SUCCEEDED**: App + Widget、arm64/x86_64、署名/Teamなし |
+| auth / privacy / onboarding browser | 全PASS: session復元、A/B分離、AI実行中撤回/切替/logout、削除cleanup、登録→Study→Day 1、Review/Undo/Retention、Deep Link 403停止/503復帰 |
+| reliability browser / HTTP | 全PASS: offline/reconnect、障害時のdraft保持、再送抑止、fatal recovery、公開health/readiness、DB未準備でもDDLなし |
+| public-pages browser | PASS: 非ログイン公開、レスポンシブ、アクセシビリティ、アプリ内共有導線 |
+
+テストDBは隔離、一部のClerk/AI/native境界はmock。署名付き実機、Production Clerk、App Group/通知配信、正式な法務情報、本番設定・明示的migration・削除worker運用は未実施。オフライン中のサーバー取消と強制終了をまたぐ未処理Deep Link保持には既存の制約がある。本番DB・Apple Developer・deployには変更なし。
+
 ## Integration stabilization checkpoint — 2026-09-13
 
 Base Dev: `11eda5d72a2d770a59cfb7fad733b70d2835946b`. Dedicated branch: `codex/integration-stabilization`; **not merged into Dev, not deployed**. This section is the latest verification record; older phase results below are historical. Scope and limits: [integration stabilization](docs/integration-stabilization.md).

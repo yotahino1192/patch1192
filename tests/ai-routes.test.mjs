@@ -77,7 +77,7 @@ test('disconnected chat never persists a late provider result and retains conser
 
 test('cancel API requires auth, works without AI consent, and cannot cancel another user operation',async()=>{
  const {POST:cancel}=await import('../app/api/ai/cancel/route.ts');
- assert.equal((await cancel(new Request(origin+'/api/ai/cancel',{method:'POST'}))).status,401);
+ const anonymous=await cancel(new Request(origin+'/api/ai/cancel',{method:'POST'}));assert.equal(anonymous.status,401);assert.match(anonymous.headers.get('X-Request-ID'),/^[a-f0-9-]{36}$/);assert.equal(anonymous.headers.get('Cache-Control'),'no-store');
  const a=await account('user_cancel_a'),b=await account('user_cancel_b'),k=randomUUID();
  await c.execute({sql:"UPDATE user_consents SET state='revoked' WHERE user_id=?",args:[a.userId]});
  assert.equal((await cancel(request(a,'/api/ai/cancel',{operationKey:k}))).status,200);
