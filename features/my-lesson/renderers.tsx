@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- shared Web/Capacitor renderer; adapter supplies trusted visual assets. */
 import type { ActivityState, ActivityViewModel } from './contracts';
 import styles from './lesson.module.css';
-type Props<T extends ActivityViewModel = ActivityViewModel> = { activity: T; state: ActivityState; onAnswer: (value: string) => void };
+type Props<T extends ActivityViewModel = ActivityViewModel> = { activity: T; state: ActivityState; onAnswer: (value: string) => void; onAssessment?: (value: 'CORRECT' | 'INCORRECT') => void };
 export function LearnRenderer({ activity }: Props<Extract<ActivityViewModel, { type: 'LEARN' }>>) {
   return <div><p>{activity.explanation}</p>{activity.example && <blockquote>{activity.example}</blockquote>}{activity.visual && <figure>{/* Adapter supplies a trusted asset and meaningful alt text. */}<img src={activity.visual.src} alt={activity.visual.alt} className={styles.visual} /></figure>}</div>;
 }
@@ -11,8 +11,8 @@ export function RecallRenderer({ activity, state, onAnswer }: Props<Extract<Acti
 export function ChoiceRenderer({ activity, state, onAnswer }: Props<Extract<ActivityViewModel, { type: 'CHOICE' }>>) {
   return <fieldset disabled={['SUBMITTING', 'FEEDBACK', 'COMPLETED'].includes(state.status)}><legend>回答を1つ選んでください</legend>{activity.choices.map(choice => <label key={choice.id} data-selected={state.response === choice.id}><input type="radio" name={`choice-${activity.id}`} checked={state.response === choice.id} onChange={() => onAnswer(choice.id)} />{choice.label}</label>)}</fieldset>;
 }
-function WrittenResponse({ activity, state, onAnswer }: Props) {
-  return <label>あなたの回答<textarea rows={5} maxLength={4000} value={state.response} disabled={['SUBMITTING', 'FEEDBACK', 'COMPLETED'].includes(state.status)} onChange={e => onAnswer(e.target.value)} aria-describedby={`hint-${activity.id}`} /><small id={`hint-${activity.id}`}>短い言葉でも大丈夫です。</small></label>;
+function WrittenResponse({ activity, state, onAnswer, onAssessment }: Props) {
+  return <div><label>あなたの回答<textarea rows={5} maxLength={4000} value={state.response} disabled={['SUBMITTING', 'FEEDBACK', 'COMPLETED'].includes(state.status)} onChange={e => onAnswer(e.target.value)} aria-describedby={`hint-${activity.id}`} /><small id={`hint-${activity.id}`}>短い言葉でも大丈夫です。</small></label>{activity.selfAssessment && <><details><summary>参考回答を確認する</summary><p>{activity.referenceAnswer}</p></details><fieldset disabled={['SUBMITTING', 'FEEDBACK', 'COMPLETED'].includes(state.status)}><legend>参考回答と比べて、自分の理解を確認してください（AI採点ではありません）</legend>{(['CORRECT', 'INCORRECT'] as const).map(value => <label key={value}><input type="radio" name={`assessment-${activity.id}`} checked={state.assessment === value} onChange={() => onAssessment?.(value)} />{value === 'CORRECT' ? '説明できた' : 'もう一度練習する'}</label>)}</fieldset></>}</div>;
 }
 export function ExplainRenderer(props: Props) { return <WrittenResponse {...props} />; }
 export function ApplyRenderer(props: Props) { return <WrittenResponse {...props} />; }

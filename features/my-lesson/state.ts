@@ -2,6 +2,8 @@ import type { ActivityState, ActivityViewModel, Feedback, LessonViewModel, TimeB
 export const initialActivity = (): ActivityState => ({ status: 'READY', response: '', revealed: false });
 export type ActivityAction =
   | { type: 'answer'; response: string }
+  | { type: 'assessment'; value: 'CORRECT' | 'INCORRECT' }
+  | { type: 'retry' }
   | { type: 'reveal' }
   | { type: 'submit' }
   | { type: 'feedback'; feedback: Feedback }
@@ -10,6 +12,8 @@ export type ActivityAction =
 export function activityReducer(state: ActivityState, action: ActivityAction): ActivityState {
   if (state.status === 'COMPLETED') return state;
   switch (action.type) {
+    case 'retry': return state.status === 'FEEDBACK' ? { ...initialActivity(), revealed: state.revealed } : state;
+    case 'assessment': return ['READY', 'ANSWERING', 'ERROR'].includes(state.status) ? { ...state, assessment: action.value, status: 'ANSWERING' } : state;
     case 'answer': return ['READY', 'ANSWERING', 'ERROR'].includes(state.status) ? { ...state, response: action.response, status: 'ANSWERING' } : state;
     case 'reveal': return ['READY', 'ANSWERING'].includes(state.status) ? { ...state, revealed: true, status: 'ANSWERING' } : state;
     case 'submit': return ['READY', 'ANSWERING', 'ERROR'].includes(state.status) ? { ...state, status: 'SUBMITTING' } : state;
@@ -19,9 +23,10 @@ export function activityReducer(state: ActivityState, action: ActivityAction): A
   }
 }
 export function primaryAction(activity: ActivityViewModel, state: ActivityState) {
+  if (state.status === 'FEEDBACK' && state.feedback?.correct === false) return { action: 'retry', label: 'もう一度回答する', disabled: false } as const;
   if (activity.type === 'LEARN' || state.status === 'FEEDBACK') return { action: 'next', label: '次へ', disabled: false } as const;
   if (activity.type === 'RECALL' && !state.revealed) return { action: 'reveal', label: '答えを見る', disabled: false } as const;
-  return { action: 'submit', label: state.status === 'SUBMITTING' ? '確認中…' : state.status === 'ERROR' ? 'もう一度確認する' : '回答を確認する', disabled: state.status === 'SUBMITTING' || !state.response.trim() } as const;
+  return { action: 'submit', label: state.status === 'SUBMITTING' ? '確認中…' : state.status === 'ERROR' ? 'もう一度確認する' : '回答を確認する', disabled: state.status === 'SUBMITTING' || !state.response.trim() || (activity.selfAssessment === true && !state.assessment) } as const;
 }
 export function timeBudget(lesson: LessonViewModel, elapsedSeconds: number, index: number): TimeBudget {
   const elapsed = Math.max(0, Math.floor(elapsedSeconds));

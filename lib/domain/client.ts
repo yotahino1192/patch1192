@@ -8,7 +8,7 @@ export function createDomainClient(request:ApiTransport) {
     return response.json() as Promise<T>;
   }
   return {
-    command<C extends DomainCommand>(command:C):Promise<CommandResults[C['action']]> {return send('/api/domain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command)});},
-    query<Q extends DomainQuery>(query:Q):Promise<QueryResults[Q['resource']]> {return send(`/api/domain?${new URLSearchParams(query)}`);},
+    command<C extends DomainCommand>(command:C, options?:{signal?:AbortSignal}):Promise<CommandResults[C['action']]> {return send('/api/domain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command),signal:options?.signal});},
+    query<Q extends DomainQuery>(query:Q, options?:{signal?:AbortSignal}):Promise<QueryResults[Q['resource']]> {return send(`/api/domain?${new URLSearchParams(query)}`,{signal:options?.signal});},
   };
 }
