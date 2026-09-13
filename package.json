@@ -41,7 +41,8 @@
     "postmobile:build": "node scripts/seal-mobile-artifact.mjs",
     "test:infra": "node --test tests/infra-*.test.mjs",
     "ai:control": "node scripts/ai-control.mjs",
-    "test:ai": "node --test tests/ai-*.test.mjs"
+    "test:ai": "node --test tests/ai-*.test.mjs",
+    "test:ui-browser": "node scripts/check-ui-phase1-browser.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",

@@ -11,7 +11,8 @@ test("server-renders the Loop application shell", async () => {
   assert.match(page, /学習データを準備しています/);
   assert.match(page, /メインナビゲーション/);
   assert.doesNotMatch(page, /左で「まだ覚えていない」、右で「覚えていた」/);
-  assert.match(page, /レッスンが終了しました/);
+  assert.match(page, /<LessonCompletion/);
+  assert.match(await readFile(new URL("../app/lesson-completion.tsx", import.meta.url), "utf8"), /レッスンが終了しました/);
   assert.match(page, /エビングハウスの忘却曲線/);
   assert.match(page, /AIに解説してもらう/);
   assert.match(page, /className="inline-ai-panel"/);
