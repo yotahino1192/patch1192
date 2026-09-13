@@ -23,14 +23,14 @@ try{
  ws.onmessage=({data})=>{const m=JSON.parse(data);if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.text);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);m.error?reject(Error(JSON.stringify(m.error))):resolve(m.result);}};
  const cdp=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}));});
  const evaluate=async expression=>{const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
- const click=async selector=>{await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);await delay(100);};
+ const click=async selector=>{await evaluate(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});element.focus();element.click();})()`);await delay(100);};
  const screenshot=async name=>{await evaluate('document.fonts.ready');await evaluate('window.scrollTo(0,0)');await delay(120);const shot=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(join(output,name+'.png'),Buffer.from(shot.data,'base64'));await writeFile(join(output,name+'.json'),JSON.stringify(await evaluate(`(()=>{const e=document.querySelector('.patch-complete,.patch-home');const c=getComputedStyle(e);return {className:e.className,scrollY,top:e.getBoundingClientRect().top,padding:c.padding,font:c.fontFamily,height:innerHeight,width:innerWidth,fonts:document.fonts.status};})()`),null,2));};
  const viewport=(width,height=852)=>cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:true});
  const navigate=async query=>{await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?${query}`});await until(()=>evaluate('!!document.querySelector(".patch-greeting,.patch-complete")'));await evaluate('document.fonts.ready');await until(()=>evaluate('[...document.images].every(i=>i.complete&&i.naturalWidth>0)'));};
  await cdp('Runtime.enable');await cdp('Page.enable');
  for(const state of ['empty','normal','hot','broken','completed','complete','stale']){
   await viewport(393);await navigate('state='+state);await screenshot(state+'-393');
-  for(const width of [320,430,768]){await viewport(width,width===320?568:852);assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,`${state}: ${width}px overflow`);}
+  for(const width of [320,430,768]){await viewport(width,width===320?568:852);assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,`${state}: ${width}px overflow`);if(width!==768)await screenshot(state+'-'+width);}
  }
  await viewport(393);await navigate('state=normal');
  await click('.patch-current-node');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
@@ -39,9 +39,29 @@ try{
  await screenshot('preview-393');
  await cdp('Input.dispatchKeyEvent',{type:'rawKeyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});await until(()=>evaluate('!document.querySelector(".patch-sheet").open'));
  assert.equal(await evaluate('document.body.style.overflow'),'');
+ assert.equal(await evaluate('document.activeElement.className'),'patch-current-node','Escape restores trigger focus');
+ await click('.patch-current-node');
+ for(let i=0;i<5;i++){await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});assert.equal(await evaluate('document.activeElement===document.body||document.querySelector(".patch-sheet").contains(document.activeElement)'),true,'Tab never enters inert Home controls (browser chrome may receive focus)');}
+ assert.equal(await evaluate('document.querySelector(".patch-sheet").getBoundingClientRect().bottom < document.querySelector(".bottom-nav").getBoundingClientRect().top'),true,'Sheet leaves dimmed navigation visible');
+ await cdp('Input.dispatchMouseEvent',{type:'mousePressed',x:3,y:20,button:'left',clickCount:1});await cdp('Input.dispatchMouseEvent',{type:'mouseReleased',x:3,y:20,button:'left',clickCount:1});await until(()=>evaluate('!document.querySelector(".patch-sheet").open'));
+
  await click('.patch-current-node');await click('.patch-sheet-close');assert.equal(await evaluate('window.uiFixture.starts'),0);
  await click('.patch-current-node');await click('.patch-sheet .patch-primary');assert.equal(await evaluate('window.uiFixture.starts'),1);
  await viewport(320,568);await navigate('state=normal&long=1&lang=ja');await click('.patch-current-node');await screenshot('preview-ja-long-320');assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+ assert.equal(await evaluate('(()=>{const e=document.querySelector(".patch-sheet"),r=e.getBoundingClientRect();return r.top>=15&&r.bottom<=innerHeight-87;})()'),true,'Long mobile sheet stays within safe bounds');
+ await evaluate('document.querySelector(".patch-sheet .patch-primary").scrollIntoView({block:"end"})');
+ assert.equal(await evaluate('(()=>{const r=document.querySelector(".patch-sheet .patch-primary").getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;})()'),true,'Long sheet Start remains reachable');
+ const scrolledShot=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(join(output,'preview-ja-long-320-scrolled.png'),Buffer.from(scrolledShot.data,'base64'));
+ await click('.patch-sheet .patch-primary');assert.equal(await evaluate('window.uiFixture.starts'),1);
+ await viewport(393);await navigate('state=complete');await click('.completion-actions .patch-primary');
+ await until(()=>evaluate('!!document.querySelector(".patch-home-completed .is-completed")'));await screenshot('post-lesson-home-393');
+ assert.equal(await evaluate('document.querySelector(".patch-current-node").tagName'),'DIV','Today completion is a status, not another start button');
+ await navigate('state=normal');await evaluate('window.uiFixture.updateSnapshot({streak:9,hot:true,completed:true,achievedDays:[18,19,20]})');
+ await until(()=>evaluate('!!document.querySelector(".patch-streak-hot")'));
+ assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'9 days','Streak uses refreshed authoritative value');
+ assert.equal(await evaluate('!!document.querySelector(".patch-home-completed")'),true);
+ await evaluate('window.uiFixture.updateSnapshot({streak:0,hot:false,completed:false,broken:true})');await until(()=>evaluate('!!document.querySelector(".patch-streak-broken")'));
+ assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'0 days');
  await viewport(393);await navigate('state=resume');
  await click('.patch-current-node');await until(()=>evaluate('window.uiFixture.pending.length===1'));
  assert.equal(await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).method"),'GET');
@@ -56,5 +76,5 @@ try{
  assert.equal(await evaluate('window.uiFixture.starts'),0);
  assert.equal(await evaluate('window.uiFixture.reads.every(r=>r.method==="GET")'),true);
  assert.deepEqual(errors,[]);
- console.log('PASS: seven states, 320/393/430/768 widths, assets, read-only preview, Escape/close/start, long Japanese name, read-only saved estimate and stale response rejection. Screenshots: '+output);
+ console.log('PASS: seven states, 320/393/430/768 widths, assets, read-only preview, focus containment/restore, backdrop/Escape/close/start, completion to Home, authoritative streak refresh, long Japanese name and scrollable preview, read-only saved estimate and stale response rejection. Screenshots: '+output);
 }finally{ws?.close();if(chrome&&chrome.exitCode===null){const closed=new Promise(r=>chrome.once('exit',r));chrome.kill('SIGTERM');await closed;}await server?.close();await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

@@ -3,14 +3,15 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useLanguage } from "./language";
 
-export type PatchIconName = "book" | "check" | "arrow" | "calendar" | "flame" | "close" | "plus" | "home" | "refresh" | "document" | "bars";
+export type PatchIconName = "book" | "check" | "arrow" | "chevron" | "calendar" | "flame" | "close" | "plus" | "home" | "refresh" | "document" | "bars";
 export function PatchIcon({ name, size = 24 }: { name: PatchIconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {name === "book" && <path d="M16 7C12 3 6 3 2 5v22c5-2 10-2 14 1 4-3 9-3 14-1V5c-4-2-10-2-14 2Zm0 0v21" />}
     {name === "check" && <path strokeWidth="4" d="m7 16 6 6L26 8" />}
     {name === "arrow" && <path d="M5 16h22M19 7l9 9-9 9" />}
+    {name === "chevron" && <path d="m12 7 9 9-9 9" />}
     {name === "calendar" && <><rect x="5" y="6" width="22" height="23" rx="3" /><path d="M5 13h22M10 3v6M22 3v6" /></>}
-    {name === "flame" && <><path fill="#ff6a0b" stroke="#ff6a0b" d="M17 2c5 6 5 9 5 12l3-5c6 9 7 21-9 21C1 30 2 18 8 11l2 6c-1-7 4-11 7-15Z" /><path fill="#ffba22" stroke="none" d="M17 13c1 6 7 9 4 13-4 5-13 0-9-6l2 3c0-5 1-7 3-10Z" /></>}
+    {name === "flame" && <g stroke="none"><path fill="#ff6518" d="M17 1C23 8 24 11 23 16l4-6c4 7 5 14-1 19-5 4-16 4-21-2C1 22 3 16 7 10l2 7C8 10 13 6 17 1Z" /><path fill="#ff9821" d="M16 9c4 5 3 9 6 11l2-3c2 5 1 10-3 12-5 3-13 0-13-5 0-4 3-8 4-10l1 6c2-3 3-6 3-11Z" /><path fill="#ffda4c" d="M17 18c0 4 4 5 4 8 0 5-9 5-9 0 0-2 1-4 2-5l1 3c2-1 2-4 2-6Z" /></g>}
     {name === "close" && <path d="m9 9 14 14M23 9 9 23" />}
     {name === "plus" && <path strokeWidth="3" d="M16 5v22M5 16h22" />}
     {name === "home" && <path fill="currentColor" d="m3 15 13-11 13 11-3 1v12h-7v-9h-6v9H6V16Z" />}

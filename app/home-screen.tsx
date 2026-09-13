@@ -43,7 +43,7 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
   const remaining = selectedSession ? pendingStudyCount(selectedSession) : remoteSession?.cardIds.length;
   const openNext = () => { if (learnable) setPreview("continue"); else onContinue(); };
   const startPreview = () => { setPreview(null); if (selectedSession) onResume(selectedSession); else onContinue(); };
-  return <div className={`page home-page patch-home patch-ui ${early ? "patch-home-early" : ""}`}>
+  return <div className={`page home-page patch-home patch-ui ${early ? "patch-home-early" : completed ? "patch-home-completed" : ""}`}>
     <section className="patch-greeting" aria-label={t("キャラクターからのあいさつ")}>
       <Mascot pose={early ? "standing" : "reading"} />
       <div className="patch-bubble"><h1>{heading}</h1><p>{t(completed ? "今日はもうばっちり。もう少し続けてみる？" : learnable ? "次のレッスンを始めよう。" : "さあ、一緒に学ぼう。")}</p><i className="patch-rays" aria-hidden="true" /></div>
@@ -55,8 +55,8 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
     </section> : <>
       <DailyReviewRail data={data} now={now} onStudy={startStudy} />
       <section className="patch-learning" aria-label={t("今日の学習")}>
-        {recentSets.length > 0 && <><h2 className="patch-section-label">{t("最近学んだ教材")}</h2><div className="patch-recent-path">{recentSets.map(set => <button key={set.id} className="patch-path-stop" onClick={() => { selectSet(set.id); setScreen("sets"); }}><span><PatchIcon name="book" size={25} /></span><small>{set.title}</small></button>)}</div></>}
-        {completed ? <div className="patch-current-node is-completed" role="status"><PatchIcon name="check" size={42} /><strong>{t("今日は完了！")}</strong><small>{t("今日の学習目標を達成しました。")}</small></div> : <button className="patch-current-node" onClick={openNext}><PatchIcon name={learnable ? "book" : "plus"} size={38} /><strong>{t(learnable ? "続きから学習" : "新しい教材を追加")}</strong><span className="patch-node-arrow"><PatchIcon name="arrow" size={24} /></span></button>}
+        {recentSets.length > 0 && <><h2 className="patch-section-label">{t("最近学んだ教材")}</h2><div className="patch-recent-path">{recentSets.map(set => <button key={set.id} className="patch-path-stop" title={set.title} onClick={() => { selectSet(set.id); setScreen("sets"); }}><span><PatchIcon name="book" size={25} /></span><small>{set.title}</small></button>)}</div></>}
+        {completed ? <div className="patch-current-node is-completed" role="status"><PatchIcon name="check" size={36} /><strong>{t("今日は完了！")}</strong><small>{t("今日の学習目標を達成しました。")}</small></div> : <button className="patch-current-node" onClick={openNext}><PatchIcon name={learnable ? "book" : "plus"} size={34} /><strong>{t(learnable ? "続きから学習" : "新しい教材を追加")}</strong><span className="patch-node-arrow"><PatchIcon name="chevron" size={20} /></span></button>}
         {!completed && currentSet && <p className="patch-current-title">{currentSet.title}</p>}
       </section>
       {(completed || resumableSessions.length > 0 || memorySets.length > 0) && <div className="patch-section-label patch-optional-label">{t(completed ? "もう少し続ける（任意）" : "学習を続ける")}</div>}
