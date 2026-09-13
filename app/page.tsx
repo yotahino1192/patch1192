@@ -1,5 +1,7 @@
 "use client";
 
+import { readApiResponse } from '../lib/reliability/errors';
+import { ReliabilityBoundary, ReliabilityRuntime } from './reliability/boundary';
 import { useAccount, useApiFetch } from "./account-context";
 import { activateRetention, publishRetention, nativeRetention } from "../lib/retention-platform";
 import { acceptsPendingLink, resolveDeepLink, continueLearning } from "../lib/continue-learning";
@@ -56,9 +58,8 @@ function useApi() {
     ...options,
     headers: { "Content-Type": "application/json", "x-patch-timezone": Intl.DateTimeFormat().resolvedOptions().timeZone, ...(options?.headers || {}) },
   });
-  const body = await response.json() as T & { error?: string; code?: string };
-  if (!response.ok) throw new ApiError(body.error || "通信に失敗しました。", body.code);
-  return body;
+  try { return await readApiResponse<T>(response); }
+  catch(error) { if(error instanceof Error && 'code' in error)throw new ApiError(error.message, String(error.code || '')); throw error; }
   }, [apiFetch]);
 }
 
@@ -982,14 +983,17 @@ function App() {
     setScreen(target.screen);
   };
 
+  const reloadBusy = useRef(false);
   const reload = async () => {
+    if(reloadBusy.current)return;
+    reloadBusy.current=true;
     try {
       const loaded = await loadWorkspaceData(getWorkspace(), api);
       setWorkspace((w) => reconcileWorkspace(w, loaded));
       setData(loaded);
       setSelectedSetId((current) => current || loaded.sets[0]?.id || null);
       setLoadingError("");
-    } catch (e) { setLoadingError(e instanceof Error ? e.message : "データを読み込めませんでした。"); }
+    } catch (e) { setLoadingError(e instanceof Error ? e.message : "データを読み込めませんでした。"); } finally { reloadBusy.current=false; }
   };
   useEffect(() => {
     if (!workspaceReady) return;
@@ -1163,5 +1167,5 @@ function App() {
 }
 
 export default function LocalizedApp() {
-  return <LanguageProvider><AuthBoundary><App /></AuthBoundary></LanguageProvider>;
+  return <ReliabilityBoundary><ReliabilityRuntime/><LanguageProvider><AuthBoundary><App /></AuthBoundary></LanguageProvider></ReliabilityBoundary>;
 }

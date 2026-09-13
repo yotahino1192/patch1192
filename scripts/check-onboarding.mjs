@@ -49,7 +49,7 @@ try {
  await clickText('次へ');await waitText('どんな目的で学びたいですか？');await clickText('仕事で使いたい');await clickText('次へ');await waitText('あなたに合いそうな3つを選びました');
  assert.equal(await evaluate("new Set([...document.querySelectorAll('.onboarding-preset strong')].map(e=>e.textContent)).size"),3);await responsive('recommendations');
  await evaluate(`{const original=window.fetch;let lose=true;window.fetch=async(...args)=>{const result=await original(...args);if(lose&&args[1]?.body?.includes('"step":"select"')){lose=false;throw new Error('接続が切れました');}return result;};}`);
- await click('.onboarding-preset');await waitText('接続が切れました');await click('.onboarding-preset');await waitText('まず3枚やってみる');assert.equal((await data()).sets.length,1);
+ await click('.onboarding-preset');await waitText('サーバーに接続できません');assert.equal(await evaluate("document.body.innerText.includes('接続が切れました')"),false);await click('.onboarding-preset');await waitText('まず3枚やってみる');assert.equal((await data()).sets.length,1);
  await reload();await waitText('まず3枚やってみる');await clickText('まず3枚やってみる');await waitText('答えを見る');
  assert.equal(await evaluate("document.body.innerText.includes('このカードを修正')"),false);
  await clickText('答えを見る');await clickText('まだ覚えていない');await until(async()=> (await data()).reviews.length===1);

@@ -1,3 +1,4 @@
+import { reliableRequest } from './reliability/transport.ts';
 import { sendAi } from './ai-client.ts';
 /** Web keeps same-origin fetch. The mobile entry installs its native transport. */
 export type ApiTransport = (url: string, options?: RequestInit) => Promise<Response>;
@@ -18,6 +19,6 @@ export function apiFetch(path: string, options?: RequestInit): Promise<Response>
   if (!/^\/api\//.test(path) || path.includes("\\") || path.includes("..")) {
     throw new Error("Expected an application API path.");
   }
-  if (/^\/api\/ai\/(cards|chat)$/.test(path) && options?.method?.toUpperCase() === 'POST') return sendAi(transport, `${baseUrl}${path}`, options);
-  return transport(`${baseUrl}${path}`, options);
+  if (/^\/api\/ai\/(cards|chat)$/.test(path) && options?.method?.toUpperCase() === 'POST') return sendAi((url, init) => reliableRequest(transport,url,init,75000), `${baseUrl}${path}`, options);
+  return reliableRequest(transport, `${baseUrl}${path}`, options);
 }
