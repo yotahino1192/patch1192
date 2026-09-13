@@ -5,6 +5,7 @@ import {useLanguage} from "./language";
 import type {ApiTransport} from "../lib/api-client";
 import {AI_DISCLOSURE,CONSENT_VERSION,POLICY_VERSION,type Consent} from "../lib/privacy-policy";
 import {privacyStopKey} from "../lib/account-cleanup";
+import {createResultFence} from "../lib/result-fence";
 import {LegalContent} from "./legal-content";
 type Privacy={request:ApiTransport;refresh:()=>Promise<Consent>;change:(state:"granted"|"revoked")=>Promise<void>};
 export const PrivacyContext=createContext<Privacy|null>(null);
@@ -13,6 +14,14 @@ export function PrivacyProvider({children}:{children:ReactNode}) {
  const {scope}=useAccount()!;
  const {language}=useLanguage();
  const [prompt,setPrompt]=useState<Consent|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[legal,setLegal]=useState(false);
+ const fence=useRef(createResultFence());
+ const aiRequests=useRef(new Set<AbortController>());
+ const invalidateAi=useCallback(()=>{fence.current.invalidate();for(const request of aiRequests.current)request.abort();},[]);
+ useEffect(()=>{
+  const changed=(event:StorageEvent)=>{if(event.key===privacyStopKey(scope.account.userId)&&event.newValue)invalidateAi();};
+  window.addEventListener("storage",changed);
+  return()=>{invalidateAi();window.removeEventListener("storage",changed);};
+ },[scope,invalidateAi]);
  const dialog=useRef<HTMLDialogElement|null>(null);
  useEffect(()=>{if(prompt&&!dialog.current?.open)dialog.current?.showModal();},[prompt]);
  const pending=useRef<((allowed:boolean)=>void)|null>(null);
@@ -42,6 +51,8 @@ export function PrivacyProvider({children}:{children:ReactNode}) {
  const close=()=>{if(busy)return;pending.current?.(false);pending.current=null;setPrompt(null);};
  const request:ApiTransport=useCallback(async(path,options={})=>{
   if(!["/api/ai/cards","/api/ai/chat"].includes(path))return scope.request(path,options);
+  const assertResult=fence.current.capture();
+  const check=()=>{assertResult();scope.assertCurrent();if(localStorage.getItem(privacyStopKey(scope.account.userId)))throw Error("AI_RESULT_INVALIDATED");};
   const body=JSON.parse(String(options.body||"{}"));
   let consent=await refresh();scope.assertCurrent();
   const stopped=localStorage.getItem(privacyStopKey(scope.account.userId));
@@ -51,13 +62,22 @@ export function PrivacyProvider({children}:{children:ReactNode}) {
    if(body.mode==="lesson_summary" || !await ask(consent))throw Error("AIへの送信は許可されていません。保存済みカードで学習を続けられます。");
   }
   scope.assertCurrent();
-  return scope.request(path,{...options,body:JSON.stringify({...body,operationId:body.operationId||crypto.randomUUID()})});
+  check();
+  const controller=new AbortController();aiRequests.current.add(controller);
+  const abort=()=>controller.abort();options.signal?.addEventListener('abort',abort,{once:true});if(options.signal?.aborted)abort();
+  try {
+  const response=await scope.request(path,{...options,signal:controller.signal,body:JSON.stringify({...body,operationId:body.operationId||crypto.randomUUID()})});
+  check();
+  const json=response.json.bind(response);
+  response.json=async()=>{check();const result=await json();check();return result;};
+  return response;
+  }finally{aiRequests.current.delete(controller);options.signal?.removeEventListener('abort',abort);}
  },[scope,refresh,save,ask]);
  const change=useCallback(async(state:"granted"|"revoked")=>{
-  if(state==="revoked")localStorage.setItem(privacyStopKey(scope.account.userId),"pending");
+  if(state==="revoked"){invalidateAi();localStorage.setItem(privacyStopKey(scope.account.userId),"pending");}
   const c=await refresh();
   if(state==="granted"){await ask(c);return;}
   await save(c,"revoked");
- },[scope,refresh,save,ask]);
+ },[scope,refresh,save,ask,invalidateAi]);
  return <PrivacyContext.Provider value={{request,refresh,change}}>{children}{prompt&&<dialog ref={dialog} className="privacy-backdrop" onCancel={e=>{e.preventDefault();close();}}><section className="privacy-sheet" role="dialog" aria-modal="true" aria-labelledby="ai-consent-title"><h2 id="ai-consent-title">{language==="en"?"AI data sharing":"AI機能へのデータ送信"}</h2><p>{AI_DISCLOSURE[language]}</p><button type="button" onClick={()=>setLegal(!legal)}>Privacy Policy</button>{legal&&<LegalContent kind="privacy"/>}{error&&<p role="alert">{error}</p>}<div className="privacy-actions"><button autoFocus disabled={busy} onClick={()=>void finish("denied")}>{language==="en"?"Not now":"今は許可しない"}</button><button className="primary" disabled={busy} onClick={()=>void finish("granted")}>{language==="en"?"Agree and continue":"同意して続ける"}</button><button disabled={busy} onClick={close}>{language==="en"?"Close":"閉じる"}</button></div></section></dialog>}</PrivacyContext.Provider>;
 }

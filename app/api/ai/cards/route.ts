@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
       category: String(body.category || ""),
       mode,
       });
-    });
+    }, request.signal);
     return json(material);
   } catch (error) {
     const aiResponse = aiErrorResponse(error);

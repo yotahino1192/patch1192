@@ -2,7 +2,8 @@
 
 import { useAccount, useApiFetch } from "./account-context";
 import { activateRetention, publishRetention, nativeRetention } from "../lib/retention-platform";
-import { acceptsPendingLink, resolveDeepLink, continueLearning } from "../lib/continue-learning";
+import { PendingDeepLinks } from "../lib/pending-deep-links";
+import { resolveDeepLink, continueLearning } from "../lib/continue-learning";
 import type { Destination, RetentionSnapshot } from "../lib/retention";
 import { AuthBoundary } from "./auth-provider";
 
@@ -1078,15 +1079,19 @@ function App() {
       const snapshot=await api<RetentionSnapshot>("/api/retention");if(!active)return;
       setData(d=>d?{...d,retention:snapshot}:d);await publishRetention(userId,snapshot);
     }catch{/* Keep the last snapshot; Widget marks it stale at its deadline. */}finally{busy=false;}};
+    const inbox=new PendingDeepLinks(userId);
     let linksBusy=false;
     const readLinks=async()=>{const current=retentionLive.current;if(linksBusy||!active||!current.data||!workspaceReady)return;linksBusy=true;try{
       const links=await nativeRetention()?.links();if(!active)return;
-      for(const link of links?.links||[]){if(!acceptsPendingLink(link,userId,Date.now()))continue;
+      inbox.enqueue(links?.links||[],Date.now());
+      for(let link=inbox.next(Date.now());link;link=inbox.next(Date.now())){
         const loaded=await api<AppData>("/api/data");if(!active)return;setData(loaded);
         const destination=resolveDeepLink(link.url,loaded,[current.workspace.session,...current.workspace.pausedSessions].filter((s):s is StudySession=>Boolean(s)));
-        if(destination)current.openDestination(destination,loaded);
+        if(destination)retentionLive.current.openDestination(destination,loaded);
+        inbox.complete(link);
+        setLoadingError(error=>error==="リンクを開けませんでした。ホームから再試行してください。"?"":error);
       }
-    }catch{if(active)setLoadingError("リンクを開けませんでした。ホームから再試行してください。");}finally{linksBusy=false;}};
+    }catch{inbox.retry(Date.now());if(active)setLoadingError("リンクを開けませんでした。ホームから再試行してください。");}finally{linksBusy=false;}};
     const linkTimer=setInterval(()=>void readLinks(),1000);void readLinks();
     const visible=()=>{if(document.visibilityState==="visible")void refresh();};
     void refresh();const timer=setInterval(()=>void refresh(),30000);

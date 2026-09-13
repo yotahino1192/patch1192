@@ -18,17 +18,23 @@ const clock = async (tx: Transaction) => Number((await tx.execute("SELECT CAST(s
 const active = "state IN ('reserved','dispatching','unknown')";
 const countCaps = { cards: [2, 5, 10, 100], chat: [6, 30, 60, 1000] };
 const windows = [60000, 3600000, 86400000, 31 * 86400000]; // month = conservative rolling 31 days
-export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: string | null, payload: unknown, work: () => Promise<T>, finalize?: (tx: Transaction, result: T) => Promise<void>, validate?: () => Promise<void>): Promise<T> {
+export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: string | null, payload: unknown, work: () => Promise<T>, finalize?: (tx: Transaction, result: T) => Promise<void>, validate?: () => Promise<void>, signal?: AbortSignal): Promise<T> {
+  const assertConnected = () => { if (signal?.aborted) throw new AiError('AI_REQUEST_CANCELLED', 409); };
+  assertConnected();
   // Gate even cached results before validation/key lookup; repeat under the admission lock.
   const permit = await db.transaction(tx => privacyPermit(tx, userId)).catch(e => { throw e instanceof PrivacyError ? e : new AiError('AI_DATABASE_UNAVAILABLE'); });
   await validate?.();
   if (!key || !/^[a-zA-Z0-9_-]{16,128}$/.test(key)) throw new AiError('IDEMPOTENCY_KEY_REQUIRED', 400);
   const keyHash = sha(key), fingerprint = sha(canonical({ endpoint, payload })), id = randomUUID();
   const reserveCost = costMicros(limits[endpoint].input, limits[endpoint].output);
+  const assertNotCancelled = async (tx: Transaction) => {
+    if ((await tx.execute({ sql: 'SELECT 1 FROM ai_operations WHERE user_id=? AND operation_id=?', args: [userId, 'cancel:' + keyHash] })).rows.length) throw new AiError('AI_REQUEST_CANCELLED', 409);
+  };
   let prior;
   try {
     prior = await db.transaction(async tx => {
       await checkAiPrivacy(tx, permit);
+      await assertNotCancelled(tx);
       const now = await clock(tx);
       // No network call can start after its reservation expires. Dispatching never returns to reserved.
       await tx.execute({ sql: "UPDATE ai_requests SET state='failed_pre_dispatch',cost_micros=0 WHERE state='reserved' AND lease_until<=?", args: [now] });
@@ -58,6 +64,7 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
     });
   } catch (e) { logEvent('ai_denied', { endpoint, status: e instanceof AiError ? e.status : 503 }); throw e instanceof AiError || e instanceof PrivacyError ? e : new AiError('AI_DATABASE_UNAVAILABLE'); }
   if (prior) {
+    assertConnected();
     if (prior.payload_hash !== fingerprint) throw new AiError('IDEMPOTENCY_CONFLICT', 409);
     if (prior.state === 'succeeded') return JSON.parse(String(prior.result_json)) as T;
     throw new AiError(prior.state === 'expired' ? 'AI_RESULT_EXPIRED' : prior.state === 'unknown' ? 'AI_UNKNOWN' : ['reserved', 'dispatching'].includes(String(prior.state)) ? 'AI_IN_PROGRESS' : 'AI_REQUEST_FINAL', prior.state === 'expired' ? 410 : 409);
@@ -65,33 +72,42 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
   let dispatched = false;
   const start = Date.now();
   const context: Execution = { endpoint, dispatch: async () => {
+    assertConnected();
     if (dispatched) throw new AiError('AI_DUPLICATE_DISPATCH');
     await db.transaction(async tx => {
       await checkAiPrivacy(tx, permit);
+      await assertNotCancelled(tx);
       const now = await clock(tx);
       if (process.env.AI_ENABLED === 'false' || (await tx.execute('SELECT enabled FROM ai_control WHERE id=1')).rows[0]?.enabled !== 1) throw new AiError('AI_STOPPED');
+      assertConnected();
       const changed = await tx.execute({ sql: "UPDATE ai_requests SET state='dispatching',lease_until=? WHERE id=? AND state='reserved' AND lease_until>?", args: [now + 120000, id, now] });
       if (changed.rowsAffected !== 1) throw new AiError('AI_RESERVATION_LOST');
     });
     dispatched = true;
   } };
   try {
+    assertConnected();
     const result = await execution.run(context, work);
+    assertConnected();
     if (!dispatched) throw new AiError('AI_NOT_DISPATCHED');
     const usage = context.usage;
     const charged = usage ? costMicros(usage.input, usage.output) : reserveCost;
     await db.transaction(async tx => {
       await checkAiPrivacy(tx, permit);
+      await assertNotCancelled(tx);
       const row = (await tx.execute({ sql: 'SELECT state FROM ai_requests WHERE id=?', args: [id] })).rows[0];
+      if (row?.state === 'failed_final') throw new AiError('AI_REQUEST_CANCELLED',409);
       if (row?.state !== 'dispatching') throw new AiError('AI_UNKNOWN');
+      assertConnected();
       await finalize?.(tx, result);
+      assertConnected();
       await tx.execute({ sql: "UPDATE ai_requests SET state='succeeded',result_json=?,cost_micros=?,input_tokens=?,output_tokens=? WHERE id=?", args: [JSON.stringify(result), charged, usage?.input ?? null, usage?.output ?? null, id] });
       if (charged > reserveCost) await tx.execute('UPDATE ai_control SET enabled=0 WHERE id=1');
     });
     logEvent('ai_complete', { endpoint, durationMs: Date.now() - start, costMicros: charged, inputTokens: usage?.input, outputTokens: usage?.output });
     return result;
   } catch (e) {
-    const state = !dispatched ? 'failed_pre_dispatch' : e instanceof PrivacyError || e instanceof ProviderError && !e.uncertain ? 'failed_final' : 'unknown';
+    const state = !dispatched ? 'failed_pre_dispatch' : e instanceof PrivacyError || e instanceof AiError && e.code === 'AI_REQUEST_CANCELLED' || e instanceof ProviderError && !e.uncertain ? 'failed_final' : 'unknown';
     try { await db.transaction(async tx => {
       // A lost COMMIT acknowledgement must never overwrite a committed success.
       await tx.execute({ sql: "UPDATE ai_requests SET state=?,cost_micros=CASE WHEN ?='failed_pre_dispatch' THEN 0 ELSE cost_micros END WHERE id=? AND state IN ('reserved','dispatching','unknown')", args: [state, state, id] });
@@ -107,4 +123,19 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
 export function aiErrorResponse(error: unknown): Response | undefined {
   if (!(error instanceof AiError)) return;
   return Response.json({ error: 'AI処理を完了できませんでした。状態不明の処理は自動再送されません。', code: error.code }, { status: error.status, headers: { 'Cache-Control': 'no-store', ...(error.status === 429 ? { 'Retry-After': '60' } : {}) } });
+}
+
+
+/** Fence a single operation, including cancellation arriving before admission. */
+export async function cancelAi(db: Db, userId: string, key: string) {
+  if (!/^[a-zA-Z0-9_-]{16,128}$/.test(key)) throw new AiError('IDEMPOTENCY_KEY_REQUIRED',400);
+  const hash=sha(key);
+  await db.transaction(async tx=>{
+    const row=(await tx.execute({sql:'SELECT state FROM ai_requests WHERE user_id=? AND key_hash=?',args:[userId,hash]})).rows[0];
+    // Never erase previously committed learning history on logout.
+    if (row && !['reserved','dispatching','unknown'].includes(String(row.state))) return;
+    await tx.execute({sql:'INSERT OR IGNORE INTO ai_operations(user_id,operation_id,kind,payload_hash,generation,consent_revision,state,created_at) VALUES(?,?,?,?,0,0,?,?)',args:[userId,'cancel:'+hash,'cancel',hash,'completed',new Date().toISOString()]});
+    // Dispatched/unknown calls retain concurrency and spend reservations until resolved.
+    await tx.execute({sql:"UPDATE ai_requests SET state='failed_final',result_json=NULL,cost_micros=0 WHERE user_id=? AND key_hash=? AND state='reserved'",args:[userId,hash]});
+  });
 }

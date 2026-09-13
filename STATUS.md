@@ -1,3 +1,25 @@
+## Integration stabilization checkpoint — 2026-09-13
+
+Base Dev: `11eda5d72a2d770a59cfb7fad733b70d2835946b`. Dedicated branch: `codex/integration-stabilization`; **not merged into Dev, not deployed**. This section is the latest verification record; older phase results below are historical. Scope and limits: [integration stabilization](docs/integration-stabilization.md).
+
+Fixed incomplete AI-response retry identity, late native AI results after withdrawal, missing per-operation server cancellation, and Deep Link loss after transient API errors. Cancellation preserves in-flight concurrency/cost reservations and existing owner isolation. Public browser test teardown now waits for its own Chrome/server processes; signup fixture now preserves its simulated session through reload. No migration, native target change, dependencies, production DB or external configuration changes.
+
+Verified on Node **22.23.2**, `PATCH_ENV=development`:
+
+| Check | Final result |
+| --- | --- |
+| `npm run check` | PASS: TypeScript, lint, all **194/194** unit/API/DB tests (8 additional tests), Next production compilation, schema/env/secret guards and artifact sealing |
+| Final lint | PASS: 0 errors, 41 existing warnings; modified browser harness files checked after their fixes |
+| `node tests/public-pages-browser.mjs` | PASS: public + embedded legal navigation, anonymous delivery, accessibility, responsive widths; teardown race fixed and rerun |
+| `npm run test:auth-browser` | PASS: auth gate, StrictMode, session reload, A/B workspace, stale responses, interrupted logout |
+| `npm run test:privacy-browser` | PASS: denied/automatic summary send zero AI; grant/revoke; held native AI across revoke/switch/logout; deletion reauthentication, lost acknowledgement and scoped cleanup |
+| `npm run test:onboarding-browser` | PASS: signup/verification UI → first study → Day 1 → Home; reload/DB recovery; Study/Continue/Deep Links including injected 503 and error clearing; Retention snapshot and logout |
+| Swift snapshot/policy executable | PASS: Widget states, thresholds, stale/Codable round-trip and notification scheduling ledger checks |
+| `npm run ios:sync:local` | PASS: Vite mobile build, asset seal and Capacitor sync; existing large-chunk warning remains |
+| Xcode Debug generic iOS Simulator build | **BUILD SUCCEEDED**: App + embedded Widget, arm64/x86_64, `CODE_SIGNING_ALLOWED=NO`, empty Team/identity; cached packages, no portal changes |
+
+All external AI/Clerk assertions use provider fixtures; all DB changes in tests use temporary isolated databases. Live Clerk/email, signed physical-device App Group/notification acceptance, production release configuration/hosted migration/deletion-worker scheduling and legal placeholders remain release prerequisites. No signed Archive, TestFlight upload or production deployment was performed. Offline cancellation cannot guarantee server delivery, and a process termination can lose a dequeued in-memory Deep Link; see the linked limits before release acceptance.
+
 ## Retention implementation status — 2026-09-13
 
 Retention was implemented from Dev `7f2800e` and integrated into Dev as `0ebaa56`. The subsequent regression checkpoint adds tests only; no product behavior or hosted deployment is changed. Server-authoritative Study Sessions/Streak/Due Count, shared Continue resolver, native deep links/local notifications and the embedded Small/Medium Widget use an App Group snapshot. Migration 0010 is explicit and unapplied to hosted databases. See [Retention implementation and limitations](docs/retention.md). Older phase entries below are historical.

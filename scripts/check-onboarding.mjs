@@ -38,7 +38,13 @@ try {
  const noOverflow=async()=>assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);
  const responsive=async(name)=>{for(const width of [320,768,390]){await cdp('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true});await noOverflow();}if(process.env.ONBOARDING_SCREENSHOT){const shot=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(process.env.ONBOARDING_SCREENSHOT.replace('.png',`-${name}.png`),Buffer.from(shot.data,'base64'));}};
  await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
- await cdp('Page.navigate',{url:'http://127.0.0.1:5197/tests/fixtures/onboarding.html'});await waitText('なんとお呼びすればいいですか？');
+ await cdp('Page.navigate',{url:'http://127.0.0.1:5197/tests/fixtures/onboarding.html?signedout=1'});
+ await waitText('ログイン');await clickText('新規登録');
+ await evaluate('document.querySelector("input[type=email]").focus()');await cdp('Input.insertText',{text:'new-learner@example.test'});
+ await clickText('確認コードを送信');await until(()=>evaluate('!!document.querySelector("input[autocomplete=one-time-code]")'));
+ await evaluate('document.querySelector("input[autocomplete=one-time-code]").focus()');await cdp('Input.insertText',{text:'123456'});
+ await clickText('確認して続ける');await waitText('なんとお呼びすればいいですか？');
+ assert.equal(await evaluate('window.onboardingAuth.startedAsSignup'),true);
  await evaluate("document.querySelector('input').focus()");await cdp('Input.insertText',{text:'テストさん'});await until(()=>evaluate("!document.querySelector('form button').disabled"));await clickText('次へ');await waitText('何に興味がありますか？');
  assert.equal(await evaluate("document.querySelector('.onboarding-footer button').disabled"),true);
  await clickText('生成AI');await clickText('ChatGPT');
@@ -67,7 +73,10 @@ try {
  const set=created.data.sets.find(s=>s.id===created.setId);
  await evaluate(`(async()=>{const m=await import('/lib/retention-platform.ts');window.retentionMock={queue:[],published:[],cleared:[],owner:null,snapshot:null,notifications:[],signedOutCount:0};const r=window.retentionMock;m.configureRetention({activate:async v=>{r.owner=v.userId},clear:async v=>{r.cleared.push(v.userId);if(r.owner===v.userId){r.owner=null;r.snapshot=null;r.notifications=[];r.queue=[]}},signedOut:async()=>{r.signedOutCount++;r.owner=null;r.snapshot=null;r.notifications=[];r.queue=r.queue.filter(l=>!l.owner)},publish:async v=>{r.published.push(v);r.snapshot=v.snapshot;r.notifications=v.notifications},permission:async()=>({granted:true}),links:async()=>({links:r.queue.splice(0)})});await m.activateRetention(${JSON.stringify(identity.userId)});window.dispatchEvent(new Event('patch-retention-refresh'));})()`);
  const link=async url=>evaluate(`window.retentionMock.queue.push({url:${JSON.stringify(url)},at:Date.now(),owner:${JSON.stringify(identity.userId)}})`);
- await link('patch://set/'+set.id);await waitText('Retention browser set');
+
+ await evaluate(`{const previous=window.fetch;window.failedLinkReads=0;window.fetch=async(...args)=>{if(!window.failedLinkReads&&String(args[0]).endsWith('/api/data')){window.failedLinkReads++;return Response.json({error:'Temporary API outage'},{status:503});}return previous(...args);};}`);
+ await link('patch://set/'+set.id);await waitText('Retention browser set');assert.equal(await evaluate('window.failedLinkReads'),1);
+ assert.equal(await evaluate('document.body.textContent.includes("リンクを開けませんでした")'),false);
  await link('patch://card/'+set.cards[0].id);await until(()=>evaluate(`document.activeElement?.id===${JSON.stringify('set-card-'+set.cards[0].id)}`));
  const plan=await post('/api/retention',{action:'start',id:'browser-retention-session',cardIds:set.cards.map(c=>c.id)});assert(plan.qualifies);
  await link('patch://continue');await waitText('タップで回答を表示');
@@ -88,7 +97,7 @@ try {
  assert.equal(await evaluate('document.body.innerText.includes("Retention browser set")'),false);
  await evaluate('document.querySelector("input[type=email]").focus()');
  await cdp('Input.insertText',{text:'retention@example.test'});
- await clickText('確認コードを送信');
+ await clickText('確認コードを送信');await until(()=>evaluate('!!document.querySelector("input[autocomplete=one-time-code]")'));
  await evaluate('document.querySelector("input[autocomplete=one-time-code]").focus()');
  await cdp('Input.insertText',{text:'123456'});
  await clickText('確認して続ける');

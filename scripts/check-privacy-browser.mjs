@@ -26,17 +26,26 @@ try {
  assert.equal(await evaluate('document.querySelector("[data-private]")'),null);
  await evaluate('fixture.change("A");fixture.ready()');await privateReady('A');
  const clickText=text=>evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent===${JSON.stringify(text)});if(!b)throw Error('missing button');b.click()})()`);
- const aiCount=()=>evaluate('fixture.calls.filter(c=>c.path.startsWith("/api/ai/")).length');
+ const aiCount=()=>evaluate('fixture.calls.filter(c=>["/api/ai/cards","/api/ai/chat"].includes(c.path)).length');
  await click('summary');await until(()=>evaluate('document.getElementById("result").textContent==="summary blocked"'));assert.equal(await aiCount(),0);
  assert.equal(await evaluate('!!document.querySelector("dialog[open]")'),false);
  await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));assert.equal(await aiCount(),0);
  await clickText('今は許可しない');await until(()=>evaluate('document.getElementById("result").textContent==="AI blocked"'));assert.equal(await aiCount(),0);
  await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));await clickText('同意して続ける');await until(async()=>await aiCount()===1);
- await click('revoke');await until(()=>evaluate('fixture.calls.filter(c=>c.path==="/api/privacy/consents").length>=6'));
- await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));assert.equal(await aiCount(),1);
+
+ // A stale native response can arrive even after a successful consent withdrawal.
+ await until(()=>evaluate('document.getElementById("result").textContent==="AI complete"'));
+ await evaluate('fixture.hold=true');
+ await click('generate');await until(async()=>await aiCount()===2);
+ await click('revoke');
+ await until(()=>evaluate('fixture.calls.filter(c=>c.path==="/api/privacy/consents").length>=8'));
+ await evaluate('fixture.hold=false;fixture.release()');
+ await until(()=>evaluate('document.getElementById("result").textContent==="AI blocked"'));
+
+ await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));assert.equal(await aiCount(),2);
  // Switching while A's modal is pending must not authorize or send as B.
- await evaluate('fixture.change("B")');await privateReady('B');assert.equal(await evaluate('!!document.querySelector("dialog[open]")'),false);assert.equal(await aiCount(),1);
- await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));await clickText('閉じる');assert.equal(await aiCount(),1);
+ await evaluate('fixture.change("B")');await privateReady('B');assert.equal(await evaluate('!!document.querySelector("dialog[open]")'),false);assert.equal(await aiCount(),2);
+ await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));await clickText('閉じる');assert.equal(await aiCount(),2);
  await click('edit');await evaluate('localStorage.setItem("patch:workspace:v2:"+fixture.accounts.A.userId,"A preserved");fixture.loseDeletionResponse=true');
  await click('delete');await clickText('本人確認コードを送る');await until(()=>evaluate('!!document.querySelector("input[autocomplete=one-time-code]")'));
  await evaluate('document.querySelector("input[autocomplete=one-time-code]").focus()');await cdp('Input.insertText',{text:'123456'});await clickText('確認する');await until(()=>evaluate('document.body.textContent.includes("本人確認を行いました")'));
@@ -44,14 +53,30 @@ try {
  assert.equal(await evaluate('localStorage.getItem("patch:workspace:v2:"+fixture.accounts.B.userId)'),null);
  assert.equal(await evaluate('localStorage.getItem("patch:workspace:v2:"+fixture.accounts.A.userId)'),'A preserved');
  assert.equal(await evaluate('localStorage.getItem("patch:privacy-stop:"+fixture.accounts.B.userId)'),null);
- assert.equal(await aiCount(),1);
+ assert.equal(await aiCount(),2);
  // Deletion detected on another device purges this account on the next protected call.
  await evaluate('fixture.deletedLogout=false;fixture.change("A")');await privateReady('A');await click('edit');
  await evaluate('fixture.remoteDeleted=true;localStorage.setItem("patch:workspace:v2:"+fixture.accounts.B.userId,"B preserved")');await click('request');await until(()=>evaluate('fixture.deletedLogout===true'));
  assert.equal(await evaluate('localStorage.getItem("patch:workspace:v2:"+fixture.accounts.A.userId)'),null);
  assert.equal(await evaluate('localStorage.getItem("patch:workspace:v2:"+fixture.accounts.B.userId)'),'B preserved');
+ // Full provider chain: native HTTP ignores abort during account switch/logout.
+ await evaluate('fixture.remoteDeleted=false;fixture.change("B")');await privateReady('B');
+ await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));
+ await evaluate('fixture.hold=true');await clickText('同意して続ける');await until(async()=>await aiCount()===3);
+ await evaluate('fixture.change("A")');await privateReady('A');
+ await until(()=>evaluate('fixture.calls.some(c=>c.path==="/api/ai/cancel"&&c.session==="sess_B")'));
+ await evaluate('fixture.hold=false;fixture.release()');
+ assert.equal(await evaluate('document.getElementById("result").textContent'),'');
+ assert.equal(await evaluate('document.getElementById("draft").textContent.includes("user_B")'),false);
+ await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));
+ await evaluate('fixture.hold=true');await clickText('同意して続ける');await until(async()=>await aiCount()===4);
+ const cancellations=await evaluate('fixture.calls.filter(c=>c.path==="/api/ai/cancel").length');
+ await click('logout');await until(()=>evaluate('!document.querySelector("[data-private]")'));
+ await until(()=>evaluate(`fixture.calls.filter(c=>c.path==="/api/ai/cancel").length>${cancellations}`));
+ await evaluate('fixture.hold=false;fixture.release()');
+ assert.equal(await evaluate('localStorage.getItem("patch:workspace:v2:"+fixture.accounts.A.userId)'),null);
  assert.deepEqual(errors,[]);
- console.log('PASS: automatic summary blocked, explicit consent, denied/granted/revoked, modal account switch, deletion reauth UX, lost response receipt, scoped cleanup and deletion logout');
+ console.log('PASS: automatic summary blocked, explicit consent, denied/granted/revoked, in-flight revoke/switch/logout cancellation, modal account switch, deletion reauth UX, lost response receipt, scoped cleanup and deletion logout');
 } finally {
  ws?.close();await server?.close();if(chrome&&chrome.exitCode===null){chrome.kill('SIGTERM');await Promise.race([new Promise(r=>chrome.once('exit',r)),delay(3000)]);}
  await rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:100});

@@ -1,6 +1,10 @@
+## Integration stabilization — 2026-09-13
+
+Current cross-feature boundaries and regression scope: [integration stabilization](docs/integration-stabilization.md). AI requests now have complete-body idempotency acknowledgement, client revision fences and an authenticated per-operation cancellation endpoint. Cancellation markers reuse the existing owner-scoped AI operation ledger; admission/dispatch/finalization check them without request-time migrations. Native Deep Link resolution uses an account-scoped retry inbox. Network cancellation is best effort; see the documented offline and process-restart limits. Historical phase descriptions below do not supersede this section or the linked current Retention/Production runbooks.
+
 ## Retention architecture — 2026-09-13
 
-Retention is implemented on `codex/retention`, based on Dev `7f2800e`, not merged/deployed. Server-authoritative Study Sessions/Streak/Due Count, shared Continue resolver, native deep links/local notifications and the embedded Small/Medium Widget use an App Group snapshot. Migration 0010 is explicit and unapplied to hosted databases. See [Retention implementation and limitations](docs/retention.md). Older phase entries below are historical.
+Retention was integrated into Dev as `0ebaa56`; the integration-stabilization branch starts from Dev `11eda5d`. It has not been deployed. Server-authoritative Study Sessions/Streak/Due Count, shared Continue resolver, native deep links/local notifications and the embedded Small/Medium Widget use an App Group snapshot. Migration 0010 is explicit and unapplied to hosted databases. See [Retention implementation and limitations](docs/retention.md). Older phase entries below are historical.
 
 # Architecture
 
@@ -11,7 +15,7 @@ Retention is implemented on `codex/retention`, based on Dev `7f2800e`, not merge
 - Node.js 22、Next.js 16.3.4 App Router、React 19.2.6、TypeScript。`npm run dev/build/start` は Next.js + webpack を使用する。
 - 想定ホストは Vercel の Node.js Runtime。Web版はNext.js + webpackを継続。ViteはiOS同梱フロントエンドのビルドに使用する。Cloudflare/vinextは現在の実行経路では使用しない。
 - `/` のクライアント画面が JSON API を呼ぶ。Server Actions は使用していない。
-- API は `/api/auth/session`、`/api/data`、`/api/ai/cards`、`/api/ai/chat` とPrivacy/Lifecycle API（後述）。Node.js、動的応答、`no-store`、実行時間上限60秒。
+- API は `/api/auth/session`、`/api/data`、`/api/ai/cards`、`/api/ai/chat`、`/api/ai/cancel` とPrivacy/Lifecycle API（後述）。Node.js、動的応答、`no-store`、実行時間上限60秒。
 - DB は `@libsql/client`。ローカルは `.data/loop.db`、ホスト環境は `TURSO_DATABASE_URL`。VercelでURL未設定・file URLは実行時エラー。秘密情報はサーバー側環境変数。
 
 ## 責務と参照先
@@ -66,7 +70,7 @@ Retention is implemented on `codex/retention`, based on Dev `7f2800e`, not merge
 
 全POSTは `application/json` のオブジェクトを要求し、読み取り途中も含め2MiBを超える本文を413で拒否する。評価メタデータ、カード配列、教材保存の文字数・形式を検証する。ただし全アクションの厳密なスキーマ検証は完了していない。
 
-API認証・ユーザー別アクセス制御はPhase 2Aで実装済み。AI同意・削除状態チェックは共通ゲートで実装済み。AI利用回数／同時実行／費用上限は未実装。時間上限や入力上限は利用量制限の代わりにはならない。公開前の推奨案と判断事項はSTATUS参照。
+API認証・ユーザー別アクセス制御はPhase 2Aで実装済み。AI同意・削除状態チェックは共通ゲートで実装済み。AI利用回数／同時実行／費用上限は `lib/ai/control.ts` のDB台帳で強制する。構成と保守的なunknown処理は `docs/production-hardening.md`、今回の取消境界は `docs/integration-stabilization.md` を参照。
 
 ## 品質チェック
 
@@ -111,7 +115,7 @@ PDF本体とWorkerは同じpdfjs-distのlegacy buildを使用し、Workerと日�
 - `lib/privacy-policy.ts`: 日本語/英語の同意説明・consent/policyバージョン。
 - `app/privacy-provider.tsx`: 初回手動AI操作の明示的同意、設定からの変更、所有者をまたぐpending操作の破棄。自動lesson summaryでは同意ダイアログを開かず、未許可なら送信しない。
 - `db/privacy-store.ts` / `lib/ai-gateway.ts`: active user・現行同意を確認し、`(user_id, operation_id)` 一意のAI台帳を外部送信より先にコミット。外部応答後はgeneration・同意revisionを再確認。chat保存はそのトランザクション内。生成候補は確認後に返し、ユーザーが後で既存保存APIで保存する。
-- 同一AI操作IDは成功/失敗に関係なく再送拒否。外部送信とDBは原子的でないため、結果不明の台帳はstartedのまま保守的に残す。外部APIのexactly-onceや応答キャッシュを保証する設計ではない。
+- AI Hardening統合後は `ai_requests` のユーザー別Idempotency-Keyと入力hashを使う。現行同意・generationを再確認した成功結果は24時間以内に再取得できる。実行中/結果不明は再送せず、外部APIのexactly-onceを保証しない。`ai_operations` は旧操作IDとの重複防止と今回の取消markerにも使用する。
 - `users.lifecycle_state`: active → deleting → deleted。受付トランザクションでgenerationを増やし、tombstoneとjobを作る。全protected APIは `requireAuth`、削除の再送だけ署名済みidentity＋receiptで処理する。
 - 0008はuserデータのINSERT/UPDATEトリガーも追加する。削除以前に認可済みの通常APIでも、inactive userへの遅延書込みをDBで拒否する。usersの最小削除行を残すことがこの境界の条件。
 - `db/account-deletion.ts`: 5分のチャレンジとClerk署名済み再認証ID・factor ageを検証し受付。クライアントの成功booleanやOTPをサーバーで信用しない。

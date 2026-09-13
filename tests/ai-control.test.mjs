@@ -112,3 +112,15 @@ test('successful replay is denied after withdrawal and after a revoke/regrant re
  await grantAi(c,'a');await rejects(runAi(db,'a','cards',k,{},()=>assert.fail('sent')),'AI_CONSENT_CHANGED');
  await c.execute("UPDATE users SET lifecycle_state='deleted' WHERE id='a'");await rejects(runAi(db,'a','cards',k,{},()=>assert.fail('sent')),'ACCOUNT_INACTIVE');
 }));
+
+test('operation cancellation fences delayed admission and in-flight commit without affecting another account',()=>fixture(async(db,c)=>{
+ const {cancelAi}=await import('../lib/ai/control.ts');const k=key();
+ await cancelAi(db,'a',k);await cancelAi(db,'a',k);
+ await rejects(runAi(db,'a','cards',k,{},()=>assert.fail('canceled dispatch')),'AI_REQUEST_CANCELLED');
+ await runAi(db,'b','cards',k,{},work);
+ const flight=key();let finalized=false;
+ await rejects(runAi(db,'a','chat',flight,{},async()=>{const result=await work();await cancelAi(db,'a',flight);await rejects(runAi(db,'a','cards',key(),{},()=>assert.fail('cancel bypassed concurrency')),'AI_CONCURRENCY_LIMIT');return result;},async()=>{finalized=true;}),'AI_REQUEST_CANCELLED');
+ assert.equal(finalized,false);
+ const row=(await c.execute("SELECT state,result_json,cost_micros FROM ai_requests WHERE user_id='a'")).rows[0];assert.equal(row.state,'failed_final');assert.equal(row.result_json,null);assert.ok(row.cost_micros>0);
+ await rejects(runAi(db,'a','chat',flight,{},()=>assert.fail('replay dispatch')),'AI_REQUEST_CANCELLED');
+}));

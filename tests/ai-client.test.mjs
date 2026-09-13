@@ -36,3 +36,28 @@ test('Privacy-generated operation UUID changes do not bypass an unknown pending 
  const controller=new AbortController();controller.abort();await assert.rejects(sendAi(async()=>assert.fail('stale native dispatch'),'/api/ai/cards',{method:'POST',headers:{'X-Patch-Account':'a'},body:'{}',signal:controller.signal}),{name:'AbortError'});
  }finally{if(original)Object.defineProperty(globalThis,'sessionStorage',original);else delete globalThis.sessionStorage;}
 });
+
+test('truncated successful response retains its operation identity for an explicit retry',async()=>{
+ const original=Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');const disk=storage();Object.defineProperty(globalThis,'sessionStorage',{value:disk,configurable:true});
+ try {
+  const seen=[],opts={method:'POST',headers:{'X-Patch-Account':'a'},body:'{"text":"private"}'};
+  const broken=await sendAi(async(_u,o)=>{seen.push(o.headers.get('Idempotency-Key'));return new Response('{"answer":',{status:200});},'/api/ai/cards',opts);
+  await assert.rejects(broken.json());
+  await sendAi(async(_u,o)=>{seen.push(o.headers.get('Idempotency-Key'));return Response.json({answer:'complete'});},'/api/ai/cards',opts);
+  assert.equal(seen[0],seen[1]);
+ }finally{if(original)Object.defineProperty(globalThis,'sessionStorage',original);else delete globalThis.sessionStorage;}
+});
+
+test('abort of an uncancellable transport sends a scoped cancellation and retains retry identity',async()=>{
+ const original=Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');const disk=storage();Object.defineProperty(globalThis,'sessionStorage',{value:disk,configurable:true});
+ try {
+  const controller=new AbortController();let cancelled,admitted;
+  const transport=async(url,options)=>{
+   if(url.endsWith('/cancel')){cancelled={url,options};return Response.json({accepted:true});}
+   admitted=options;controller.abort();await Promise.resolve();return Response.json({answer:'late'});
+  };
+  await sendAi(transport,'https://api.example.test/api/ai/chat',{method:'POST',headers:{'X-Patch-Account':'A',Authorization:'Bearer test'},body:'{}',signal:controller.signal});
+  assert.equal(cancelled.url,'https://api.example.test/api/ai/cancel');assert.equal(cancelled.options.headers.get('X-Patch-Account'),'A');assert.equal(cancelled.options.signal,undefined);
+  assert.equal(JSON.parse(cancelled.options.body).operationKey,admitted.headers.get('Idempotency-Key'));assert.equal(disk.values.size,1);
+ }finally{if(original)Object.defineProperty(globalThis,'sessionStorage',original);else delete globalThis.sessionStorage;}
+});

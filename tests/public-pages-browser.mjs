@@ -59,4 +59,14 @@ try{
  assert.equal(await evaluate('new Set(Array.from(document.querySelectorAll("[id]"),e=>e.id)).size===document.querySelectorAll("[id]").length'),true);
  assert.ok(!requests.some(url=>/\/api\/|clerk\.accounts|api\.openai/.test(url)));assert.deepEqual(exceptions,[]);
  console.log('PASS: embedded legal navigation stays inside React, focuses the destination heading, and has unique anchors');
-}finally{await embedded?.close();ws?.close();chrome.kill('SIGTERM');server.kill('SIGTERM');await delay(350);await rm(dir,{recursive:true,force:true});}
+} finally {
+ await embedded?.close();ws?.close();
+ const stop=async process=>{
+  if(process.exitCode!==null||process.signalCode!==null)return;
+  const exited=new Promise(resolve=>process.once('exit',resolve));
+  process.kill('SIGTERM');await Promise.race([exited,delay(3000)]);
+  if(process.exitCode===null&&process.signalCode===null){process.kill('SIGKILL');await Promise.race([exited,delay(3000)]);}
+ };
+ await Promise.all([stop(chrome),stop(server)]);
+ await rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:200});
+}

@@ -20,16 +20,29 @@ export async function sendAi(transport: ApiTransport, url: string, options: Requ
   // Privacy's operationId must remain the same on an uncertain retry, even if the UI minted another UUID.
   const body = headers.has('Idempotency-Key') && options.headers && new Headers(options.headers).has('Idempotency-Key') ? options.body : JSON.stringify({ ...payload, operationId: key });
   if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  // Native HTTP may ignore abort. Independently fence the operation at the API.
+  const cancel = () => { void transport(url.replace(/\/(cards|chat)$/, '/cancel'), {
+    method:'POST', headers, body:JSON.stringify({operationKey:key}),
+    credentials:options.credentials, cache:'no-store', redirect:'error',
+  }).catch(()=>{ /* Offline: local fences still suppress the response; server delivery is best effort. */ }); };
+  options.signal?.addEventListener('abort',cancel,{once:true});
+  try {
   const response = await transport(url, { ...options, body, headers });
   // Definitive completion allows a subsequent user action with identical input to be a new operation.
   // Ambiguous responses, non-terminal conflicts and transport exceptions preserve this key.
   let terminal = false;
+  let complete = false;
+  if (response.ok) {
+    try { await response.clone().json(); complete = true; }
+    catch { /* A 2xx header alone does not prove the result arrived intact. */ }
+  }
   if (!response.ok) {
     try {
       const body = await response.clone().json();
-      terminal = ['AI_REQUEST_FINAL', 'AI_RESULT_EXPIRED', 'AI_PROVIDER_FAILED', 'AI_NOT_CONFIGURED', 'AI_PRE_DISPATCH_FAILED'].includes(body && typeof body === 'object' && 'code' in body ? String(body.code) : '');
+      terminal = ['AI_REQUEST_CANCELLED', 'AI_REQUEST_FINAL', 'AI_RESULT_EXPIRED', 'AI_PROVIDER_FAILED', 'AI_NOT_CONFIGURED', 'AI_PRE_DISPATCH_FAILED'].includes(body && typeof body === 'object' && 'code' in body ? String(body.code) : '');
     } catch { /* An unreadable response is uncertain. */ }
   }
-  if (terminal || response.ok || [400, 404, 413, 415, 422, 429].includes(response.status)) storage.removeItem(storageKey);
+  if (!options.signal?.aborted && (terminal || complete || [400, 404, 413, 415, 422, 429].includes(response.status))) storage.removeItem(storageKey);
   return response;
+  } finally { options.signal?.removeEventListener('abort',cancel); }
 }

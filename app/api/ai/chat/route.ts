@@ -47,7 +47,7 @@ export async function POST(request: Request): Promise<Response> {
       history: context.history,
     });
 
-    });
+    }, request.signal);
     return json(result);
   } catch (error) {
     const aiResponse = aiErrorResponse(error);

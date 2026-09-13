@@ -58,3 +58,35 @@ test('deletion during provider flight scrubs AI content, rejects result and reta
  const before=calls;assert.equal((await cards(request(a,'/api/ai/cards',payload,randomUUID()))).status,403);assert.equal(calls,before);
  }finally{globalThis.fetch=prev;if(old===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=old;}
 });
+
+test('disconnected chat never persists a late provider result and retains conservative cost evidence',async()=>{
+ const a=await account('user_disconnect');await store.saveGeneratedSet(a.userId,{title:'T',category:'C',summary:'',keyPoints:[],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]});
+ const set=(await store.loadAppData(a.userId)).sets[0],controller=new AbortController();
+ const body={setId:set.id,cardId:set.cards[0].id,sessionId:'disconnect-session',question:'why?'};
+ const oldFetch=globalThis.fetch,oldKey=process.env.OPENAI_API_KEY;let calls=0;process.env.OPENAI_API_KEY='mock-only';
+ try {
+  globalThis.fetch=async()=>{calls++;controller.abort();return Response.json({status:'completed',output:[{content:[{type:'output_text',text:'late private answer'}]}]});};
+  const response=await chat(new Request(request(a,'/api/ai/chat',body,randomUUID()),{signal:controller.signal}));
+  assert.equal(response.status,409);assert.equal((await response.json()).code,'AI_REQUEST_CANCELLED');assert.equal(calls,1);
+  assert.equal((await c.execute({sql:'SELECT count(*) n FROM chat_messages WHERE user_id=?',args:[a.userId]})).rows[0].n,0);
+  const row=(await c.execute({sql:'SELECT state,result_json,cost_micros FROM ai_requests WHERE user_id=?',args:[a.userId]})).rows[0];
+  assert.equal(row.state,'failed_final');assert.equal(row.result_json,null);assert.ok(row.cost_micros>0);
+  assert.equal((await chat(new Request(request(a,'/api/ai/chat',body,randomUUID()),{signal:controller.signal}))).status,409);assert.equal(calls,1);
+ }finally{globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=oldKey;}
+});
+
+test('cancel API requires auth, works without AI consent, and cannot cancel another user operation',async()=>{
+ const {POST:cancel}=await import('../app/api/ai/cancel/route.ts');
+ assert.equal((await cancel(new Request(origin+'/api/ai/cancel',{method:'POST'}))).status,401);
+ const a=await account('user_cancel_a'),b=await account('user_cancel_b'),k=randomUUID();
+ await c.execute({sql:"UPDATE user_consents SET state='revoked' WHERE user_id=?",args:[a.userId]});
+ assert.equal((await cancel(request(a,'/api/ai/cancel',{operationKey:k}))).status,200);
+ assert.equal((await cancel(request(a,'/api/ai/cancel',{operationKey:'bad'}))).status,400);
+ const result={title:'T',category:'C',summary:'',keyPoints:[],cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]};
+ await mock(JSON.stringify(result),async calls=>{
+  const body={text:'source '.repeat(30)};
+  assert.equal((await cards(request(b,'/api/ai/cards',body,k))).status,200);assert.equal(calls(),1);
+  await grantAi(c,a.userId);
+  assert.equal((await cards(request(a,'/api/ai/cards',body,k))).status,409);assert.equal(calls(),1);
+ });
+});
