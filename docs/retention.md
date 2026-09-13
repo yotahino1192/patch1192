@@ -1,6 +1,6 @@
 # Patch Retention System
 
-Implementation base: Dev `7f2800ef8378eaacb3f859f910a5c94778d11577`. This branch is not merged or deployed.
+Implementation base: Dev `7f2800ef8378eaacb3f859f910a5c94778d11577`. Initial implementation `0ebaa56` is integrated into Dev; hosted deployment remains outside this work.
 
 ## Authority and persistence
 
@@ -56,3 +56,10 @@ xcrun swiftc ios/App/Shared/RetentionSnapshot.swift tests/RetentionSnapshotTests
 After personal Apple Developer enrollment: reserve final host/extension/group IDs; enable the **same App Group for both targets**, select only the personal team and generate profiles; verify signed physical-device sharing, widget gallery/sizes/timeline, locked-device notifications/taps, OS permission denial, logout/deletion cleanup and travel. Build an approved staging/production mobile artifact with the existing release allowlist and signing flow. Do not use a company team. App Store/TestFlight distribution and real Apple portal/provisioning operations are not performed here.
 
 No APNs, push, Sign in with Apple, background scheduler, production configuration or deployment is included. Mobile production builds remain blocked by existing release guardrails until approved endpoints/Clerk instance are configured. Existing AI consent, cost controls, deletion, backup/restore and legacy `loop-owner` ownership rules remain in place.
+
+
+## Integration regression checkpoint
+
+Node 22.23.2: 181 unit tests, TypeScript, lint (0 errors / 41 existing warnings), Web build, mobile build/Capacitor sync, unsigned Simulator App + Widget build, Swift policies, auth/privacy/onboarding browser suites passed.
+
+The added database-to-platform regression completes a real Study Session, checks due/streak recalculation and native output, undoes the final review, then verifies logout/deletion cleanup and A/B separation. A deterministic UTC clock avoids depending on the machine's current time or travel state. The browser regression queues a link while signed out, uses the actual email-form UI with a fixture SDK, confirms the owned resource after authenticated API bootstrap, and checks logout cleanup. These additions do not modify production auth, notification scheduling, Widget code or DB logic. Native OS delivery remains covered by a mock boundary here and requires signed physical-device acceptance.

@@ -65,7 +65,7 @@ try {
  const post=async(path,body)=>{const r=await fetch(origin+path,{method:'POST',headers:authHeaders('user_onboarding',identity.userId,{'content-type':'application/json'}),body:JSON.stringify(body)});assert.equal(r.status,200);return r.json();};
  const created=await post('/api/data',{action:'saveSet',material:{title:'Retention browser set',category:'Test',summary:'',keyPoints:[],sourceContent:'Source',cards:Array.from({length:8},(_,i)=>({question:'Retention question '+i,answer:'Retention answer '+i,format:'qa',choices:[],difficulty:2}))}});
  const set=created.data.sets.find(s=>s.id===created.setId);
- await evaluate(`(async()=>{const m=await import('/lib/retention-platform.ts');window.retentionMock={queue:[],published:[],cleared:[]};m.configureRetention({activate:async()=>{},clear:async v=>window.retentionMock.cleared.push(v.userId),publish:async v=>window.retentionMock.published.push(v),permission:async()=>({granted:true}),links:async()=>({links:window.retentionMock.queue.splice(0)})});await m.activateRetention(${JSON.stringify(identity.userId)});window.dispatchEvent(new Event('patch-retention-refresh'));})()`);
+ await evaluate(`(async()=>{const m=await import('/lib/retention-platform.ts');window.retentionMock={queue:[],published:[],cleared:[],owner:null,snapshot:null,notifications:[],signedOutCount:0};const r=window.retentionMock;m.configureRetention({activate:async v=>{r.owner=v.userId},clear:async v=>{r.cleared.push(v.userId);if(r.owner===v.userId){r.owner=null;r.snapshot=null;r.notifications=[];r.queue=[]}},signedOut:async()=>{r.signedOutCount++;r.owner=null;r.snapshot=null;r.notifications=[];r.queue=r.queue.filter(l=>!l.owner)},publish:async v=>{r.published.push(v);r.snapshot=v.snapshot;r.notifications=v.notifications},permission:async()=>({granted:true}),links:async()=>({links:r.queue.splice(0)})});await m.activateRetention(${JSON.stringify(identity.userId)});window.dispatchEvent(new Event('patch-retention-refresh'));})()`);
  const link=async url=>evaluate(`window.retentionMock.queue.push({url:${JSON.stringify(url)},at:Date.now(),owner:${JSON.stringify(identity.userId)}})`);
  await link('patch://set/'+set.id);await waitText('Retention browser set');
  await link('patch://card/'+set.cards[0].id);await until(()=>evaluate(`document.activeElement?.id===${JSON.stringify('set-card-'+set.cards[0].id)}`));
@@ -78,6 +78,27 @@ try {
  assert.equal(await evaluate("window.retentionMock.published.some(p=>'dueCardIds' in p.snapshot || 'session' in p.snapshot)"),false);
  await link('patch://card/deleted-or-foreign');await waitText('連続学習');await noOverflow();
  console.log('PASS: Retention set/card/continue links, server session restore, official completion, once per day, snapshot allow-list, missing-resource fallback');
+
+ // The SDK is a test fixture; email-form UI, account bootstrap and resource APIs are real.
+ await evaluate('window.onboardingAuth.expire()');
+ await until(()=>evaluate('Boolean(document.querySelector(".auth-screen input[type=email]")) && window.retentionMock.signedOutCount>0'));
+ assert.equal(await evaluate('window.retentionMock.snapshot'),null);
+ await evaluate(`window.retentionMock.queue.push({url:${JSON.stringify('patch://set/'+set.id)},at:Date.now()})`);
+ assert.equal(await evaluate('window.retentionMock.queue.length'),1);
+ assert.equal(await evaluate('document.body.innerText.includes("Retention browser set")'),false);
+ await evaluate('document.querySelector("input[type=email]").focus()');
+ await cdp('Input.insertText',{text:'retention@example.test'});
+ await clickText('確認コードを送信');
+ await evaluate('document.querySelector("input[autocomplete=one-time-code]").focus()');
+ await cdp('Input.insertText',{text:'123456'});
+ await clickText('確認して続ける');
+ await waitText('Retention browser set');
+ await until(()=>evaluate('window.retentionMock.queue.length===0 && window.retentionMock.snapshot!==null'));
+ await click('.settings-button');await clickText('ログアウト');
+ await until(()=>evaluate('Boolean(document.querySelector(".auth-screen input[type=email]")) && window.retentionMock.snapshot===null'));
+ assert.deepEqual(await evaluate('window.retentionMock.notifications'),[]);
+ assert.equal(await evaluate(`localStorage.getItem(${JSON.stringify('patch:workspace:v2:'+identity.userId)})`),null);
+ console.log('PASS: pending signed-out Deep Link -> email login -> owned set; actual logout cleans native output and local workspace');
  assert.deepEqual(errors,[]);console.log('PASS: first run, validation, recommendations, lost-save response, DB resume, 3 cards, Day 1, home, reload, responsive widths');
 } finally {
  ws?.close();await fixtureServer?.close();for(const child of [server,chrome])if(child.exitCode===null){child.kill('SIGTERM');await Promise.race([new Promise(r=>child.once('exit',r)),delay(3000)]);}

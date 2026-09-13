@@ -82,3 +82,39 @@ test('account cleanup serializes against late publications, clears notifications
  await activateRetention('A');const snapshot=await retentionSnapshot('retention-A');await publishRetention('A',snapshot);assert(!('dueCardIds' in cache.snapshot));assert(!('session' in cache.snapshot));
  await clearRetention('A');await publishRetention('A',snapshot);assert.equal(cache,null);await activateRetention('B');await clearRetention('A');await publishRetention('B',snapshot);assert.equal(cache.userId,'B');await publishRetention('B',{...snapshot,generatedAt:snapshot.generatedAt-1000,dueCount:999});assert.equal(cache.snapshot.dueCount,snapshot.dueCount);
 });
+
+test('completed study and undo propagate authoritative due/streak to native output; lifecycle cleanup is account-scoped', async t => {
+ t.mock.timers.enable({apis:['Date'],now:iso('2026-09-13T08:00:00Z')});
+ const owner='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',other='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+ const all=await cards(owner),plan=await startStudySession(owner,'regression-session',all.map(c=>c.id),'UTC');
+ await client.execute({sql:"UPDATE retention_state SET day=1,timezone='UTC',pending_timezone='UTC',day_end=?,review_reminder=1,streak_warning=1,reminder_time='09:00' WHERE user_id=?",args:[nextMidnight(Date.now(),'UTC'),owner]});
+ await client.execute({sql:"INSERT INTO study_sessions (user_id,id,set_id,card_ids,estimated_seconds,qualifies,created_at,completed_at,earned_day) VALUES (?,'yesterday',?,'[]',300,1,'yesterday','yesterday',0)",args:[owner,all[0].setId]});
+ for(const id of plan.cardIds)await client.execute({sql:"UPDATE cards SET review_count=1,status='復習待ち',due_at='1970-01-01T00:00:00.000Z' WHERE id=?",args:[id]});
+ const {configureRetention,activateRetention,publishRetention}=await import('../lib/retention-platform.ts');
+ const {cleanupAccount,privacyStopKey}=await import('../lib/account-cleanup.ts');
+ let deviceOwner=null,snapshot=null,notifications=[],links=[];
+ configureRetention({
+  activate:async ({userId})=>{deviceOwner=userId;},
+  clear:async ({userId})=>{if(deviceOwner===userId){deviceOwner=null;snapshot=null;notifications=[];links=[];}},
+  publish:async value=>{assert.equal(value.userId,deviceOwner);snapshot=value.snapshot;notifications=value.notifications;},
+  permission:async()=>({granted:true}),links:async()=>({links}),
+ });
+ await activateRetention(owner);
+ const before=await retentionSnapshot(owner);assert.equal(before.streak,1);assert.equal(before.completed,false);assert.equal(before.dueCount,plan.cardIds.length);
+ await publishRetention(owner,before);assert.equal(notifications.length,2);assert.equal(widgetState(snapshot,Date.now()),'NORMAL');
+ let last;for(const id of plan.cardIds)last=await reviewCard(owner,id,'good',100,plan.id);
+ const completed=await retentionSnapshot(owner);assert.equal(completed.streak,2);assert.equal(completed.dueCount,0);
+ await publishRetention(owner,completed);assert.equal(widgetState(snapshot,Date.now()),'COMPLETED');assert.deepEqual(notifications,[]);
+ await undoReview(owner,last,plan.id);
+ const undone=await retentionSnapshot(owner);assert.equal(undone.streak,1);assert.equal(undone.completed,false);assert.equal(undone.dueCount,1);
+ await publishRetention(owner,undone);assert.equal(widgetState(snapshot,Date.now()),'NORMAL');assert.equal(notifications.length,2);
+ const values=new Map([[`patch:workspace:v2:${owner}`,'A'],[`patch:workspace:v2:${other}`,'B'],[privacyStopKey(owner),'pending']]);
+ const storage={removeItem:key=>values.delete(key)};
+ links.push({url:'patch://continue',owner,at:Date.now()});
+ await cleanupAccount(storage,owner);assert.equal(snapshot,null);assert.deepEqual(notifications,[]);assert.deepEqual(links,[]);assert.equal(values.get(`patch:workspace:v2:${other}`),'B');assert.equal(values.get(privacyStopKey(owner)),'pending');
+ await publishRetention(owner,completed);assert.equal(snapshot,null);
+ await cards(other);await activateRetention(other);const b=await retentionSnapshot(other);await publishRetention(other,b);
+ assert.equal(snapshot.streak,0);assert.equal(snapshot.dueCount,0);
+ await cleanupAccount(storage,owner,true);assert.equal(values.has(privacyStopKey(owner)),false);assert.equal(snapshot.streak,0);assert.equal(deviceOwner,other);
+ await cleanupAccount(storage,other,true);assert.equal(snapshot,null);assert.deepEqual(notifications,[]);
+});
