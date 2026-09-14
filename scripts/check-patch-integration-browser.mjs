@@ -17,7 +17,7 @@ const appPort=Number(process.env.TEST_APP_PORT || 3158), debugPort=Number(proces
 const origin=`http://127.0.0.1:${appPort}`;
 const output=process.env.INTEGRATION_SCREENSHOT_DIR||join(root,'outputs/integration');await mkdir(output,{recursive:true});
 const prep=createClient({url:`file:${dir}/test.db`});await migrate(prep);prep.close();
-const server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p',String(appPort),'--hostname','127.0.0.1'],{cwd:root,env:{...process.env,TURSO_DATABASE_URL:`file:${dir}/test.db`,TURSO_AUTH_TOKEN:'',OPENAI_API_KEY:'',VERCEL:''},stdio:'ignore'});
+const server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p',String(appPort),'--hostname','127.0.0.1'],{cwd:root,env:{...process.env,TURSO_DATABASE_URL:`file:${dir}/test.db`,TURSO_AUTH_TOKEN:'',OPENAI_API_KEY:'',NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:'',VERCEL:''},stdio:'ignore'});
 const chrome=spawn(chromePath,['--headless=new','--no-first-run','--no-default-browser-check',`--remote-debugging-port=${debugPort}`,`--user-data-dir=${dir}/chrome`,'about:blank'],{stdio:'ignore'});
 let startupError;server.on('error',e=>startupError=e);chrome.on('error',e=>startupError=e);
 let ws,fixtureServer;const delay=ms=>new Promise(r=>setTimeout(r,ms));
@@ -67,7 +67,7 @@ try {
    await cdp('Emulation.setDeviceMetricsOverride',{width,height:width===320?568:852,deviceScaleFactor:1,mobile:true});await delay(120);
    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,`${name} ${width}: overflow`);
    await evaluate('window.scrollTo(0,0)');const shot=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(join(output,`${name}-${width}.png`),Buffer.from(shot.data,'base64'));
-   const reachable=await evaluate(`(()=>{const button=document.querySelector('.patch-sheet[open] .patch-primary')||document.querySelector('[data-primary]')||document.querySelector('[data-lesson-id]');if(!button)return true;button.scrollIntoView({block:'center'});const r=button.getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return r.top>=0&&r.bottom<=innerHeight&&!!hit&&button.contains(hit);})()`);
+   const reachable=await evaluate(`(()=>{const button=document.querySelector('.patch-sheet[open] .patch-primary')||document.querySelector('[data-primary]')||document.querySelector('.study-card-editor .primary')||document.querySelector('.swipe-actions .correct')||document.querySelector('[data-lesson-id]');if(!button)return true;button.scrollIntoView({block:'center'});const r=button.getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return r.top>=0&&r.bottom<=innerHeight&&!!hit&&button.contains(hit);})()`);
    assert.equal(reachable,true,`${name} ${width}: primary action reachable`);
    if(width===320){const actionShot=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(join(output,`${name}-${width}-action.png`),Buffer.from(actionShot.data,'base64'));}
 
@@ -129,6 +129,18 @@ try {
  await reload();await home();assert.equal(await evaluate('!!document.querySelector(".patch-home-completed")'),true);
  await start(next.id);await ready('LEARN');await primary();await until(()=>evaluate('!!document.querySelector(".patch-complete")'));await click('.completion-actions .patch-primary');await home();await capture('post-home-qualified');
  assert.equal((await data()).retention.streak,1);assert.equal(await evaluate('!!document.querySelector(".patch-home-completed")'),true);
+ // Existing card-set study uses the Home palette and remains usable on narrow screens.
+ await click('.bottom-nav button:nth-child(2)');await until(()=>evaluate('!!document.querySelector(".library-set-open")'));
+ await click('.library-set-open');await until(()=>evaluate('!!document.querySelector(".set-page > .primary")'));
+ await click('.set-page > .primary');await until(()=>evaluate('!!document.querySelector(".flashcard-tap")'));
+ await capture('card-question');
+ assert.equal(await evaluate('getComputedStyle(document.querySelector(".flashcard")).backgroundColor'),'rgb(255, 255, 255)');
+ assert.equal(await evaluate('document.querySelector(".swipe-actions .correct").disabled'),true);
+ await click('.flashcard-tap');await until(()=>evaluate('!!document.querySelector(".flashcard.flipped")'));await capture('card-answer');
+ assert.equal(await evaluate('document.querySelector(".swipe-actions .correct").disabled'),false);
+ await click('.edit-study-button');await until(()=>evaluate('!!document.querySelector(".study-card-editor")'));await capture('card-editor');
+ await clickText('キャンセル');await until(()=>evaluate('!!document.querySelector(".flashcard")'));
+ await click('.pause-study');await until(()=>evaluate('!!document.querySelector(".bottom-nav")'));await click('.bottom-nav button:first-child');await home();
  // List failure/retry and stale account replies cannot leak titles or completed results.
  const pendingLesson=await command('createLesson',{patchId:patch.id,targetMinutes:5,activityIds:[standalone.id]});
  await reload();await home();

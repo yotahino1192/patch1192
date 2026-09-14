@@ -821,8 +821,8 @@ small,button small,.muted,[class] small { font-family: var(--font-body); font-si
 
 /* Focused Patch phase 1 visual system. */
 
-/* Home tokens also serve the main tabs; study and onboarding retain their scoped styles. */
-.patch-ui, :is(.patch-home-shell, .patch-main-shell), .app-shell:has(.patch-complete) {
+/* Home tokens also serve the main tabs and card study flow. */
+.patch-ui, :is(.patch-home-shell, .patch-main-shell, .is-studying), .app-shell:has(.patch-complete) {
   --font-heading: var(--font-body);
   --patch-ink: #142333;
   --patch-muted: #7c8da9;
@@ -1098,4 +1098,54 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
   .patch-main-shell .topic-list button > div { grid-row: 1; }
   .patch-main-shell .topic-list button i { grid-column: 2; grid-row: 2; justify-self: start; }
   .patch-main-shell .topic-list button em { grid-column: 2; grid-row: 3; justify-self: start; }
+}
+
+/* Card study keeps its interactions and layout while sharing Home's visual tone. */
+html:has(.is-studying), body:has(.is-studying), .is-studying { background: #fff; }
+.is-studying {
+  --ink: var(--patch-ink);
+  --leaf: #168653;
+  --blue: #168653;
+  --cyan: #168653;
+  --color-muted: #60748b;
+  --muted: var(--color-muted);
+  --color-accent: #aa4058;
+  --color-accent-soft: #fff0f3;
+  --shadow: var(--patch-shadow);
+  width: min(100%, 720px);
+}
+.is-studying .page { padding-inline: 22px; }
+.is-studying h1 { letter-spacing: -.035em; }
+.is-studying :is(.primary, .secondary, .undo-review-button, .edit-study-button, .card-ai-button, .study-choice-grid button, .swipe-actions button strong, .study-header .pause-study) { font-weight: 500; }
+.is-studying .primary { background: linear-gradient(110deg, #16a260, #1aad65); color: #fff; border-radius: 999px; min-height: 50px; box-shadow: none; }
+.is-studying .secondary { background: #fff; color: var(--muted); border-color: var(--patch-line); border-radius: 14px; }
+.is-studying .study-header .pause-study { background: #f5f8fa; border-color: var(--patch-line); color: var(--muted); }
+.is-studying .study-progress-track { height: 8px; background: #edf3f0; box-shadow: none; }
+.is-studying .study-progress-fill { background: var(--patch-green); }
+.is-studying :is(.undo-review-button, .edit-study-button) { color: var(--muted); }
+.is-studying .flashcard { background: #fff; border-color: var(--patch-line); border-radius: 24px; box-shadow: var(--patch-shadow); }
+.is-studying .flashcard.flipped { background: #f4fcf8; border-color: #ccebdc; }
+.is-studying .flashcard.swiping-right { border-color: #20b36c; }
+.is-studying .flashcard.swiping-left { border-color: #d98c9e; }
+.is-studying .flashcard-content { padding: 24px; }
+.is-studying .flashcard-content strong { font-weight: 600; line-height: 1.65; }
+.is-studying .flashcard .chip { background: var(--patch-mint); color: #126d50; font-size: 13px; font-weight: 500; border: 0; }
+.is-studying .card-tap-hint { background: #f5f8fa; border: 0; color: var(--muted); }
+.is-studying .study-choice-grid button { background: #f7fafb; border-color: var(--patch-line); overflow-wrap: anywhere; }
+.is-studying .study-choice-grid button:hover { background: var(--patch-mint); border-color: #a4dcc4; color: #126d50; }
+.is-studying .card-ai-button { background: #fff; color: #168653; border-color: #ccebdc; }
+.is-studying .swipe-actions button { box-shadow: none; border-radius: 16px; padding: 10px 8px; gap: 6px; }
+.is-studying .swipe-actions button strong { font-size: 14px; }
+.is-studying .swipe-actions .correct { color: #126d50; background: var(--patch-mint); border-color: #ccebdc; }
+.is-studying .swipe-actions .incorrect { color: #aa4058; background: #fff3f5; border-color: #f1dce2; }
+.is-studying .choice-feedback.is-correct { color: #126d50; background: var(--patch-mint); }
+.is-studying .choice-feedback.is-incorrect { color: #aa4058; background: #fff0f3; }
+.is-studying :is(.inline-ai-panel, .study-card-editor, .lesson-ai-recap) { background: #fff; border-color: var(--patch-line); border-radius: 20px; box-shadow: var(--patch-shadow); }
+.is-studying :is(input, textarea) { background: #f7fafb; border-color: var(--patch-line); }
+.is-studying :is(button, input, textarea):focus-visible { outline: 3px solid #126d50; outline-offset: 3px; }
+.is-studying .batch-medal { background: var(--patch-mint); color: #168653; }
+@media (max-width: 360px) {
+  .is-studying .page { padding-inline: 16px; }
+  .is-studying .flashcard-content { padding: 20px; }
+  .is-studying .swipe-actions button strong { font-size: 14px; }
 }
