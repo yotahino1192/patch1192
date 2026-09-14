@@ -21,12 +21,6 @@ export function PatchIcon({ name, size = 24 }: { name: PatchIconName; size?: num
   </svg>;
 }
 
-export function Mascot({ pose = "reading" }: { pose?: "standing" | "reading" | "celebrate" }) {
-  // Native Capacitor and web share these local assets; Next image optimization is unavailable on native.
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img className={`patch-mascot patch-mascot-${pose}`} src={pose === "standing" ? "/loop-companion.jpeg" : `/patch/mascot-${pose}.png`} alt="" aria-hidden="true" width={pose === "celebrate" ? 663 : pose === "reading" ? 268 : 1024} height={pose === "celebrate" ? 597 : pose === "reading" ? 253 : 1024} />;
-}
-
 // Native dialog supplies modal focus containment, Escape, inert background and focus restoration.
 export function BottomSheet({ open, onClose, titleId, children }: { open: boolean; onClose: () => void; titleId: string; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);

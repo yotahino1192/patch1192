@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {realpathSync} from 'node:fs';
 import {spawn} from 'node:child_process';
-import {mkdtemp,rm,mkdir,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm,mkdir,readFile,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createServer} from 'vite';
@@ -11,11 +11,22 @@ const dir=await mkdtemp(join(tmpdir(),'patch-ui-browser-'));
 const output=process.env.UI_SCREENSHOT_DIR||join(process.cwd(),'outputs/ui-phase1');
 const port=5207,debugPort=9397;
 let server,chrome,ws,startupError;
+// Test-only image responses exercise drop-in artwork without altering public files.
+let mascotMode='current';const mascotRequests=[];
+const finalMascotPaths=['/patch/mascot-standing.png','/patch/mascot-reading.png','/patch/mascot-celebrate.png'];
+const replacementPng=await readFile('public/home-landscape.png');
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn){for(let i=0;i<150;i++){if(startupError)throw startupError;try{if(await fn())return;}catch{}await delay(100);}throw Error('Timed out: '+fn);}
 try{
  await mkdir(output,{recursive:true});
- server=await createServer({configFile:false,root:process.cwd(),cacheDir:join(dir,'vite-cache'),plugins:[{name:'test-only-screen-exports',enforce:'pre',transform(code,id){if(id.endsWith('/app/page.tsx'))return code+'\nexport { Shell, Study };';}},react()],define:{'process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY':'""'},server:{host:'127.0.0.1',port,strictPort:true,fs:{allow:[process.cwd(),realpathSync('node_modules')]}}});await server.listen();
+ server=await createServer({configFile:false,root:process.cwd(),cacheDir:join(dir,'vite-cache'),plugins:[{name:'test-only-mascot-responses',configureServer(vite){vite.middlewares.use((req,res,next)=>{
+  const path=req.url?.split('?')[0];
+  if(!finalMascotPaths.includes(path)&&path!=='/loop-companion.jpeg')return next();
+  mascotRequests.push(path);
+  if(mascotMode==='replacement'&&finalMascotPaths.includes(path)){res.setHeader('Content-Type','image/png');res.setHeader('Cache-Control','no-store');res.end(replacementPng);return;}
+  if(mascotMode==='missing-standing'&&(path===finalMascotPaths[0]||path==='/loop-companion.jpeg')){res.statusCode=404;res.end();return;}
+  next();
+ });}},{name:'test-only-screen-exports',enforce:'pre',transform(code,id){if(id.endsWith('/app/page.tsx'))return code+'\nexport { Shell, Study };';}},react()],define:{'process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY':'""'},server:{host:'127.0.0.1',port,strictPort:true,fs:{allow:[process.cwd(),realpathSync('node_modules')]}}});await server.listen();
  chrome=spawn(process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--no-first-run','--no-default-browser-check',`--remote-debugging-port=${debugPort}`,`--user-data-dir=${dir}/chrome`,'about:blank'],{stdio:'ignore'});chrome.on('error',e=>startupError=e);
  await until(async()=>(await fetch(`http://127.0.0.1:${debugPort}/json/version`)).ok);
  const tab=await(await fetch(`http://127.0.0.1:${debugPort}/json/new?about:blank`,{method:'PUT'})).json();ws=new WebSocket(tab.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);
@@ -75,6 +86,29 @@ try{
  await screenshot('resume-preview-393');
  assert.equal(await evaluate('window.uiFixture.starts'),0);
  assert.equal(await evaluate('window.uiFixture.reads.every(r=>r.method==="GET")'),true);
+ // The same displayed boxes must survive a replacement PNG with a different
+ // intrinsic aspect ratio. Check neighboring CTAs too, not only the image itself.
+ await cdp('Network.enable');await cdp('Network.setCacheDisabled',{cacheDisabled:true});
+ const layout=()=>evaluate(`Array.from(document.querySelectorAll('.patch-mascot,.patch-greeting,.patch-current-node,.patch-primary,.bottom-nav,.patch-results,.patch-complete>h1,.patch-sheet[open]')).map(e=>({name:e.className,rect:e.getBoundingClientRect().toJSON()})).filter(e=>e.rect.width&&e.rect.height)`);
+ for(const [state,pose] of [['empty','standing'],['normal','reading'],['complete','celebrate']]){
+  await viewport(393);mascotMode='current';await navigate('state='+state);const before=await layout();
+  mascotMode='replacement';mascotRequests.length=0;await navigate('state='+state);
+  assert.equal(await evaluate(`document.querySelector('.patch-mascot-${pose}').getAttribute('src')`),`/patch/mascot-${pose}.png`);
+  assert.equal(await evaluate(`document.querySelector('.patch-mascot-${pose}').naturalWidth`),replacementPng.readUInt32BE(16),'Replacement PNG loaded');
+  assert.equal(mascotRequests.includes('/loop-companion.jpeg'),false,'Valid final artwork never uses the fallback');
+  assert.deepEqual(await layout(),before,`${pose}: new artwork must not move the UI`);
+ }
+ mascotMode='current';await navigate('state=normal');await click('.patch-current-node');const previewLayout=await layout();
+ mascotMode='replacement';await navigate('state=normal');await click('.patch-current-node');assert.deepEqual(await layout(),previewLayout,'Preview stays stable with replacement artwork');
+ // Even if both standing files are absent, preserve the canvas and stop retrying.
+ mascotMode='missing-standing';mascotRequests.length=0;
+ await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?state=empty`});
+ await until(()=>evaluate('document.querySelector(".patch-mascot-standing")?.getAttribute("src")==="/loop-companion.jpeg"&&document.querySelector(".patch-mascot-standing").complete'));
+ await delay(150);
+ assert.equal(mascotRequests.filter(p=>p==='/patch/mascot-standing.png').length,1);
+ assert.equal(mascotRequests.filter(p=>p==='/loop-companion.jpeg').length,1,'No fallback retry loop');
+ assert.equal(await evaluate('document.querySelector(".patch-mascot-standing").getBoundingClientRect().height'),264,'Missing artwork still reserves its canvas');
+ mascotMode='current';
  assert.deepEqual(errors,[]);
- console.log('PASS: seven states, 320/393/430/768 widths, assets, read-only preview, focus containment/restore, backdrop/Escape/close/start, completion to Home, authoritative streak refresh, long Japanese name and scrollable preview, read-only saved estimate and stale response rejection. Screenshots: '+output);
+ console.log('PASS: seven states, 320/393/430/768 widths, assets, read-only preview, focus containment/restore, backdrop/Escape/close/start, completion to Home, authoritative streak refresh, long Japanese name and scrollable preview, read-only saved estimate and stale response rejection, canonical mascot replacement with stable layout and bounded fallback. Screenshots: '+output);
 }finally{ws?.close();if(chrome&&chrome.exitCode===null){const closed=new Promise(r=>chrome.once('exit',r));chrome.kill('SIGTERM');await closed;}await server?.close();await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

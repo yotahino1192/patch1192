@@ -3,7 +3,8 @@
 import type { AppData } from "../lib/types";
 import { widgetState } from "../lib/retention";
 import { useLanguage } from "./language";
-import { Mascot, PatchIcon } from "./patch-ui";
+import { Mascot } from "./mascot";
+import { PatchIcon } from "./patch-ui";
 
 export function LessonCompletion({ data, now, cards, mistakes }: { data: AppData; now: Date; cards: number; mistakes: number }) {
   const { t } = useLanguage();

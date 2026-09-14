@@ -10,7 +10,8 @@ import { isLongTermDue } from "../lib/long-term-review";
 import { LessonPreview } from "./lesson-preview";
 import { DailyReviewRail } from "./daily-review";
 import { useLanguage } from "./language";
-import { Mascot, PatchIcon } from "./patch-ui";
+import { Mascot } from "./mascot";
+import { PatchIcon } from "./patch-ui";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
 export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resumableSessions, onResume, onSample, onContinue }: {

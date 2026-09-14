@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./mascot.css";
 
 :root, .dark {
   --color-primary: hsl(52, 50%, 90%);
@@ -939,8 +940,6 @@ html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-comple
 .patch-home-shell .bottom-nav .nav-image { width: 30px; height: 30px; }
 .patch-home { width: min(100%, 480px); margin: auto; padding: max(44px, env(safe-area-inset-top, 0px)) 22px 16px; }
 .patch-greeting { display: flex; gap: 16px; align-items: center; margin: 0 0 12px; }
-.patch-mascot { display: block; height: auto; object-fit: contain; flex-shrink: 0; }
-.patch-greeting > .patch-mascot { width: 116px; margin-left: -4px; }
 .patch-bubble { position: relative; flex: 1; min-width: 0; padding: 13px 11px; border: 1px solid var(--patch-line); border-radius: 12px; background: #fff; box-shadow: var(--patch-shadow); }
 .patch-bubble::before { content: ""; position: absolute; left: -8px; top: 52%; width: 13px; height: 13px; background: #fff; border-left: 1px solid var(--patch-line); border-bottom: 1px solid var(--patch-line); transform: rotate(45deg); }
 .patch-bubble h1 { margin: 0 0 6px; font-family: var(--font-body); font-size: 22px; line-height: 1.2; letter-spacing: -.045em; overflow-wrap: anywhere; }
@@ -960,7 +959,6 @@ html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-comple
 .patch-home-early .patch-bubble h1 { font-size: 31px; margin-bottom: 9px; }
 .patch-home-early .patch-bubble p { font-size: 19px; }
 .patch-home-early .patch-rays { top: 15px; right: 15px; }
-.patch-home-early .patch-mascot { width: 264px; margin: 0; }
 .patch-first-lesson { width: min(100%, 286px); margin: auto; }
 .patch-first-lesson .patch-primary { font-size: 20px; }
 .patch-first-lesson .patch-text-button { margin-top: 7px; }
@@ -1038,13 +1036,11 @@ html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-comple
 .patch-preview-heading > div { min-width: 0; flex: 1; }
 .patch-preview-heading h2 { font-size: 28px; letter-spacing: -.045em; line-height: 1.2; margin: 0 0 12px; overflow-wrap: anywhere; }
 .patch-preview-heading p { margin: 0; color: var(--patch-muted); font-size: 15px; }
-.patch-preview-heading .patch-mascot { width: 105px; }
 .patch-preview-description { color: var(--patch-muted); font-size: 16px; line-height: 1.45; margin: 8px 0 20px; overflow-wrap: anywhere; }
 .patch-sheet .patch-primary { min-height: 56px; font-size: 17px; }
 .app-shell:has(.patch-complete) { width: min(100%, 720px); }
 .app-shell:has(.patch-complete) > main { padding-bottom: 0; }
 .page.patch-complete { padding: max(62px, env(safe-area-inset-top, 0px)) 20px calc(36px + env(safe-area-inset-bottom, 0px)); min-height: 100svh; justify-content: flex-start; max-width: 480px; margin: auto; }
-.patch-complete > .patch-mascot { width: min(100%, 310px); margin: 0 auto 17px; }
 .patch-complete > h1 { font-family: var(--font-body); font-size: 32px; letter-spacing: -.03em; line-height: 1.15; margin: 0 0 10px; }
 .patch-complete > h1 { position: relative; }
 .patch-complete > h1::before, .patch-complete > h1::after { content: ""; position: absolute; left: -19px; top: 2px; width: 6px; height: 21px; border-radius: 6px; background: #a2efd0; transform: rotate(-32deg); box-shadow: -12px 13px 0 -1px #a2efd0; }
@@ -1073,22 +1069,18 @@ html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-comple
   .patch-home-shell .bottom-nav button { min-width: 0; font-size: 10px; line-height: 1.3; }
   .patch-home { padding-inline: 15px; }
   .patch-greeting { gap: 7px; }
-  .patch-greeting > .patch-mascot { width: 94px; }
   .patch-bubble h1 { font-size: 20px; }
   .patch-bubble p { font-size: 12px; }
   .patch-streak-message { font-size: 10px; margin-top: -3px; }
   .patch-streak-count { padding-inline: 7px; }
   .patch-streak-day button, .patch-day-check { width: 28px; height: 28px; }
-  .patch-preview-heading .patch-mascot { width: 85px; }
   .patch-preview-heading h2 { font-size: 25px; }
   .patch-complete > h1 { font-size: 27px; }
 }
 @media (max-height: 740px) {
   .patch-home-early { padding-top: max(60px, env(safe-area-inset-top, 0px)); }
   .patch-home-early .patch-greeting { gap: 18px; margin-bottom: 16px; }
-  .patch-home-early .patch-mascot { width: 205px; }
   .page.patch-complete { padding-top: max(30px, env(safe-area-inset-top, 0px)); }
-  .patch-complete > .patch-mascot { width: 235px; }
 }
 @media (min-width: 600px) { .patch-home { padding-top: 54px; } .patch-home-early { padding-top: 120px; } }
 

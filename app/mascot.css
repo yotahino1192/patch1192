@@ -1,0 +1,29 @@
+/* All mascot fitting, canvas sizing and placement live here. Keep these boxes
+   stable when the three final transparent PNGs replace the temporary artwork.
+   No object crop, blend mode, CSS ground shadow or mascot accent overlay. */
+.patch-mascot {
+  display: block;
+  width: var(--mascot-width);
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  flex-shrink: 0;
+}
+.patch-mascot-standing { --mascot-width: 264px; }
+.patch-mascot-reading { --mascot-width: 116px; }
+.patch-mascot-celebrate { --mascot-width: 310px; }
+
+/* Existing screen placements; only the containing screen chooses the size. */
+.patch-greeting > .patch-mascot { margin-left: -4px; }
+.patch-home-early .patch-mascot { margin: 0; }
+.patch-preview-heading .patch-mascot { --mascot-width: 105px; }
+.patch-complete > .patch-mascot { width: min(100%, var(--mascot-width)); margin: 0 auto 17px; }
+
+@media (max-width: 360px) {
+  .patch-greeting > .patch-mascot { --mascot-width: 94px; }
+  .patch-preview-heading .patch-mascot { --mascot-width: 85px; }
+}
+@media (max-height: 740px) {
+  .patch-home-early .patch-mascot { --mascot-width: 205px; }
+  .patch-complete > .patch-mascot { --mascot-width: 235px; }
+}

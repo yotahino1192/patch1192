@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { createDomainClient } from "../lib/domain/client";
 import { useApiFetch } from "./account-context";
 import { useLanguage } from "./language";
-import { BottomSheet, Mascot, PatchIcon } from "./patch-ui";
+import { Mascot } from "./mascot";
+import { BottomSheet, PatchIcon } from "./patch-ui";
 
 export function LessonPreview({ open, onClose, onStart, title, summary, sessionId, remaining, dueCount }: {
   open: boolean; onClose: () => void; onStart: () => void; title: string;
