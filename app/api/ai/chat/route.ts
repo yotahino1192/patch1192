@@ -6,7 +6,9 @@ import { logEvent } from '../../../../lib/safe-log';
 import { requireAuth, authErrorResponse } from "../../../../lib/auth-server";
 import { InputError, readJsonObject } from "../../../../lib/api-input";
 import { loadAiCardContext } from "../../../../db/store";
-import { prepareQuestion } from "../../../../lib/openai";
+import { prepareQuestion, prepareLessonQuestion } from "../../../../lib/openai";
+import { lessonHelpContext, loadLessonHelp } from '../../../../lib/ai/lesson-context';
+import { AiError } from '../../../../lib/ai/execution';
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,6 +22,31 @@ async function handlePOST(request: Request): Promise<Response> {
   try {
     const { userId } = await requireAuth(request);
     const body = await readJsonObject(request, 128 * 1024);
+    if (body.context === 'lesson') {
+      const lessonId = body.lessonId, activityId = body.activityId;
+      const question = typeof body.question === 'string' ? body.question.trim() : '';
+      let send: ReturnType<typeof prepareLessonQuestion>;
+      const result = await runAi(database(), userId, 'chat', request.headers.get('Idempotency-Key'), body,
+        async () => ({ answer: await send(), lessonHelp: { lessonId, activityId, question } }),
+        async tx => {
+          try { await lessonHelpContext(tx, userId, String(lessonId), String(activityId)); }
+          catch (error) {
+            // A definitively closed/removed Lesson is cancellation, not an uncertain provider outcome.
+            if (error instanceof AiError && error.code === 'LESSON_UNAVAILABLE') throw new AiError('AI_REQUEST_CANCELLED', 409);
+            throw error;
+          }
+        },
+        async () => {
+          if (Object.keys(body).some(key => !['context','lessonId','activityId','question','language','operationId'].includes(key)) ||
+            ![lessonId, activityId].every(id => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,120}$/.test(id)) ||
+            !question || question.length > 2000 || !['ja','en'].includes(String(body.language))) throw new InputError('Lessonの質問を確認してください。');
+          const material = await database().transaction(tx => loadLessonHelp(tx, userId, String(lessonId), String(activityId)));
+          const context = Object.fromEntries(Object.entries(material.context).filter(([key]) => key !== 'patch_id').map(([key, value]) => [key, String(value).slice(0, 1200)]));
+          send = prepareLessonQuestion({ question, language: body.language as 'ja' | 'en', context, sources: material.sources, history: material.history });
+        }, request.signal);
+      return json({ answer: result.answer });
+    }
+    if (body.context !== undefined || body.lessonId !== undefined || body.activityId !== undefined) throw new InputError('学習の文脈を確認してください。');
     const question = String(body.question || "").trim();
     const setId = String(body.setId || "").trim();
     const cardId = String(body.cardId || "").trim();
