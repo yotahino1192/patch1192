@@ -1,7 +1,7 @@
 # Patch
 
 教材からカードを作り、復習・AI解説・学習記録を使えるNext.jsアプリです。
-WebはNext.js、iOS同梱フロントエンドはVite／Capacitorを使用します。統合チェックポイント `520bc9c` にはUI Phase 1とU2の実Lesson導線が含まれます。
+WebはNext.js、iOS同梱フロントエンドはVite／Capacitorを使用します。DevにはUI Phase 1とU2の実Lesson導線、およびhygiene `07498ff` を取り込み済みです。共有ベースラインと検証結果は [STATUS.md](STATUS.md) を参照してください。
 
 UI Phase 1の共通アイコンは `app/patch-ui.tsx`、マスコットは `app/mascot.tsx` と `app/mascot.css` を使用します。既存カード学習などの画像アイコンは `app/asset-icon.tsx` と `public/ui-icons/` を引き続き使用します。`public/nav-icons/` は従来UI用の素材として保持しています。
 

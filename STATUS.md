@@ -1,8 +1,20 @@
-## 現在の統合チェックポイント
+## Dev共有ベースライン — 2026-09-14
 
-UI Phase 1 `076a35c` とU2 `f4588a2` を統合した `520bc9c` が、このhygiene作業の基準です。Home→割当済みLessonのPreview→U2→Phase 1 Complete→Homeは接続済みです。新LessonのStreak資格・Composer・最終U2デザインは引き続き未変更／未実装です。
+`codex/patch-hygiene@07498ff` をDevへマージしました。マージコミットは `0973d49`。UI Phase 1 `076a35c`、U2 `f4588a2`、統合 `520bc9c`、保守的hygiene `07498ff` を包含します。競合なし。マージ直後の全ファイルtreeは `07498ff` と完全一致し、追加変更はこのベースライン記録とREADMEのみです。機能追加・再設計・追加cleanupは行っていません。
 
-最新の範囲・検証は [統合記録](docs/patch-integration-checkpoint.md) と [hygiene記録](docs/repository-hygiene.md) を参照してください。以下は過去checkpointの履歴であり、その時点の未実装事項・テスト数・マージ状況を記録しています。
+Home→割当済みLessonのPreview→実U2 Lesson（Learn / Recall / Choice / Explain / Apply）→Phase 1 Complete→Homeを共有Devの基準とします。既存Continue Learning、カード学習、auth/account isolation、AI同意、Retention/Streak/Dueの挙動は保持。新Lessonは引き続きStreak資格対象外です。
+
+Dev上でNode 22.23.2、`PATCH_ENV=development`により再検証しました。
+
+- **250/250 tests PASS**、typecheck PASS、lint **0 errors / 18 existing warnings**。
+- Web build・環境/schema/secret guards・artifact seal PASS。mobile development build・artifact seal PASS（既存chunk-size warningのみ）。
+- UI Phase 1、U2 renderer、実Domain Lesson、full-App統合、onboarding/旧Study/Retention/deep-link、auth、privacy/deletion、reliability、public-pageの各browser回帰は全PASS。health/readiness HTTPもPASS。
+- モバイル幅でHome/Preview/Activity/Help/Complete/Post-Homeと主要操作の到達性を確認。新たな失敗や修正はありません。
+- 隔離DB・署名付きfixture account・テストAI応答を使用。nativeコードの差分はなく、Swift/Simulator、実AI、署名付き実機、productionの検証・操作は今回行っていません。
+
+**UX dogfoodingに進める状態です。** 既存の割当Lessonが前提で、Composer/割当作成UI、U2最終デザイン・多言語対応、per-Attempt時間計測、新Lessonの将来Streak資格は既知の後続課題です。mainとproductionは変更していません。
+
+詳細な範囲は [統合記録](docs/patch-integration-checkpoint.md) と [hygiene記録](docs/repository-hygiene.md) を参照してください。これらと以下の過去checkpointにある「Dev未merge」「Devは66aeaee」等は当時の記録です。現行Devの状態には本節を使用してください。
 
 ## Patch Domain — Dev統合検証
 
