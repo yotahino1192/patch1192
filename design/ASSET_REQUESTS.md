@@ -1,31 +1,26 @@
-# Patch artwork refinements
+# Patch mascot artwork integration
 
-Final visual QA reconfirmed the repository and original handoff contain no cleaner approved pose masters. Existing character artwork remains in use; no generic substitutes were introduced. Supply the following final assets with **fully transparent backgrounds** (no white/paper matte). Keep the approved silhouette, brown linework, mint/peach palette, accent rays and intentional mint ground shadow.
+Integration baseline: `1880afa`, branch `codex/ui-phase1`. Original Downloads files and all designer source/reference files are preserved.
 
-| Status | Target filename | Reference image | Used at | Recommended output | Visual description / current problem |
-| --- | --- | --- | --- | --- | --- |
-| **PENDING FINAL ARTWORK** | `public/patch/mascot-standing.png` | `design/references/home-empty-reference.png` | Early/empty Home, approximately 264×264 CSS px | Transparent PNG, 792×792 px, export PNG from the original vector if available | Standing Patch, arms down, mint body, peach face panels, antennae and mint ground shadow. Current `public/loop-companion.jpeg` has a visible white sticker outline, gray drop shadow and different proportions. Deliver the approved reference pose without sticker/paper edges; the shared renderer already requests the final PNG first and falls back to this JPEG while it is absent. |
-| **PENDING FINAL ARTWORK** | `public/patch/mascot-reading.png` | `design/references/home-active-normal.png`; `design/references/lesson-preview.png` | Active/completed Home and My Lesson Preview, approximately 116×110 / 105×99 CSS px | Transparent PNG, 804×759 px, export PNG from the original vector if available | Seated Patch holding an open green book, yellow accent rays and mint ground shadow. Current reference crop is 268×253 px and retains paper texture/edge remnants; cleaner alpha and a high-resolution master are needed. Preserve pose and art bounds so replacement does not change placement. |
-| **PENDING FINAL ARTWORK** | `public/patch/mascot-celebrate.png` | `design/references/lesson-complete.png` | Lesson Complete, approximately 310×280 CSS px | Transparent PNG, 1326×1194 px, export PNG from the original vector if available | Jumping Patch with raised arms, colorful confetti and mint ground shadow. Current 663×597 px reference crop retains paper texture around the silhouette and confetti. Deliver standalone art with clean alpha and no rectangular background. |
+| Target | Status | Source in `~/Downloads` (2026-09-14 JST) | Format / use |
+| --- | --- | --- | --- |
+| `public/patch/mascot-standing.png` | **RESOLVED** | `fd3f9c3a-9198-462f-819d-e8884bdb18a4.png`, 19:04:12 | 1254×1254 PNG with alpha; early/empty Home. Thin brown arms, circular mint hands, mint feet, ground shadow. |
+| `public/patch/mascot-reading.png` | **PENDING TRANSPARENT EXPORT** | Candidate `130eca9c-2804-44af-85c0-557fd090e0fa.png`, 19:14:30 | Candidate is 1254×1254 RGB PNG with a white matte and no alpha. Not accepted as final; the prior temporary crop remains for active/completed Home and My Lesson Preview until the transparent export is supplied. |
+| `public/patch/mascot-celebrate.png` | **RESOLVED** | `9c8934c2-a9a8-4c47-b577-3e6f184636db.png`, 19:11:01 | 1254×1254 PNG with alpha; Lesson Complete. Separate thin brown arms and round mint hands, mint feet, confetti and mint ground shadow. |
 
-Simple UI icons remain local SVGs. Final QA refined the nested orange/yellow flame and the circular Continue chevron directly in code. Unsupported chapter/milestone/lock illustrations are not requested because those concepts are not part of the current domain.
+## Provenance and presentation
 
-## Replacement contract
+Standing and celebrate were copied byte-for-byte, without cropping, background processing or artwork edits. Their source SHA-256 hashes are:
 
-All three variants are **PENDING FINAL ARTWORK**. The existing reading/celebrate PNGs are temporary reference crops despite already having the final filenames.
+- Standing: `991fbba528213e76e3f35f9a3dc2208d887f542e301f1d441657f9bfc8d8794e`
+- Celebrate: `53be855c03808f5c63c873f23a4323a321acddabb29736f476d70409052ed1be`
 
-- Add `public/patch/mascot-standing.png`; overwrite `public/patch/mascot-reading.png` and `public/patch/mascot-celebrate.png`. No component/path edits are needed. Reload local development; rebuild Web/mobile normally to ship the new files (and sync Capacitor when packaging iOS).
-- `app/mascot.tsx` is the only UI asset registry and renderer. It always requests the final filename. Standing falls back once to `/loop-companion.jpeg` if its PNG cannot load. Reading and celebrate use their currently working PNG placeholders in place until replaced; no duplicate crop copies are maintained.
-- Stable presentation canvases are standing **1:1**, reading **268:253**, and celebrate **663:597**. Explicit aspect ratios reserve the same space before/after loading; `object-fit: contain` and centered positioning fit incoming pixels without cropping or moving adjacent UI. Match these canvas ratios and retain the reference art's bounds/padding for best results.
-- `app/mascot.css` owns every mascot size, placement and existing responsive rule. Any later minor size tuning belongs there, not in each screen. No new shadow, color filter, blend mode or accent-ray overlay is applied to the mascot. Include the intentional ground shadow/rays/confetti inside each transparent PNG canvas; keep paper/sticker backgrounds out. Greeting/CTA/completion-heading accent rays are separate existing UI decoration and remain unchanged.
+`app/mascot.tsx` remains the only UI asset registry. It now uses only the three canonical PNG filenames and no longer falls back to `/loop-companion.jpeg`. The old standing original is retained as a source asset; it is not rendered by the Phase 1 UI. The old celebration crop was replaced in place. The separate original Widget artwork and native Retention integration are unchanged.
 
-## Current usage inventory
+`app/mascot.css` owns fitting, dimensions and positions. Stable presentation canvases remain standing 1:1, reading 268:253 and celebrate 663:597. Centered `object-fit: contain` keeps full artwork visible. Celebrate uses a 1.1 visual scale to compensate for the supplied square canvas padding without changing its layout box or moving the title/results/CTA. No new image shadow or accent overlay is added.
 
-| Component | Variant / state | Current working artwork |
-| --- | --- | --- |
-| `app/home-screen.tsx` | Standing, early/empty Home | Final PNG URL with existing `public/loop-companion.jpeg` fallback |
-| `app/home-screen.tsx` | Reading, active/hot/broken/completed Home | Temporary `public/patch/mascot-reading.png` |
-| `app/lesson-preview.tsx` | Reading, My Lesson Preview | Same shared reading variant and temporary PNG |
-| `app/lesson-completion.tsx` | Celebrate, Lesson Complete | Temporary `public/patch/mascot-celebrate.png` |
+## References and remaining reading requirement
 
-Repository audit also found the separate pre-existing native Widget `ios/App/PatchWidget/companion.jpeg`. It is original bundled Widget artwork, not a Phase 1 reference crop; its native rendering and Retention integration are unchanged. Unused legacy companion CSS does not add another runtime mascot reference.
+Design references remain unchanged: `design/references/home-empty-reference.png`, `home-active-normal.png`, `lesson-preview.png`, `lesson-complete.png`, and the original `design/source/Prompt Lists.docx`.
+
+The reading export must have real alpha transparency, the seated green-book pose, mint hands/feet, clean dark-brown outlines, and no white/paper rectangle or crop edge. Other PNGs added today in Downloads were checked by time/dimensions/alpha; no alternative transparent reading version was found. The candidate's identity is clear, but its transparency requirement is not satisfied.

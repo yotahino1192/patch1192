@@ -100,15 +100,15 @@ try{
  }
  mascotMode='current';await navigate('state=normal');await click('.patch-current-node');const previewLayout=await layout();
  mascotMode='replacement';await navigate('state=normal');await click('.patch-current-node');assert.deepEqual(await layout(),previewLayout,'Preview stays stable with replacement artwork');
- // Even if both standing files are absent, preserve the canvas and stop retrying.
+ // A missing final image must keep its canvas without resurrecting temporary art.
  mascotMode='missing-standing';mascotRequests.length=0;
  await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?state=empty`});
- await until(()=>evaluate('document.querySelector(".patch-mascot-standing")?.getAttribute("src")==="/loop-companion.jpeg"&&document.querySelector(".patch-mascot-standing").complete'));
+ await until(()=>evaluate('document.querySelector(".patch-mascot-standing")?.getAttribute("src")==="/patch/mascot-standing.png"&&document.querySelector(".patch-mascot-standing").complete'));
  await delay(150);
  assert.equal(mascotRequests.filter(p=>p==='/patch/mascot-standing.png').length,1);
- assert.equal(mascotRequests.filter(p=>p==='/loop-companion.jpeg').length,1,'No fallback retry loop');
+ assert.equal(mascotRequests.filter(p=>p==='/loop-companion.jpeg').length,0,'No temporary mascot fallback');
  assert.equal(await evaluate('document.querySelector(".patch-mascot-standing").getBoundingClientRect().height'),264,'Missing artwork still reserves its canvas');
  mascotMode='current';
  assert.deepEqual(errors,[]);
- console.log('PASS: seven states, 320/393/430/768 widths, assets, read-only preview, focus containment/restore, backdrop/Escape/close/start, completion to Home, authoritative streak refresh, long Japanese name and scrollable preview, read-only saved estimate and stale response rejection, canonical mascot replacement with stable layout and bounded fallback. Screenshots: '+output);
+ console.log('PASS: seven states, 320/393/430/768 widths, assets, read-only preview, focus containment/restore, backdrop/Escape/close/start, completion to Home, authoritative streak refresh, long Japanese name and scrollable preview, read-only saved estimate and stale response rejection, canonical mascot replacement with stable layout and no temporary fallback. Screenshots: '+output);
 }finally{ws?.close();if(chrome&&chrome.exitCode===null){const closed=new Promise(r=>chrome.once('exit',r));chrome.kill('SIGTERM');await closed;}await server?.close();await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

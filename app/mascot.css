@@ -1,5 +1,5 @@
 /* All mascot fitting, canvas sizing and placement live here. Keep these boxes
-   stable when the three final transparent PNGs replace the temporary artwork.
+   stable as final artwork is integrated.
    No object crop, blend mode, CSS ground shadow or mascot accent overlay. */
 .patch-mascot {
   display: block;
@@ -11,7 +11,9 @@
 }
 .patch-mascot-standing { --mascot-width: 264px; }
 .patch-mascot-reading { --mascot-width: 116px; }
-.patch-mascot-celebrate { --mascot-width: 310px; }
+/* The supplied square canvas includes confetti padding. Scale only the artwork,
+   keeping the reserved layout box and every following control unchanged. */
+.patch-mascot-celebrate { --mascot-width: 310px; transform: scale(1.1); }
 
 /* Existing screen placements; only the containing screen chooses the size. */
 .patch-greeting > .patch-mascot { margin-left: -4px; }
