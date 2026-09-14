@@ -65,19 +65,6 @@ h2 { font-size: var(--text-important); font-weight: var(--weight-bold); }
 .hero { display: flex; gap: 20px; align-items: center; margin: 14px 0 24px; }
 .hero h1 { margin-bottom: 7px; }
 .spark { color: var(--cyan); font-size: 48px; }
-.companion-greeting { gap: 24px; padding: 8px 0; }
-.companion-image { display: block; width: clamp(110px, 19vw, 176px); height: auto; flex-shrink: 0; mix-blend-mode: multiply; }
-.companion-bubble { position: relative; min-width: 0; padding: 24px 28px; border: 1px solid var(--color-border); border-radius: 24px; background: var(--color-primary); box-shadow: 0 6px 20px color-mix(in srgb, var(--color-secondary) 6%, transparent); }
-.companion-bubble::before { content: ""; position: absolute; left: -9px; top: 50%; width: 16px; height: 16px; background: var(--color-primary); border-left: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); transform: translateY(-50%) rotate(45deg); }
-.companion-bubble .eyebrow { display: block; margin-bottom: 10px; color: var(--muted); font-size: var(--text-body); letter-spacing: .02em; font-weight: var(--weight-regular); }
-.companion-bubble p { margin-bottom: 0; font-size: var(--text-body); line-height: 1.7; font-weight: var(--weight-regular); }
-@media (max-width: 600px) {
-  .hero.companion-greeting { gap: 14px; align-items: center; }
-  .companion-image { width: clamp(76px, 23vw, 120px); }
-  .companion-bubble { flex: 1; padding: 16px; border-radius: 20px; }
-  .hero .companion-bubble h1 { font-size: var(--text-heading); line-height: 1.4; font-weight: var(--weight-bold); }
-  .companion-bubble .eyebrow { font-size: var(--text-body); line-height: 1.6; font-weight: var(--weight-regular); }
-}
 .review-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px 24px; background: linear-gradient(120deg,#fff,#fbfdf8); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 22px; padding: 24px 30px; }
 .review-card.is-due { border-color: var(--color-border); background: linear-gradient(120deg,#fff,#f6fbf1); }
 .review-clock { width: 68px; height: 68px; border-radius: 20px; display: grid; place-content: center; color: var(--blue); background: var(--color-primary); font-size: var(--text-important); font-weight: var(--weight-bold); }
@@ -199,10 +186,6 @@ h2 { font-size: var(--text-important); font-weight: var(--weight-bold); }
 .managed-card > p { white-space: pre-wrap; color: var(--muted); margin: 8px 0; }
 .undo-notice { padding: 12px; border-radius: 12px; background: var(--color-primary); }
 @media (max-width: 600px) {
-  .home-page .companion-image { width: 72px; }
-  .home-page .companion-bubble { padding: 12px; }
-  .home-page .companion-bubble .eyebrow { margin-bottom: 4px; }
-  .home-page .companion-greeting { margin-bottom: 14px; }
   .home-review { padding: 16px; gap: 10px; }
   .home-review .review-copy .muted { font-size: var(--text-body); font-weight: var(--weight-regular); }
   .home-review .review-cta { font-size: var(--text-body); min-height: 52px; font-weight: var(--weight-regular); }
@@ -270,8 +253,6 @@ html[lang="en"] .review-cta { white-space: normal; padding: 12px 18px; }
 html[lang="en"] .stats-grid strong { font-size: var(--text-important); font-weight: var(--weight-bold); }
 html[lang="en"] .candidate-toolbar,html[lang="en"] .section-row { flex-wrap: wrap; }
 @media (max-width: 600px) {
-  html[lang="en"] .companion-greeting { flex-wrap: wrap; }
-  html[lang="en"] .companion-bubble { flex-basis: 180px; }
   html[lang="en"] .swipe-actions button strong { font-size: var(--text-important); font-weight: var(--weight-bold); }
   html[lang="en"] .swipe-actions button small { font-size: var(--text-body); font-weight: var(--weight-regular); }
   html[lang="en"] .sticky-actions button { white-space: normal; }
@@ -282,8 +263,6 @@ html { background: var(--color-primary); }
 body { background: radial-gradient(ellipse at 12% 0, #efffdc 0, transparent 48%), radial-gradient(ellipse at 100% 20%, #e5faf3 0, transparent 45%), #f8fcfa; }
 .app-shell { background: color-mix(in srgb, var(--color-primary) 97%, transparent); box-shadow: 0 0 60px color-mix(in srgb, var(--color-secondary) 5%, transparent); }
 .wordmark { color: var(--ink); }
-.companion-bubble,.companion-bubble::before { background: var(--color-primary); border-color: var(--color-border); }
-.companion-bubble { box-shadow: 0 6px 20px color-mix(in srgb, var(--color-secondary) 4%, transparent); }
 .primary,.review-cta,.home-review .review-cta,.manager-actions .primary { background-color: #c3f36b; background-image: linear-gradient(110deg,transparent,rgba(255,255,255,.3)); color: var(--ink); box-shadow: 0 6px 16px color-mix(in srgb, var(--color-secondary) 12%, transparent); }
 @media (hover: hover) and (pointer: fine) {
   .primary:hover:not(:disabled),.review-cta:hover:not(:disabled) { background-color: #b7ec59; }
@@ -336,70 +315,6 @@ body { background: radial-gradient(ellipse at 12% 0, #efffdc 0, transparent 48%)
 }
 .inline-ai-panel { background: linear-gradient(145deg,#f1fcf7,#fff); border-color: var(--color-border); }
 button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible { outline: 3px solid var(--color-tertiary); outline-offset: 3px; }
-
-/* The landscape sits behind the greeting and fades into the home surface. */
-.home-page .hero.companion-greeting {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  grid-template-columns: 43% minmax(0, 1fr);
-  align-items: center;
-  gap: 0;
-  min-height: 370px;
-  margin: -22px -34px 0;
-  padding: 32px 40px 32px 0;
-  background: var(--color-primary);
-}
-.home-landscape {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: left 72%;
-  pointer-events: none;
-  user-select: none;
-  z-index: -2;
-}
-.home-page .companion-greeting::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, rgba(255,255,255,.5), transparent 16%, transparent 72%, #fff 100%);
-  pointer-events: none;
-  z-index: -1;
-}
-.home-page .companion-greeting .companion-bubble {
-  grid-column: 2;
-  width: 100%;
-  max-width: 480px;
-  padding: 18px 28px;
-  border-color: var(--color-border);
-  background: var(--color-primary);
-  box-shadow: 0 8px 30px color-mix(in srgb, var(--color-secondary) 8%, transparent);
-}
-.home-page .companion-bubble::before {
-  top: 50%;
-  background: var(--color-primary);
-  border-color: var(--color-border);
-}
-@media (max-width: 899px) and (min-width: 681px) {
-  .home-page .hero.companion-greeting { min-height: 310px; padding-top: 30px; }
-}
-@media (max-width: 680px) {
-  .home-page .hero.companion-greeting {
-    grid-template-columns: 45% minmax(0, 1fr);
-    min-height: 275px;
-    margin: -14px -16px 0;
-    padding: 96px 16px 20px 0;
-  }
-  .home-landscape { object-position: 15% bottom; }
-  .home-page .companion-greeting .companion-bubble { padding: 12px 16px; border-radius: 20px; }
-  .home-page .companion-bubble .eyebrow { font-size: var(--text-body); line-height: 1.6; margin-bottom: 6px; font-weight: var(--weight-regular); }
-  .home-page .companion-bubble h1 { font-size: var(--text-heading); line-height: 1.4; overflow-wrap: anywhere; font-weight: var(--weight-bold); }
-  .home-page .companion-bubble p { font-size: var(--text-body); line-height: 1.7; font-weight: var(--weight-regular); }
-  .home-page .companion-bubble::before { top: 50%; bottom: auto; }
-}
 
 /* Daily review: a compact streak line with an inline task accordion. */
 .home-page .daily-review-rail,.home-page > section.next-learning { grid-column: 1 / -1; }

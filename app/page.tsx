@@ -34,10 +34,9 @@ import type {
   AppData,
   Card,
   ChatMessage,
-  GeneratedCard,
   GeneratedMaterial,
 } from "../lib/types";
-import { scheduleBinaryReview, advanceLessonQueue, type LessonVerdict } from "../lib/review";
+import { advanceLessonQueue, type LessonVerdict } from "../lib/review";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
 
@@ -138,7 +137,7 @@ function isDue(card: Card, now: Date): boolean {
 }
 
 function IconButton({ children, label, onClick }: { children: React.ReactNode; label: string; onClick?: () => void }) {
-  const { t, language, locale, setLanguage } = useLanguage();
+  const { t } = useLanguage();
   return <button className="icon-button" aria-label={t(label)} onClick={onClick}>{children}</button>;
 }
 
@@ -195,7 +194,7 @@ function DestinationPicker({ data, value, onChange, disabled = false }: { data: 
 }
 
 function ImportScreen({ onGenerate, data, destination, setDestination, importDraft, setImportDraft }: { onGenerate: (text: string, detail: string, style: string) => Promise<void>; data: AppData; destination: string; setDestination: (value: string) => void; importDraft: ImportDraft; setImportDraft: React.Dispatch<React.SetStateAction<ImportDraft>> }) {
-  const { t, language, locale, setLanguage } = useLanguage();
+  const { t } = useLanguage();
   const [showImportHelp, setShowImportHelp] = useState(false);
   const { detail, style, text, attachments } = importDraft;
   const setDetail = (detail: string) => setImportDraft((draft) => ({ ...draft, detail }));
@@ -267,7 +266,7 @@ function Generate({ draft, setDraft, onSave, onRegenerate, data, destination, se
   onSave: () => Promise<void>;
   onRegenerate: () => Promise<void>;
 }) {
-  const { t, language, locale, setLanguage } = useLanguage();
+  const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   if (!draft) return <div className="page empty-panel"><h1>{t("生成する教材がありません")}</h1><p>{t("「新しい教材を追加」から文章を取り込んでください。")}</p></div>;
@@ -350,7 +349,7 @@ function SetDetail({ data, selectedSetId, selectSet, startStudy, now, onData, fo
   now: Date;
   onData: (data: AppData) => void;
 }) {
-  const { t, language, locale, setLanguage } = useLanguage();
+  const { t, language } = useLanguage();
   const [managing, setManaging] = useState(false);
   useEffect(() => { if (focusedCardId) document.getElementById(`set-card-${focusedCardId}`)?.focus(); }, [focusedCardId]);
   const set = data.sets.find((item) => item.id === selectedSetId) || data.sets[0];
@@ -415,7 +414,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
   onPause: () => void;
   now: Date;
 }) {
-  const { t, language, locale, setLanguage } = useLanguage();
+  const { t, language, locale } = useLanguage();
   const api = useApi();
   const introductory = data.profile?.initialSessionId === sessionId && !data.profile.onboardingCompleted;
   const [busy, setBusy] = useState(false);
@@ -871,7 +870,7 @@ function Records({ data, now, startStudy }: { data: AppData; now: Date; startStu
 function App() {
   const account=useAccount();
   const api = useApi();
-  const { t, language, locale, setLanguage } = useLanguage();
+  const { t, language } = useLanguage();
   const now = useClock();
   const activeDay = dayKey(now);
   const [screen, setScreen] = useState<Screen>("home");

@@ -1,12 +1,11 @@
-# Loop
+# Patch
 
 教材からカードを作り、復習・AI解説・学習記録を使えるNext.jsアプリです。
-UIと学習の仕様は従来のまま、VercelのNode.js実行環境に対応しています。
+WebはNext.js、iOS同梱フロントエンドはVite／Capacitorを使用します。統合チェックポイント `520bc9c` にはUI Phase 1とU2の実Lesson導線が含まれます。
 
-UIアイコンは既存の画像素材、または標準の絵文字を使用します。Codexによる独自のSVG・CSS描画アイコンや新規生成アイコンは追加しません。既存画像の共通表示は `app/asset-icon.tsx` を利用できます。 設定・閉じる・開閉・チェック・鍵・きらめき・説明・追加・再生成は、ユーザー提供の `public/ui-icons/` のPNGを優先します。
-`public/nav-icons/` の画像は下部メニューバー専用です。画面内のボタン、見出し、ブラウザーのタブアイコンには流用しません。
+UI Phase 1の共通アイコンは `app/patch-ui.tsx`、マスコットは `app/mascot.tsx` と `app/mascot.css` を使用します。既存カード学習などの画像アイコンは `app/asset-icon.tsx` と `public/ui-icons/` を引き続き使用します。`public/nav-icons/` は従来UI用の素材として保持しています。
 
-現在の設計は [ARCHITECTURE.md](ARCHITECTURE.md)、検証結果と公開前の課題は [STATUS.md](STATUS.md) を参照してください。
+現在の統合範囲と制約は [統合チェックポイント](docs/patch-integration-checkpoint.md)、設計は [ARCHITECTURE.md](ARCHITECTURE.md)、検証履歴は [STATUS.md](STATUS.md) を参照してください。
 
 ## ローカルで起動
 
@@ -15,13 +14,14 @@ Node.js 22系を使います。
 ```sh
 npm ci
 cp .env.example .env
-# .env の OPENAI_API_KEY を設定
+# .env のClerk設定を同じ認証環境に合わせる（AI利用時はOPENAI_API_KEYも設定）
+npm run db:migrate
 npm run dev
 ```
 
 http://localhost:3001/ を開きます。
 TURSO_DATABASE_URLを未設定にすると、ローカル専用の `.data/loop.db` を使います。
-データベースのテーブルは初回接続時に自動作成されます。
+テーブルは `npm run db:migrate` で事前に準備します。リクエスト時にはスキーマ検証のみを行い、自動作成・移行はしません。
 `.env` と `.data/` はGitに含まれません。
 
 教材の入力・添付資料から読み取った文章・編集中のカード候補と、中断中の学習はブラウザーへ自動保存します。
@@ -40,14 +40,14 @@ TURSO_DATABASE_URLを未設定にすると、ローカル専用の `.data/loop.d
 
 ### 従来のCloudflareローカルデータを引き継ぐ
 
-新しいアプリを初めて起動する前に実行してください。
+旧データを引き継ぐ場合は、上記の新規DB用 `npm run db:migrate` を実行する前にコピーしてください。移行先が既に存在する場合、このコマンドは上書きしません。
 
 ```sh
 npm run db:import-local
 ```
 
 `.wrangler/state` のSQLiteデータを `.data/loop.db` にコピーします。
-元データは削除せず、既存の移行先ファイルも上書きしません。
+元データは削除せず、既存の移行先ファイルも上書きしません。コピーだけでは現在のスキーマへの移行・所有者の再割当は行われません。起動前の検証・既存DBの採用条件は [DB運用手順](docs/production-infrastructure.md) を参照してください。古い／不明なスキーマを自動補正する手順ではありません。
 ローカルデータはGitHubへのpushだけでは公開データベースに転送されません。
 
 ## Vercelからデプロイ
