@@ -20,7 +20,9 @@ import { DocumentAttachments, type Attachment } from "./document-attachments";
 import { Dropdown } from "./dropdown";
 import { isLongTermDue, memoryMilestones } from "../lib/long-term-review";
 import { setEmoji } from "../lib/set-presentation";
-import { DailyReviewRail } from "./daily-review";
+import { Home } from "./home-screen";
+import { LessonCompletion } from "./lesson-completion";
+import { PatchIcon, type PatchIconName } from "./patch-ui";
 import { ReviewCelebration } from "./study-effects";
 import { MaterialManager } from "./material-manager";
 import { SettingsDialog } from "./settings-dialog";
@@ -125,13 +127,6 @@ function relativeDate(value: string | null, now: Date, language: Language): stri
   return formatDate(date, locale, "short");
 }
 
-function greeting(now: Date): string {
-  const hour = tokyoParts(now).hour;
-  if (hour < 11) return "おはよう";
-  if (hour < 18) return "こんにちは";
-  return "こんばんは";
-}
-
 function isActiveCard(card: Card): boolean {
   return !["アーカイブ", "削除済み"].includes(card.status);
 }
@@ -158,7 +153,7 @@ function Shell({ screen, setScreen, children, title }: {
     mainRef.current?.focus();
   }, [screen]);
   return (
-    <div className={`app-shell ${screen === "study" ? "is-studying" : ""}`}>
+    <div className={`app-shell ${screen === "home" ? "patch-home-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
       {screen !== "study" && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
         {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
         {title && <h1 className="screen-title">{t(title)}</h1>}
@@ -178,65 +173,12 @@ function Shell({ screen, setScreen, children, title }: {
             aria-current={active ? "page" : undefined}
             onClick={() => { if (!active) setScreen(item.id); }}
           >
-            <span className="nav-icon nav-image" aria-hidden="true"><img src={`/nav-icons/${item.id}.png`} width={1254} height={1254} alt="" /></span>
+            <span className="nav-icon nav-image" aria-hidden="true">{screen === "home" ? <PatchIcon name={({home:"home",sets:"document",import:"plus",records:"bars"} as Record<string, PatchIconName>)[item.id]} size={30} /> : <img src={`/nav-icons/${item.id}.png`} width={1254} height={1254} alt="" />}</span>
             <span>{t(item.label)}</span>
           </button>
           );
         })}
       </nav>}
-    </div>
-  );
-}
-
-function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resumableSessions, onResume, onSample, onContinue }: {
-  data: AppData;
-  now: Date;
-  startStudy: (setId?: string, startCardId?: string, batchSize?: number) => void;
-  setScreen: (screen: Screen) => void;
-  selectSet: (id: string) => void;
-  resumeDraft?: () => void;
-  resumableSessions: StudySession[];
-  onResume: (session: StudySession) => void;
-  onSample: () => Promise<void>;
-  onContinue:()=>void;
-}) {
-  const { t } = useLanguage();
-  const [sampleBusy, setSampleBusy] = useState(false);
-  const [sampleError, setSampleError] = useState("");
-  const planPending = new Set(data.retention?.dueCardIds ?? data.dailyReview.cardIds.filter((id) => !data.dailyReview.completedCardIds.includes(id)));
-  const memorySets = data.sets.map((set) => ({ set, cards: set.cards.filter((card) => isLongTermDue(card, now)) })).filter(({ cards }) => cards.length);
-  return (
-    <div className="page home-page">
-      <section className="hero companion-greeting" aria-label={t("キャラクターからのあいさつ")}>
-        <img className="home-landscape" src="/home-landscape.png" width={1672} height={941} alt="" fetchPriority="high" aria-hidden="true" />
-        <div className="companion-bubble">
-          <h1>{t(greeting(now))}{data.profile?.displayName ? `、${data.profile.displayName}` : t("、Yota")}</h1>
-          <p>{!data.sets.length ? t("まずはサンプルで、一緒に学んでみよう！") : planPending.size ? t("今日は{0}枚、一緒に復習しよう！", planPending.size) : data.dailyReview.completed ? t("今日の復習はできたね。おつかれさま！") : t("次の復習までひと休み。新しい文章からも学べるよ！")}</p>
-        </div>
-      </section>
-
-      {data.profile?.firstLearningCompletedAt && <section className="panel onboarding-home-summary"><IconLabel name="check">{t("最初のPatchができました")}</IconLabel><p>{t("3枚学習しました")} · {data.sets.find(set=>set.id===data.profile?.initialSetId)?.title}</p></section>}
-      {!data.sets.length ? <section className="panel first-lesson">
-        <h2>{t("最初の学習を始めよう")}</h2>
-        <button className="primary wide" disabled={sampleBusy} onClick={async () => { setSampleBusy(true); setSampleError(""); try { await onSample(); } catch (e) { setSampleError(e instanceof Error ? e.message : t("サンプルを準備できませんでした。")); } finally { setSampleBusy(false); } }}>{sampleBusy ? t("準備しています…") : t("サンプルで学習 · 3枚")}</button>
-        <button className="secondary wide" onClick={() => setScreen("import")}>{t("自分の文章から作る")}</button>
-        {sampleError && <p role="alert" className="inline-error">{t(sampleError)}</p>}
-      </section> : null}
-      <DailyReviewRail data={data} now={now} onStudy={startStudy} />
-      <button className="primary wide" onClick={onContinue}>続きから学習</button>
-      {resumableSessions.length > 0 && <section className="home-resume-list" aria-label={t("今日の学習")}>
-        {resumableSessions.map((session) => <button key={session.id} className="resume-study" onClick={() => onResume(session)}><span><strong>{t("続きから学習 · 残り{0}枚", pendingStudyCount(session))}</strong><small>{data.sets.find((set) => set.id === session.setId)?.title || t("復習")}</small></span><AssetIcon name="chevron-right" size={18} /></button>)}
-      </section>}
-
-      <section className="long-term-review">
-        <div className="section-row"><h2>{t("久しぶりに思い出す")}</h2></div>
-        {memorySets.length ? <div className="recommend-card-grid">{memorySets.map(({ set, cards }, index) => <button key={set.id} className={`recommend-card ${["blue-set", "green-set", "violet-set"][index % 3]}`} onClick={() => startStudy(`__memory__:${set.id}`)}>
-          <strong>{set.title}</strong><span className="recommend-number">{t("{0}枚", cards.length)}</span><small>{t("間隔をあけて、長期記憶を確認しましょう。")}</small><span className="recommend-link">{t("復習を始める")} <AssetIcon name="chevron-right" size={18} /></span>
-        </button>)}</div> : <div className="memory-empty"><img src="/review-empty.png" width={1454} height={1080} alt="" /><div><strong>{t("今は復習待ちのカードはありません")}</strong><p>{t("次の復習まで少し休憩しましょう。")}</p></div></div>}
-      </section>
-
-      {resumeDraft && <button className="resume-draft" onClick={resumeDraft}>{t("下書きの続きから")}<AssetIcon name="chevron-right" size={18} /></button>}
-      {data.sets.length > 0 && <button className="floating-add" onClick={() => setScreen("import")}><IconLabel name="plus-dark" size={22}>{t("新しい教材を追加")}</IconLabel></button>}
     </div>
   );
 }
@@ -776,10 +718,9 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
   if (sessionDone) {
     const selectedSummaryCount = summaryCards.filter((item) => item.selected).length;
     return (
-      <div className="page session-complete">
+      <div className="page session-complete patch-complete patch-ui">
         {dailyCelebration && <ReviewCelebration onDismiss={() => setDailyCelebration(false)} />}
-        <span><AssetIcon name="check" size={64} /></span><p className="completion-label">COMPLETE</p><h1>{t("レッスンが終了しました")}</h1>
-        <div className="lesson-result"><div><small>{t("完了したカード")}</small><strong>{sessionTotal}{t("枚")}</strong></div><div><small>{t("もう一度")}</small><strong>{sessionMistakes}{t("回")}</strong></div></div>
+        <LessonCompletion data={data} now={now} cards={sessionTotal} mistakes={sessionMistakes} />
         {set?.nextReviewAt && <div className="completion-review"><span>{t("🕒 次のおすすめ復習")}</span><strong>{relativeDate(set.nextReviewAt, now, language)}</strong><small>{formatDate(new Date(set.nextReviewAt), locale, "review")}<br />{t("エビングハウスの忘却曲線を参考にした復習タイミングです。")}</small></div>}
         {sessionAiMessages.length > 0 && (
           <section className="lesson-ai-recap">
@@ -798,7 +739,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
           </section>
         )}
         {undoButton}{error && <p className="inline-error" role="alert">{t(error)}</p>}
-        <div className="completion-actions"><button className="primary" onClick={goHome}>{t("ホームで確認")}</button>{set && <button className="secondary" onClick={() => startStudy(set.id)}>{t("もう一度学習")}</button>}</div>
+        <div className="completion-actions"><button className="patch-primary" onClick={goHome}><PatchIcon name="home" />{t("ホームに戻る")}</button>{set && <button className="secondary" onClick={() => startStudy(set.id)}>{t("もう一度学習")}</button>}</div>
       </div>
     );
   }
@@ -1141,7 +1082,7 @@ function App() {
 
   let content: React.ReactNode;
   let title: string | undefined;
-  if (screen === "home") content = <Home onContinue={()=>openDestination(continueLearning(data,[session,...workspace.pausedSessions]))} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
+  if (screen === "home") content = <Home onContinue={()=>{const target=continueLearning(data,[session,...workspace.pausedSessions]);if(target.kind==="set")void startStudy(target.id);else openDestination(target);}} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
       const result = await api<{ data: AppData }>("/api/data", { method: "POST", body: JSON.stringify({ action: "sample", language }) });
       const sample = result.data.sets[0];
       setData(result.data);

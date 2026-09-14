@@ -1,0 +1,27 @@
+# Patch mascot artwork integration
+
+Latest integration baseline: `ac0f6d1` (final reading artwork), branch `codex/ui-phase1`. Original Downloads files and all designer source/reference files are preserved.
+
+| Target | Status | Source in `~/Downloads` (2026-09-14 JST) | Format / use |
+| --- | --- | --- | --- |
+| `public/patch/mascot-standing.png` | **RESOLVED** | `fd3f9c3a-9198-462f-819d-e8884bdb18a4.png`, 19:04:12 | 1254×1254 PNG with alpha; early/empty Home. Thin brown arms, circular mint hands, mint feet, ground shadow. |
+| `public/patch/mascot-reading.png` | **RESOLVED** | `patch-2.png`, 21:56 | 1254×1254 RGBA PNG with real alpha transparency; seated reading pose with green book, mint hands/feet and ground shadow. Replaces the temporary crop for active/completed Home and My Lesson Preview. |
+| `public/patch/mascot-celebrate.png` | **RESOLVED** | `9c8934c2-a9a8-4c47-b577-3e6f184636db.png`, 19:11:01 | 1254×1254 PNG with alpha; Lesson Complete. Separate thin brown arms and round mint hands, mint feet, confetti and mint ground shadow. |
+
+## Provenance and presentation
+
+All three final assets were copied byte-for-byte, without cropping, background processing or artwork edits. Their source SHA-256 hashes are:
+
+- Standing: `991fbba528213e76e3f35f9a3dc2208d887f542e301f1d441657f9bfc8d8794e`
+- Celebrate: `53be855c03808f5c63c873f23a4323a321acddabb29736f476d70409052ed1be`
+- Reading: `055aedb6aad662578cc33b96fe8df214398d838a2372a98e9917ceeff4499331`
+
+`app/mascot.tsx` remains the only UI asset registry. It now uses only the three canonical PNG filenames and no longer falls back to `/loop-companion.jpeg`. The old standing original is retained as a source asset; it is not rendered by the Phase 1 UI. The old reading and celebration crops were replaced in place; none of the three poses uses temporary artwork. The separate original Widget artwork and native Retention integration are unchanged.
+
+`app/mascot.css` owns fitting, dimensions and positions. Stable presentation canvases remain standing 1:1, reading 268:253 and celebrate 663:597. Centered `object-fit: contain` keeps full artwork visible. Celebrate uses a 1.1 visual scale to compensate for the supplied square canvas padding without changing its layout box or moving the title/results/CTA. No new image shadow or accent overlay is added.
+
+## References and completion
+
+Design references remain unchanged: `design/references/home-empty-reference.png`, `home-active-normal.png`, `lesson-preview.png`, `lesson-complete.png`, and the original `design/source/Prompt Lists.docx`.
+
+The final transparent reading export was supplied as `patch-2.png` and integrated without image editing. All three mascot requests are now **RESOLVED**. Earlier nontransparent candidates and generated attempts were not used. The existing canonical asset mapping, presentation boxes and screen layouts are unchanged.

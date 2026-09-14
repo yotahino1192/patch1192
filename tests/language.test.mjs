@@ -56,13 +56,13 @@ test("folder library renders both languages without translating folder names", (
 });
 
 
-test("daily review starts with a locked button and a closed task panel in both languages", () => {
+test("daily review has an accessible incomplete day and closed task panel in both languages", () => {
   const data = { sets: [set], dailyReview: { cardIds: ["c1"], completedCardIds: [], completed: false, achievedDays: [], streak: 0, day: "2026-09-06" } };
   for (const language of ["ja", "en"]) {
     const html = render(language, React.createElement(DailyReviewRail, { data, now: new Date("2026-09-06T12:00:00+09:00"), onStudy() {} }));
     assert.ok(html.includes('aria-expanded="false"'));
-    assert.ok(html.includes("/ui-icons/lock.png"));
-    assert.ok(!html.includes('<svg'));
+    assert.ok(html.includes(language === "en" ? "Not achieved" : "未達成"));
+    assert.ok(html.includes('data-streak="normal"'));
     assert.ok(!html.includes('class="daily-todo-content"'));
   }
 });
