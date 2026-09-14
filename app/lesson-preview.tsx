@@ -7,9 +7,9 @@ import { useLanguage } from "./language";
 import { Mascot } from "./mascot";
 import { BottomSheet, PatchIcon } from "./patch-ui";
 
-export function LessonPreview({ open, onClose, onStart, title, summary, sessionId, remaining, dueCount }: {
+export function LessonPreview({ open, onClose, onStart, title, summary, sessionId, remaining, dueCount, label, titleId = "lesson-preview-title" }: {
   open: boolean; onClose: () => void; onStart: () => void; title: string;
-  summary?: string; sessionId?: string; remaining?: number; dueCount?: number;
+  titleId?: string; label?: string; summary?: string; sessionId?: string; remaining?: number; dueCount?: number;
 }) {
   const { t } = useLanguage();
   const request = useApiFetch();
@@ -24,9 +24,9 @@ export function LessonPreview({ open, onClose, onStart, title, summary, sessionI
     return () => { active = false; };
   }, [open, sessionId, request]);
   const seconds = estimate?.id === sessionId ? estimate?.seconds : undefined;
-  return <BottomSheet open={open} onClose={onClose} titleId="lesson-preview-title">
-    <span className="patch-sheet-label">{t("今日のマイレッスン")}</span>
-    <div className="patch-preview-heading"><div><h2 id="lesson-preview-title">{title}</h2>
+  return <BottomSheet open={open} onClose={onClose} titleId={titleId}>
+    <span className="patch-sheet-label">{t(label ?? "今日のマイレッスン")}</span>
+    <div className="patch-preview-heading"><div><h2 id={titleId}>{title}</h2>
       {seconds !== undefined && seconds > 0 && <p className="patch-preview-time">{t("予定時間：約{0}分", Math.ceil(seconds / 60))}</p>}
       {remaining !== undefined && <p>{t("残り{0}枚", remaining)}</p>}
       {dueCount !== undefined && <p>{t("今日の復習：{0}枚", dueCount)}</p>}

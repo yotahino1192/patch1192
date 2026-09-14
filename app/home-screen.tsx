@@ -7,6 +7,7 @@ import { pendingStudyCount } from "../lib/workspace";
 import { continueLearning } from "../lib/continue-learning";
 import { widgetState } from "../lib/retention";
 import { isLongTermDue } from "../lib/long-term-review";
+import { AvailableLessons } from "../features/my-lesson/available-lessons";
 import { LessonPreview } from "./lesson-preview";
 import { DailyReviewRail } from "./daily-review";
 import { useLanguage } from "./language";
@@ -14,12 +15,12 @@ import { Mascot } from "./mascot";
 import { PatchIcon } from "./patch-ui";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
-export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resumableSessions, onResume, onSample, onContinue }: {
+export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resumableSessions, onResume, onSample, onContinue, onOpenLesson }: {
   data: AppData; now: Date;
   startStudy: (setId?: string, startCardId?: string, batchSize?: number) => void;
   setScreen: (screen: Screen) => void; selectSet: (id: string) => void;
   resumeDraft?: () => void; resumableSessions: StudySession[];
-  onResume: (session: StudySession) => void; onSample: () => Promise<void>; onContinue: () => void;
+  onResume: (session: StudySession) => void; onSample: () => Promise<void>; onContinue: () => void; onOpenLesson?: (id: string) => void;
 }) {
   const { t } = useLanguage();
   const [preview, setPreview] = useState<string | null>(null);
@@ -66,6 +67,7 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
       {memorySets.map(({ set, cards }) => <button key={set.id} className="patch-action-card" onClick={() => startStudy(`__memory__:${set.id}`)}><span className="patch-action-icon is-memory"><PatchIcon name="refresh" /></span><span><strong>{t("記憶を確かめる")}</strong><small>{set.title} · {t("{0}枚", cards.length)}</small></span><PatchIcon name="arrow" size={19} /></button>)}
       {(completed || learnable) && <button className="patch-text-button patch-add-material" onClick={() => setScreen("import")}><PatchIcon name="plus" size={18} />{t("新しい教材を追加")}</button>}
     </>}
+    {onOpenLesson && <AvailableLessons onStart={onOpenLesson} />}
     {resumeDraft && <button className="patch-action-card" onClick={resumeDraft}><span>{t("下書きの続きから")}</span><PatchIcon name="arrow" size={20} /></button>}
     <LessonPreview open={preview !== null} onClose={() => setPreview(null)} onStart={startPreview} title={title} summary={currentSet?.summary} sessionId={selectedSession?.id ?? remoteSession?.id} remaining={remaining} dueCount={!currentSet && destination.kind === "review" && !stale ? data.retention?.dueCount : undefined} />
   </div>;

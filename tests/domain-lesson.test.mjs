@@ -49,7 +49,7 @@ test('real signed domain API -> adapter: six activities, durable attempts, proje
   view=await f.adapter.advance({lessonId:f.lesson.id,activity},context());
   assert.equal(view.resume.completedIds.length,i+1);assert.equal(view.status,i===5?'COMPLETED':'ACTIVE');
  }
- assert.equal(view.completion.status,'COMPLETED');assert.equal(view.completion.strengthenedObjectiveCount,1);
+ assert.equal(view.completion.retryCount,0);assert.equal(view.completion.status,'COMPLETED');assert.equal(view.completion.strengthenedObjectiveCount,1);
  const resumed=await createDomainLessonAdapter(client,f.lesson.id,help).load(context());assert.equal(resumed.status,'COMPLETED');
  const projection=await client.query({resource:'objectiveState',id:f.objective.id});assert.deepEqual(projection,f.state,'UI must not invent or write mastery/Due projection');
  await assert.rejects(createDomainLessonAdapter(bClient,f.lesson.id,help).load(context()),e=>e.status===404);
@@ -62,7 +62,7 @@ test('lost response explicit retry/reload do not duplicate; incorrect result res
  assert.equal((await client.query({resource:'attempts',id:activity.id})).length,1);
  const adapter=createDomainLessonAdapter(client,f.lesson.id,help);v=await adapter.load(context());assert.equal(v.resume.states[activity.id].feedback.correct,false);assert.equal(v.resume.completedIds.length,1);
  await assert.rejects(adapter.advance({lessonId:f.lesson.id,activity},context()));
- await adapter.evaluate({...input,response:'remembered'},context());v=await adapter.advance({lessonId:f.lesson.id,activity},context());assert.equal(v.resume.completedIds.length,2);
+ await adapter.evaluate({...input,response:'remembered'},context());v=await adapter.advance({lessonId:f.lesson.id,activity},context());assert.equal(v.resume.completedIds.length,2);assert.equal(v.completion.retryCount,1);
  assert.equal((await client.query({resource:'attempts',id:activity.id})).length,2);
 });
 test('same predecessor produces one durable attempt across simultaneous adapters; invalid data, abort and failure fail closed',async()=>{

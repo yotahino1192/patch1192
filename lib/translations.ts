@@ -1,4 +1,11 @@
 export const english: Record<string, string> = {
+"今回取り組んだこと": "What you practised",
+"この端末での学習時間：{0}分{1}秒": "Study time on this device: {0}m {1}s",
+"完了したアクティビティ": "Activities completed",
+"未開始のレッスン": "Not started",
+"中断したレッスン": "Paused lesson",
+"マイレッスンを読み込めませんでした。": "Could not load your lessons.",
+"マイレッスン": "My Lessons",
 "生活・自己成長": "Life & personal growth",
 "クリエイティブ": "Creative",
 "科学": "Science",

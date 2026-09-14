@@ -44,6 +44,7 @@ export function createDomainLessonAdapter(client: Client, lessonId: string, help
     const history = new Map<string, Attempt>();
     const previous = new Map<string, string>();
     const delivered = new Set<string>();
+    let retryCount = 0;
     const views: ActivityViewModel[] = [];
     for (const assignment of assignments) {
       const activity = content.get(assignment.activityId);
@@ -52,6 +53,7 @@ export function createDomainLessonAdapter(client: Client, lessonId: string, help
       views.push(mapActivity(activity, objective.description, assignment.estimatedSeconds));
       const attempts = await client.query({ resource: 'attempts', id: activity.id }, options);
       const own = attempts.filter(a => a.lessonId === lessonId);
+      retryCount += own.filter(a => !a.undoneAt && a.result === 'INCORRECT').length;
       own.forEach(a => delivered.add(a.operationId));
       const last = own.filter(a => !a.undoneAt).at(-1);
       const tail = own.at(-1);
@@ -69,7 +71,7 @@ export function createDomainLessonAdapter(client: Client, lessonId: string, help
     }
     const saved = checkpoint?.read(lessonId);
     const elapsed = saved?.elapsedSeconds ?? 0;
-    const result: LessonViewModel = validateLesson({ lessonId, patch: { name: patch.title }, targetMinutes: lesson.targetMinutes, status: lesson.status === 'COMPLETED' ? 'COMPLETED' : 'ACTIVE', activities: views, resume: { completedIds, elapsedSeconds: elapsed, states: restored }, completion: { strengthenedConcepts: strengthened.map(id => objectives.find(o => o.id === id)!.description), strengthenedObjectiveCount: strengthened.length, ...(lesson.status === 'COMPLETED' ? { status: 'COMPLETED', actualSeconds: elapsed } : {}) } });
+    const result: LessonViewModel = validateLesson({ lessonId, patch: { name: patch.title }, targetMinutes: lesson.targetMinutes, status: lesson.status === 'COMPLETED' ? 'COMPLETED' : 'ACTIVE', activities: views, resume: { completedIds, elapsedSeconds: elapsed, states: restored }, completion: { retryCount, strengthenedConcepts: strengthened.map(id => objectives.find(o => o.id === id)!.description), strengthenedObjectiveCount: strengthened.length, ...(lesson.status === 'COMPLETED' ? { status: 'COMPLETED', actualSeconds: elapsed } : {}) } });
     if (lesson.status === 'COMPLETED' && completedIds.length !== views.length) return fail();
     if (start && lesson.status === 'CREATED') lesson = await client.command({ action: 'startLesson', input: { lessonId } }, options);
     if (lesson.status === 'CREATED') return fail();

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ActivityState, CompleteVariant, LessonAdapter, LessonProgress, LessonViewModel, TimeBudget } from './contracts';
 import { activityReducer, initialActivity, primaryAction, timeBudget, validateLesson } from './state';
 import { ActivityRenderer } from './renderers';
@@ -14,6 +14,7 @@ export type LessonExperienceProps = {
   sessionKey: string;
   onHome: () => void;
   variant?: CompleteVariant;
+  renderComplete?: (lesson: LessonViewModel, actualSeconds: number) => ReactNode;
   /** Read-only signal to the future Composer; this shell never removes activities. */
   onBudgetChange?: (budget: TimeBudget, progress: LessonProgress) => void;
 };
@@ -36,7 +37,7 @@ function LoadAttempt(props: LessonExperienceProps & { onRetry: () => void }) {
   if (!result.lesson.activities.length) return <section className={styles.shell}><h1>今日は学ぶものがありません</h1><p>学ぶ内容ができたら、また始めましょう。</p><button className={styles.primary} data-primary onClick={props.onHome}>ホームへ</button></section>;
   return <ActiveLesson {...props} lesson={result.lesson} />;
 }
-function ActiveLesson({ adapter, checkpoint, lesson: initialLesson, onHome, variant, onBudgetChange, onRetry }: LessonExperienceProps & { lesson: LessonViewModel; onRetry: () => void }) {
+function ActiveLesson({ adapter, checkpoint, lesson: initialLesson, onHome, variant, renderComplete, onBudgetChange, onRetry }: LessonExperienceProps & { lesson: LessonViewModel; onRetry: () => void }) {
   const [lesson, setLesson] = useState(initialLesson);
   const resumeIndex = (view: LessonViewModel) => { const next = view.activities.findIndex(a => !view.resume?.completedIds.includes(a.id)); return next < 0 ? view.activities.length - 1 : next; };
   const [index, setIndex] = useState(() => adapter.advance ? resumeIndex(initialLesson) : 0);
@@ -140,6 +141,7 @@ function ActiveLesson({ adapter, checkpoint, lesson: initialLesson, onHome, vari
       if (!controller.signal.aborted) change({ type: 'error' });
     } finally { if (!controller.signal.aborted) locked.current = false; }
   }
+  if (complete && renderComplete) return renderComplete(lesson, lesson.completion.actualSeconds ?? elapsed);
   if (complete) return <LessonComplete lesson={lesson} actualSeconds={lesson.completion.actualSeconds ?? elapsed} variant={variant} onHome={onHome} />;
   const action = primaryAction(activity, state);
   return <section className={styles.shell} aria-label="My Lesson" data-activity-type={activity.type} data-activity-state={state.status}>

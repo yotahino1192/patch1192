@@ -16,7 +16,7 @@ export type LessonViewModel = {
   /** Supplied by the adapter, never calculated by the UI's Streak logic. */
   status?: 'ACTIVE' | 'COMPLETED';
   resume?: { completedIds: string[]; elapsedSeconds: number; states?: Record<string, ActivityState> };
-  completion: { status?: 'COMPLETED'; actualSeconds?: number; strengthenedObjectiveCount?: number; strengthenedConcepts: string[]; streak?: number; nextLessonTiming?: string };
+  completion: { retryCount?: number; status?: 'COMPLETED'; actualSeconds?: number; strengthenedObjectiveCount?: number; strengthenedConcepts: string[]; streak?: number; nextLessonTiming?: string };
 };
 export type TimeBudget = { targetMinutes: number; elapsedSeconds: number; remainingSeconds: number; estimatedSeconds: number };
 export type LessonProgress = { completed: number; total: number };

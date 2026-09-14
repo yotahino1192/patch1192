@@ -8,6 +8,7 @@ import { PendingDeepLinks } from "../lib/pending-deep-links";
 import { resolveDeepLink, continueLearning } from "../lib/continue-learning";
 import type { Destination, RetentionSnapshot } from "../lib/retention";
 import { AuthBoundary } from "./auth-provider";
+import { DomainLessonCompletion } from "./domain-lesson-completion";
 import { LessonEntry } from '../features/my-lesson/lesson-entry';
 
 import { useLanguage, LanguageProvider, translate, type Language } from "./language";
@@ -1083,7 +1084,10 @@ function App() {
 
   let content: React.ReactNode;
   let title: string | undefined;
-  if (screen === "home") content = <Home onContinue={()=>{const target=continueLearning(data,[session,...workspace.pausedSessions]);if(target.kind==="set")void startStudy(target.id);else openDestination(target);}} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
+  if (screen === "home") content = <Home onOpenLesson={id => {
+    const url = new URL(window.location.href); url.searchParams.set("lesson", id);
+    history.pushState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate"));
+  }} onContinue={()=>{const target=continueLearning(data,[session,...workspace.pausedSessions]);if(target.kind==="set")void startStudy(target.id);else openDestination(target);}} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
       const result = await api<{ data: AppData }>("/api/data", { method: "POST", body: JSON.stringify({ action: "sample", language }) });
       const sample = result.data.sets[0];
       setData(result.data);
@@ -1101,7 +1105,7 @@ function App() {
     </SetLibrary>; title = "カードセット"; }
   else if (screen === "study") content = studyContent;
   else content = <Records data={data} now={now} startStudy={(id) => { if (id) setSelectedSetId(id); setSetDetailOpen(true); setScreen("sets"); }} />;
-  return <LessonEntry onHome={() => setScreen("home")}><Shell screen={screen} setScreen={navigate} title={title}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell></LessonEntry>;
+  return <LessonEntry onHome={() => setScreen("home")} renderComplete={(lesson, actualSeconds, onHome) => <DomainLessonCompletion lesson={lesson} actualSeconds={actualSeconds} data={data} now={now} onHome={onHome} />}><Shell screen={screen} setScreen={navigate} title={title}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell></LessonEntry>;
 }
 
 export default function LocalizedApp() {

@@ -1095,3 +1095,6 @@ html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-comple
 @media (max-width: 360px) { .patch-sheet .patch-primary { font-size: 15px; padding-inline: 14px; gap: 8px; } }
 
 @media (max-width: 360px) { .patch-complete > h1::before, .patch-complete > h1::after { display: none; } }
+
+/* Existing assigned Lessons use the same Home action cards without reprioritizing Continue. */
+.patch-home-lessons { width: 100%; margin-top: 20px; }

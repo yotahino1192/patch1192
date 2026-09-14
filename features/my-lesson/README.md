@@ -4,6 +4,8 @@ The existing React shell and five renderers now use real Domain and contextual A
 
 ## Integration
 
+The integrated Home explicitly lists existing assigned CREATED/ACTIVE Lessons through `AvailableLessons` and opens the Phase 1 `LessonPreview`. Start selects the real Lesson ID, without altering the legacy Continue resolver. `LessonEntry` supplies an optional completion renderer so the real app uses Phase 1 celebration/results and returns to the authoritative Home; standalone U2/preview consumers keep their existing completion component. The completion retry count is derived from this Lesson's non-undone incorrect Attempts, not a new persisted/domain field. See [integration checkpoint](../../docs/patch-integration-checkpoint.md).
+
 Mount `DomainLesson` with an existing, assigned `lessonId` and `onHome` under the existing Account/Privacy/Language providers. The app also accepts `/?lesson=<id>` after authentication/onboarding through `LessonEntry`; this is a selected Lesson entry, not a new Home/Continue selection policy. The legacy study flow is preserved. No demo lesson is created.
 
 `DomainLesson` supplies the authenticated Domain client, real Help adapter and account-scoped checkpoint to `LessonExperience`. Account/lesson/adapter changes remount the experience and invalidate old work. Five fixed renderers share one header, progress, feedback region and primary Continue action. Visuals remain provisional.
@@ -34,6 +36,7 @@ Use Node 22. Mock data remains exclusively in the test/development harness:
 - `node --test tests/my-lesson.test.mjs tests/domain-lesson.test.mjs tests/lesson-checkpoint.test.mjs tests/ai-lesson.test.mjs`
 - `node scripts/check-my-lesson-browser.mjs`
 - `node scripts/check-domain-lesson-browser.mjs` after building Next
+- `npm run test:integration-browser` after building Next (full App Home/Preview/U2/Complete/Home)
 - `npm run check` and `npm run mobile:build:local`
 
 Browser fixtures use isolated accounts/DB and a test-only Help provider stub; backend tests independently exercise the real AI route with mocked upstream responses. No real AI key or production DB is required.

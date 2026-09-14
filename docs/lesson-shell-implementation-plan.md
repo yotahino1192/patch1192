@@ -1,4 +1,15 @@
-# Patch U2 — 実装状態と次の接続
+# Patch U2 — 実装状態とUI統合
+
+## Current integration checkpoint — 2026-09-14
+
+`codex/patch-integration-checkpoint` (`/private/tmp/patch-integration-checkpoint`) integrates UI Phase 1 `076a35c` and U2 `f4588a2` on latest local Dev `66aeaee` (includes fetched `origin/Dev@50ef687`). Neither Dev nor main was changed. The U2 implementation notes below remain the source history; this section supersedes their previously pending UI connection.
+
+- Home now lists existing CREATED/ACTIVE, non-legacy Lessons from active Patches through existing read-only queries. Selection is explicit, separately from the unchanged Continue Learning resolver; no Composer, automatic Lesson creation or conversion of cards is introduced.
+- Each assigned Lesson opens the existing Phase 1 preview. Open/close only reads metadata; Start selects its server ID for `LessonEntry`/`DomainLesson`. Preview headings have distinct IDs from the original card preview.
+- The unchanged U2 Shell/adapters run Learn, Recall, Choice, Explain and Apply with existing attempts, retry, completion and checkpoint behavior.
+- A completion rendering slot reuses Phase 1 `LessonCompletion` after server-confirmed COMPLETED. It labels the count as activities, with retries derived from non-undone INCORRECT Attempts belonging to this Lesson. Existing objective descriptions and device time remain available; there is no mastery claim.
+- Completion/Home requests the existing authoritative Retention refresh. New Lessons still have `qualifies=0`; completed-today Home is displayed only when the existing snapshot says the daily goal was achieved. Completion never writes a legacy review or increments Streak locally.
+- Full real-App API E2E and mobile QA: [integration checkpoint](patch-integration-checkpoint.md). Remaining Composer, qualification policy, per-Attempt timing and U2 visual/i18n work are unchanged.
 
 計画元: `codex/lesson-shell-plan` / `b9ee353`。今回の作業branch: `codex/patch-u2`。
 現在のDevのDomain/APIを確認し、既存U2 `codex/lesson-shell@9939e07` の実装を継承した。Dev、UI Phase 1（確認開始時 `1880afa`）、main、productionへのmerge・変更は行っていない。本書は当初計画を実装結果で置き換える。
@@ -89,7 +100,7 @@ loading、空/不正/不明type、API failure、保存不明、storage failure�
 
 後続の境界:
 
-1. **UI Phase 1との接続:** Previewが選んだ実Lesson IDでDomainLessonをmountし、Complete/Homeの既存componentに接続する。現状は`/?lesson=<id>`で開く入口を提供するだけで、Home/Continueの選択優先順位は変更しない。
+1. **UI Phase 1との接続: 統合済み。** 現在の接続は上記Current integration checkpointを参照。既存Continueの選択優先順位は変更していない。
 2. **Composer:** 「今日のLesson」の生成・時間内の割当選択、Helpに応じた短縮は未実装。現行ACTIVE割当をUIが削ることはしない。
 3. **Retention資格:** 新Lessonは現在`qualifies=0/earned_day=null`。0011 triggerもそれを強制する。Streak連携には資格policyと後続migration、complete/Undoの同一transaction連携が必要。今回のU2では決め直さない。
 4. **採点/ObjectiveState:** 自動採点・mastery projection・Objective Due schedulingはDomainの後続仕様が必要。
@@ -113,7 +124,7 @@ Node 22.23.2、隔離SQLite、署名付きfixture account、テストproviderを
 
 ## K. Recommended next implementation order
 
-1. UI Phase 1の統合後、実Lesson選択→DomainLesson→既存Complete/Homeを接続し、Homeからの通しE2Eを追加。
+1. 統合チェックポイントのrepository hygiene reviewを実施。Home→実Lesson→Complete/Homeと通しE2Eは統合済み。
 2. Composerと新LessonのRetention資格policyを確定。必要なら新migrationとtransaction統合を別変更で実施。
 3. final designer visuals/i18n、per-Attempt計測、必要性に応じたresume/budget精度を改善。
 4. AI採点・Objective scheduling・adaptive composerは新しいDomain仕様が固まってから追加。
