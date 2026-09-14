@@ -8,6 +8,7 @@ import { PendingDeepLinks } from "../lib/pending-deep-links";
 import { resolveDeepLink, continueLearning } from "../lib/continue-learning";
 import type { Destination, RetentionSnapshot } from "../lib/retention";
 import { AuthBoundary } from "./auth-provider";
+import { LessonEntry } from '../features/my-lesson/lesson-entry';
 
 import { useLanguage, LanguageProvider, translate, type Language } from "./language";
 
@@ -1159,7 +1160,7 @@ function App() {
     </SetLibrary>; title = "カードセット"; }
   else if (screen === "study") content = studyContent;
   else content = <Records data={data} now={now} startStudy={(id) => { if (id) setSelectedSetId(id); setSetDetailOpen(true); setScreen("sets"); }} />;
-  return <Shell screen={screen} setScreen={navigate} title={title}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell>;
+  return <LessonEntry onHome={() => setScreen("home")}><Shell screen={screen} setScreen={navigate} title={title}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell></LessonEntry>;
 }
 
 export default function LocalizedApp() {

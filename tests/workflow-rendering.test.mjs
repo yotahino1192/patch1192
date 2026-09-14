@@ -9,6 +9,7 @@ import { EMPTY_SESSION } from "../lib/workspace.ts";
 
 registerHooks({
   resolve(specifier, context, next) {
+    if (specifier.endsWith(".module.css")) return {url:"data:text/javascript,export default new Proxy({}, {get:(_,key)=>String(key)})",shortCircuit:true};
     if (specifier.startsWith(".") && context.parentURL?.startsWith("file:")) {
       for (const suffix of [".tsx", ".ts"]) {
         const url = new URL(specifier + suffix, context.parentURL);

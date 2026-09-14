@@ -1,44 +1,39 @@
-# My Lesson UI Foundation
+# My Lesson / Patch U2
 
-Independent React feature, not connected to Home, Continue Learning or existing Study. No DB/API/auth/Retention changes. My Lesson is the learning session itself, not a selection screen. Visual styles inherit Patch tokens; layout is provisional pending UI Designer assets.
+The existing React shell and five renderers now use real Domain and contextual AI Help in production. Full implementation status and remaining boundaries: [Lesson Shell implementation plan](../../docs/lesson-shell-implementation-plan.md).
 
 ## Integration
 
-Mount `LessonExperience` with a stable `LessonAdapter`, `sessionKey`, `onHome`, optional `variant` (`normal | firstLesson`) and `onBudgetChange`. Home/Composer chooses the lesson; adapter maps Domain data into `LessonViewModel`. Change `sessionKey` whenever account scope, selected lesson, or adapter changes. This remount aborts pending calls, clears answers/help and ignores stale results. The host must unmount on logout/deletion/consent transitions as appropriate; this mock-only feature does not implement auth or bypass consent.
+Mount `DomainLesson` with an existing, assigned `lessonId` and `onHome` under the existing Account/Privacy/Language providers. The app also accepts `/?lesson=<id>` after authentication/onboarding through `LessonEntry`; this is a selected Lesson entry, not a new Home/Continue selection policy. The legacy study flow is preserved. No demo lesson is created.
 
-Adapter methods receive AbortSignal and operationId. Evaluate retries preserve operationId for the same answer; no automatic retry is performed. Real adapters must implement server idempotency and unknown-state semantics before mutation/AI integration. `retainLearning` is idempotent by operationId and accepts a LearningObjective candidate; it must never report adding a card. Help errors preserve the Activity answer, and closing the native modal returns focus to the trigger. Help conversation is session-local, clears on close, and is not persisted.
+`DomainLesson` supplies the authenticated Domain client, real Help adapter and account-scoped checkpoint to `LessonExperience`. Account/lesson/adapter changes remount the experience and invalidate old work. Five fixed renderers share one header, progress, feedback region and primary Continue action. Visuals remain provisional.
 
-Five renderers only, one shell/header/footer. Shared states live in state.ts; renderer inputs are controlled. Completion is based on exhausting the supplied activity array, never a five-card checkpoint. Streak and next timing are display-only adapter values. Completed concepts are supplied by Domain, not invented from a local scoring rule. Empty lessons show a normal empty state with Home, not an earned completion.
+## Existing Domain authority
 
-Time starts when the loaded, nonempty lesson is displayed. A monotonic clock includes AI Help and foreground/background elapsed time; completion freezes actual duration. `onBudgetChange` exposes elapsed/remaining/current estimate and completed/total progress. Reaching zero does not delete activities, dispatch AI, or force completion. Composer budgeting/resume persistence are future integration responsibilities. targetMinutes must be 5–15; short content may finish sooner.
+The adapter reads existing Lesson/Activity/Attempt APIs. CREATED starts explicitly; ACTIVE resumes from the latest non-undone Attempt for each assignment. LEARN records COMPLETED; RECALL self-reports recall; CHOICE compares the selected answer; EXPLAIN/APPLY collect text and explicit self-assessment against a reference. Incorrect results remain unfinished and require explicit practice. No AI grading or mastery formula is introduced.
 
-## Preview and tests (Node 22)
+After all assignments succeed, `completeLesson` and an authoritative reload must confirm COMPLETED before showing results. Storage/transport errors never imply completion. ObjectiveState is read-only; Retention, Streak, Due and legacy reviews are not mutated. The existing Domain DB constraints still exclude these Lessons from Streak qualification.
 
-- `node scripts/preview-my-lesson.mjs` — loopback-only development harness, no production route. Mock feedback and retained candidates are not persisted.
-- `node --test tests/my-lesson.test.mjs`
+## Retry, interruption and time
+
+The existing deterministic operation ID now includes the latest historical Attempt even when undone, allowing a fresh answer after Undo. Each pending RecordAttempt payload is frozen and persisted before dispatch. Reload reconciles it with server evidence; uncertain retries cannot silently become a different answer. Unsent drafts/reveal/assessment restore only when content/Attempt revision matches.
+
+`patch:lesson:<userId>` stores one current Lesson checkpoint per account. Existing cleanup hooks remove it on logout/deletion. Its draft and foreground elapsed time are convenience state, never completion evidence. Foreground time includes Help and feedback; background/explicit pause is excluded. At the budget limit the learner can pause and resume; no activities are silently removed and no completion is forced. Per-Attempt duration remains unmeasured (0). Device time is not synchronized across devices.
+
+## AI Help
+
+Real calls use `useApiFetch → PrivacyProvider → AccountScope → sendAi → /api/ai/chat → runAi('chat')`. The existing endpoint accepts a discriminated Lesson context. Server-owned Activity/membership/Source context is validated at admission and finalization; material is untrusted provider input. Existing consent, idempotency, cancellation, limits and unknown-state rules apply.
+
+Short follow-ups use up to three prior successful receipts from the existing 24-hour AI result cache, filtered by account/consent generation and Lesson/Activity. There is no new chat table, permanent conversation product, or learner-state mutation. The visible sheet conversation is ephemeral. Closing/backgrounding aborts and fences late UI results, including transports that ignore abort. Production does not offer the preview-only retainLearning action.
+
+## Validation / preview
+
+Use Node 22. Mock data remains exclusively in the test/development harness:
+
+- `node scripts/preview-my-lesson.mjs`
+- `node --test tests/my-lesson.test.mjs tests/domain-lesson.test.mjs tests/lesson-checkpoint.test.mjs tests/ai-lesson.test.mjs`
 - `node scripts/check-my-lesson-browser.mjs`
+- `node scripts/check-domain-lesson-browser.mjs` after building Next
+- `npm run check` and `npm run mobile:build:local`
 
-The fixture is outside Next/mobile entry graphs. Do not expose the harness in production. No real AI API is called.
-
-## Designer handoff
-
-Provide final Shell, five Activity content layouts, Help sheet, normal/first Lesson Complete, and loading/empty/error/disabled/selected/feedback states at mobile and web widths. Apply the visual treatment to the scoped CSS/renderers while retaining the state contract, one primary CTA, modal focus behavior and unchanged navigation.
-
-
-## Real Domain adapter
-
-`DomainLesson` is an unlinked component for the existing Account/Privacy provider tree. It uses `useApiFetch` → `createDomainClient` → `/api/domain`; no repository imports or new production route. Caller supplies the already selected lessonId (Home/Composer selection is out of scope). Account/adapter changes remount the experience and abort old work. The test-only `domain-lesson.html` harness is served by `check-domain-lesson-browser.mjs` against a temporary migrated DB and signed test sessions.
-
-`createDomainLessonAdapter` reads Lesson, ordered LessonActivity, Patch, Objectives, Activities and current non-undone Attempts. It validates all five supported types before starting CREATED → ACTIVE. ACTIVE resumes from successful stored Attempts; an incorrect latest Attempt restores feedback and requires explicit practice. No second study session or local storage is created. Unsent draft text cannot survive full page reload; saved answers/progress do. Legacy sessions are rejected as read-only, leaving their existing service/Study path intact.
-
-LEARN requires an explicit Next to record COMPLETED. Other types save on explicit Submit: CHOICE uses the supplied answer, RECALL uses self-report, EXPLAIN/APPLY explicitly ask the learner to compare against the reference answer and self-assess (no AI grading). INCORRECT does not advance. A fresh review is a new Attempt. Domain transactions remain authoritative for ownership, membership, idempotency and formal completion. After the final saved successful Attempt, advance calls completeLesson and rereads authoritative COMPLETED before rendering Complete. A failed completion call leaves the shell recoverable, never optimistically complete.
-
-Each logical answer uses a deterministic SHA-256 operation ID from lesson/activity/previous Attempt. Two adapters loading the same predecessor cannot create duplicate Attempts, including an in-flight reload. All request fields are frozen for explicit retry; a changed uncertain answer conflicts and requires reloading server state. An in-memory caller-operation receipt also rejects changed payload for the same caller ID. There is no automatic replay, local pending-answer cache, or new session system. Per-answer durationMs is currently 0 (not measured); Complete shows the server startedAt → completedAt wall interval as **Lesson elapsed time**, including Help and time away, not an assertion of foreground-only study time.
-
-ObjectiveState is **read-only** here. Current Domain service intentionally does not update mastery/incorrectCount/lastReviewedAt/nextReviewAt from Attempts; this adapter rereads it after saving and returns it in feedback, without writing a new projection or inventing a mastery/Due formula. Automatic projection is a separate Domain specification/implementation step. Completion's objective count is the distinct Objectives associated with successful Attempts, not a claim that mastery increased. Streak/Due are neither calculated nor modified.
-
-AI Help and retainLearning remain explicitly injected preview callbacks; only those two methods are copied, never mock load/evaluate. No AI POST, real objective save or consent bypass is added.
-
-Additional validation: `node --test tests/domain-lesson.test.mjs` (signed real route + isolated DB), `node scripts/check-domain-lesson-browser.mjs` (actual Next API + React/AccountScope + isolated DB). Existing mock preview/browser tests remain available.
-
-Verification at this checkpoint (Node 22.23.2, isolated development environment): full `npm run check` passed with 236/236 tests; final typecheck/lint (0 errors, 41 pre-existing warnings) and 12 targeted UI/adapter tests passed. Mock and real Domain browser suites, auth/privacy/onboarding+Retention/reliability/public-pages browser suites and health/readiness HTTP checks passed. `ios:sync:local` and Swift snapshot/policy tests passed. Unsigned generic iOS Simulator build succeeded for App and embedded PatchWidget, both arm64/x86_64, with signing disabled and an empty Team. No production navigation change, production DB access, external setup or Dev merge.
+Browser fixtures use isolated accounts/DB and a test-only Help provider stub; backend tests independently exercise the real AI route with mocked upstream responses. No real AI key or production DB is required.

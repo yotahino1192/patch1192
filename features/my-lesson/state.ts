@@ -39,7 +39,7 @@ export function validateLesson(lesson: LessonViewModel): LessonViewModel {
   for (const a of lesson.activities) {
     if (!a.id || ids.has(a.id) || !a.prompt || !['LEARN', 'RECALL', 'CHOICE', 'EXPLAIN', 'APPLY'].includes(a.type) || !Number.isFinite(a.estimatedSeconds) || a.estimatedSeconds < 0) throw Error('Invalid activity');
     ids.add(a.id);
-    if (a.type === 'CHOICE' && (!Array.isArray(a.choices) || a.choices.length < 2 || new Set(a.choices.map(c => c.id)).size !== a.choices.length || a.choices.some(c => !c.id || !c.label))) throw Error('Invalid choices');
+    if (a.type === 'CHOICE' && (!Array.isArray(a.choices) || a.choices.length < 2 || a.choices.length > 6 || new Set(a.choices.map(c => c.label)).size !== a.choices.length || new Set(a.choices.map(c => c.id)).size !== a.choices.length || a.choices.some(c => !c.id || !c.label))) throw Error('Invalid choices');
     if (a.type === 'LEARN' && (!a.explanation || (a.visual && (!a.visual.alt || !a.visual.src)))) throw Error('Invalid explanation');
     if (a.type === 'RECALL' && !a.answer) throw Error('Invalid answer');
   }

@@ -76,3 +76,23 @@ test('same predecessor produces one durable attempt across simultaneous adapters
  await c.execute({sql:'DELETE FROM study_sessions WHERE id=?',args:[f.lesson.id]});await assert.rejects(f.adapter.load(context()),e=>e.status===404);
  const gone=await setup();await c.execute({sql:'DELETE FROM lesson_activities WHERE lesson_id=?',args:[gone.lesson.id]});await c.execute({sql:'DELETE FROM study_sessions WHERE id=?',args:[gone.lesson.id]});for(const table of ['objective_states','activities'])await c.execute({sql:`DELETE FROM ${table} WHERE objective_id=?`,args:[gone.objective.id]});await c.execute({sql:'DELETE FROM learning_objectives WHERE id=?',args:[gone.objective.id]});await c.execute({sql:'DELETE FROM patches WHERE id=?',args:[gone.patch.id]});await assert.rejects(gone.adapter.load(context()),e=>e.status===404);
 });
+
+const {createLessonCheckpoint}=await import('../features/my-lesson/checkpoint.ts');
+test('durable pending answer survives reload, blocked storage dispatches nothing, Undo allows a fresh attempt',async()=>{
+ const f=await setup();const values=new Map();let blocked=false;
+ const storage={getItem:k=>values.get(k)??null,setItem:(k,v)=>{if(blocked)throw Error('quota');values.set(k,v);},removeItem:k=>values.delete(k)};
+ const checkpoint=createLessonCheckpoint(storage,a,()=>{});
+ let adapter=createDomainLessonAdapter(client,f.lesson.id,help,checkpoint),v=await adapter.load(context());
+ blocked=true;await assert.rejects(adapter.advance({lessonId:f.lesson.id,activity:v.activities[0]},context()),/quota/);assert.equal((await client.query({resource:'attempts',id:v.activities[0].id})).length,0);
+ blocked=false;lost=true;await assert.rejects(adapter.advance({lessonId:f.lesson.id,activity:v.activities[0]},context()));assert.ok(checkpoint.read(f.lesson.id).pending);
+ adapter=createDomainLessonAdapter(client,f.lesson.id,help,checkpoint);v=await adapter.load(context());assert.equal(v.resume.completedIds.length,1);assert.equal(checkpoint.read(f.lesson.id).pending,null);
+ const saved=(await client.query({resource:'attempts',id:v.activities[0].id}))[0];await client.command({action:'undoAttempt',input:{attemptId:saved.id}});
+ adapter=createDomainLessonAdapter(client,f.lesson.id,help,checkpoint);v=await adapter.load(context());assert.equal(v.resume.completedIds.length,0);await adapter.advance({lessonId:f.lesson.id,activity:v.activities[0]},context());
+ const attempts=await client.query({resource:'attempts',id:v.activities[0].id});assert.equal(attempts.length,2);assert.notEqual(attempts[0].operationId,attempts[1].operationId);
+});
+test('adapter rejects malformed user responses and mismatched Lesson without Attempt writes',async()=>{
+ const f=await setup(),v=await f.adapter.load(context());
+ for(const [index,response,assessment] of [[1,'forged',undefined],[2,'',undefined],[2,'0.0',undefined],[3,'  ','CORRECT'],[4,'answer','OTHER']])await assert.rejects(f.adapter.evaluate({lessonId:f.lesson.id,activity:v.activities[index],response,assessment},context()));
+ await assert.rejects(f.adapter.advance({lessonId:'other',activity:v.activities[0]},context()));
+ for(const activity of v.activities)assert.equal((await client.query({resource:'attempts',id:activity.id})).length,0);
+});

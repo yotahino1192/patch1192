@@ -82,8 +82,8 @@ test('mock adapter does not dispatch network, supports cancellation and evaluato
  const answer=await adapter.evaluate({lessonId:'test',activity:mockLesson.activities[2],response:'b'},context);assert.equal(answer.correct,false);
  controller.abort();await assert.rejects(adapter.load(context));
 });
-test('initial feature rendering is safe loading, no production navigation or imports added',()=>{
+test('initial feature rendering is safe loading and production entry never imports preview data',()=>{
  const html=renderToStaticMarkup(React.createElement(LessonExperience,{adapter:createMockLessonAdapter(),sessionKey:'scope',onHome(){}}));
  assert.match(html,/Lessonを準備/);assert.match(html,/aria-busy="true"/);
- for(const file of ['app/page.tsx','mobile/main.tsx']){const source=readFileSync(new URL('../'+file,import.meta.url),'utf8');assert.doesNotMatch(source,/my-lesson|lesson-experience/);}
+ for(const file of ['app/page.tsx','mobile/main.tsx','features/my-lesson/domain-lesson.tsx','features/my-lesson/lesson-entry.tsx']){const source=readFileSync(new URL('../'+file,import.meta.url),'utf8');assert.doesNotMatch(source,/mock-adapter|mockLesson/);}
 });

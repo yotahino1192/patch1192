@@ -1,7 +1,8 @@
 import type { createDomainClient } from '../../lib/domain/client';
-import type { Activity, Attempt, ObjectiveState, RecordAttempt } from '../../lib/domain/types';
+import type { Activity, Attempt, RecordAttempt } from '../../lib/domain/types';
 import type { ActivityState, ActivityViewModel, AdapterContext, Feedback, LessonAdapter, LessonViewModel } from './contracts';
 import { validateLesson } from './state';
+import type { CheckpointStore } from './checkpoint';
 
 type Client = ReturnType<typeof createDomainClient>;
 type HelpBoundary = Pick<LessonAdapter, 'help' | 'retainLearning'>;
@@ -20,11 +21,11 @@ function mapActivity(activity: Activity, concept: string, estimatedSeconds: numb
     default: return fail();
   }
 }
-/** Only typed client calls. No repository, storage, auth bypass, scoring projection or automatic retry. */
-export function createDomainLessonAdapter(client: Client, lessonId: string, helpBoundary: HelpBoundary): LessonAdapter {
+/** Typed client calls and an optional device checkpoint; no auth bypass, scoring projection or automatic retry. */
+export function createDomainLessonAdapter(client: Client, lessonId: string, helpBoundary: HelpBoundary, checkpoint?: CheckpointStore): LessonAdapter {
   let activities = new Map<string, Activity>();
   let latest = new Map<string, Attempt>();
-  let projection = new Map<string, ObjectiveState | null>();
+  let predecessors = new Map<string, string>();
   // Freeze every field across explicit retries, including duration and response.
   const evaluations = new Map<string, { payload: string; result?: Feedback }>();
   const pending = new Map<string, RecordAttempt>();
@@ -41,7 +42,8 @@ export function createDomainLessonAdapter(client: Client, lessonId: string, help
     const groups = await Promise.all(objectives.map(o => client.query({ resource: 'activities', id: o.id }, options)));
     const content = new Map(groups.flat().map(a => [a.id, a]));
     const history = new Map<string, Attempt>();
-    const states = new Map<string, ObjectiveState | null>();
+    const previous = new Map<string, string>();
+    const delivered = new Set<string>();
     const views: ActivityViewModel[] = [];
     for (const assignment of assignments) {
       const activity = content.get(assignment.activityId);
@@ -49,9 +51,13 @@ export function createDomainLessonAdapter(client: Client, lessonId: string, help
       if (!activity || !objective || objective.status !== 'ACTIVE') return fail();
       views.push(mapActivity(activity, objective.description, assignment.estimatedSeconds));
       const attempts = await client.query({ resource: 'attempts', id: activity.id }, options);
-      const last = attempts.filter(a => a.lessonId === lessonId && !a.undoneAt).at(-1);
+      const own = attempts.filter(a => a.lessonId === lessonId);
+      own.forEach(a => delivered.add(a.operationId));
+      const last = own.filter(a => !a.undoneAt).at(-1);
+      const tail = own.at(-1);
+      previous.set(activity.id, tail ? `${tail.id}:${tail.undoneAt ?? ''}` : 'initial');
+      views.at(-1)!.revision = JSON.stringify([activity.updatedAt, previous.get(activity.id)]);
       if (last) history.set(activity.id, last);
-      if (!states.has(objective.id)) states.set(objective.id, await client.query({ resource: 'objectiveState', id: objective.id }, options));
     }
     // Validate the complete payload before starting a CREATED lesson.
     const completedIds = views.filter(v => success(history.get(v.id))).map(v => v.id);
@@ -61,14 +67,19 @@ export function createDomainLessonAdapter(client: Client, lessonId: string, help
       const attempt = history.get(view.id);
       if (attempt) restored[view.id] = { status: 'FEEDBACK', response: attempt.response, revealed: true, assessment: attempt.result === 'COMPLETED' ? undefined : attempt.result, feedback: { correct: success(attempt), message: '保存済みの回答を復元しました。', explanation: content.get(view.id)?.explanation } };
     }
-    const elapsed = lesson.startedAt ? Math.max(0, Math.floor(((lesson.completedAt ? Date.parse(lesson.completedAt) : Date.now()) - Date.parse(lesson.startedAt)) / 1000)) : 0;
+    const saved = checkpoint?.read(lessonId);
+    const elapsed = saved?.elapsedSeconds ?? 0;
     const result: LessonViewModel = validateLesson({ lessonId, patch: { name: patch.title }, targetMinutes: lesson.targetMinutes, status: lesson.status === 'COMPLETED' ? 'COMPLETED' : 'ACTIVE', activities: views, resume: { completedIds, elapsedSeconds: elapsed, states: restored }, completion: { strengthenedConcepts: strengthened.map(id => objectives.find(o => o.id === id)!.description), strengthenedObjectiveCount: strengthened.length, ...(lesson.status === 'COMPLETED' ? { status: 'COMPLETED', actualSeconds: elapsed } : {}) } });
     if (lesson.status === 'COMPLETED' && completedIds.length !== views.length) return fail();
     if (start && lesson.status === 'CREATED') lesson = await client.command({ action: 'startLesson', input: { lessonId } }, options);
     if (lesson.status === 'CREATED') return fail();
     context.signal.throwIfAborted();
-    for (const [id, input] of pending) if (history.get(id)?.operationId === input.operationId) pending.delete(id);
-    activities = content; latest = history; projection = states;
+    if (saved?.pending) {
+      if (delivered.has(saved.pending.operationId)) checkpoint?.write(lessonId, { pending: null });
+      else pending.set(saved.pending.activityId, saved.pending);
+    }
+    for (const [id, input] of pending) if (delivered.has(input.operationId)) pending.delete(id);
+    activities = content; latest = history; predecessors = previous;
     return result;
   }
   async function record(activityId: string, response: string, result: RecordAttempt['result'], context: AdapterContext) {
@@ -76,25 +87,30 @@ export function createDomainLessonAdapter(client: Client, lessonId: string, help
     let input = pending.get(activityId);
     if (!input) {
       // Same predecessor => same operation across reloads while an earlier response is lost/in-flight.
-      const seed = `${lessonId}:${activityId}:${latest.get(activityId)?.id ?? 'initial'}`;
+      const seed = `${lessonId}:${activityId}:${predecessors.get(activityId) ?? 'initial'}`;
       const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(seed));
       const operationId = 'lesson-' + Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('');
-      // Session wall duration comes from authoritative startedAt/completedAt. No fabricated per-answer timing.
+      // Per-answer duration is not measured yet; elapsed foreground time is a device-only budget.
       input = { lessonId, activityId, result, response, durationMs: 0, operationId };
       pending.set(activityId, input);
     } else if (input.response !== response || input.result !== result) throw new Error('PENDING_ANSWER_RELOAD_REQUIRED');
+    // Fail before dispatch if durable retry identity cannot be retained on this device.
+    checkpoint?.write(lessonId, { pending: input });
     const attempt = await client.command({ action: 'recordAttempt', input }, { signal: context.signal });
     if (attempt.undoneAt) throw new Error('ANSWER_UNDONE_RELOAD_REQUIRED');
     const activity = activities.get(activityId) ?? fail();
     const state = await client.query({ resource: 'objectiveState', id: activity.objectiveId }, { signal: context.signal });
     context.signal.throwIfAborted();
-    latest.set(activityId, attempt); projection.set(activity.objectiveId, state); pending.delete(activityId);
+    checkpoint?.write(lessonId, { pending: null });
+    latest.set(activityId, attempt); pending.delete(activityId);
+    predecessors.set(activityId, `${attempt.id}:`);
     return { attempt, state };
   }
   return {
     load: context => snapshot(context, true),
     async evaluate(input, context) {
       context.signal.throwIfAborted();
+      if (input.lessonId !== lessonId) return fail();
       const payload = JSON.stringify([input.activity.id, input.response, input.assessment]);
       const prior = evaluations.get(context.operationId);
       if (prior && prior.payload !== payload) throw new Error('OPERATION_CONFLICT');
@@ -103,17 +119,18 @@ export function createDomainLessonAdapter(client: Client, lessonId: string, help
       const activity = activities.get(input.activity.id) ?? fail();
       let correct: boolean;
       switch (activity.type) {
-        case 'RECALL': correct = input.response === 'remembered'; break;
-        case 'CHOICE': correct = activity.metadata.choices?.[Number(input.response)] === activity.answer; break;
-        case 'EXPLAIN': case 'APPLY': if (!input.assessment) return fail(); correct = input.assessment === 'CORRECT'; break;
+        case 'RECALL': if (!['remembered','practice'].includes(input.response)) return fail(); correct = input.response === 'remembered'; break;
+        case 'CHOICE': if (!/^[0-5]$/.test(input.response) || !activity.metadata.choices?.[Number(input.response)]) return fail(); correct = activity.metadata.choices[Number(input.response)] === activity.answer; break;
+        case 'EXPLAIN': case 'APPLY': if (!input.response.trim() || !['CORRECT','INCORRECT'].includes(input.assessment ?? '')) return fail(); correct = input.assessment === 'CORRECT'; break;
         default: return fail();
       }
-      const { state } = await record(activity.id, input.response, correct ? 'CORRECT' : 'INCORRECT', context);
-      const feedback = { correct, message: correct ? '回答を保存しました。' : '回答を保存しました。説明を確認して、もう一度練習しましょう。', explanation: activity.explanation || activity.answer, objectiveState: state ?? undefined };
+      const { state, attempt } = await record(activity.id, input.response, correct ? 'CORRECT' : 'INCORRECT', context);
+      const feedback = { activityRevision: JSON.stringify([activity.updatedAt, `${attempt.id}:`]), correct, message: correct ? '回答を保存しました。' : '回答を保存しました。説明を確認して、もう一度練習しましょう。', explanation: activity.explanation || activity.answer, objectiveState: state ?? undefined };
       evaluations.set(context.operationId, { payload, result: feedback });
       return feedback;
     },
     async advance(input, context) {
+      if (input.lessonId !== lessonId) return fail();
       const activity = activities.get(input.activity.id) ?? fail();
       if (activity.type === 'LEARN' && !success(latest.get(activity.id))) await record(activity.id, '', 'COMPLETED', context);
       if (!success(latest.get(activity.id))) return fail();

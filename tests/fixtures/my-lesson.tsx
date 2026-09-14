@@ -13,7 +13,7 @@ const adapter: LessonAdapter = {
   async load(context) { await pause(); if (fixture.loadFail) throw Error('raw secret must never be rendered'); return mock.load(context); },
   async evaluate(input, context) { fixture.calls++; fixture.operations.push(context.operationId); await pause(); if (fixture.fail) throw Error('raw secret'); return mock.evaluate(input, context); },
   async help(input, context) { fixture.helpCalls++; await pause(); return mock.help(input, context); },
-  async retainLearning(input, context) { fixture.captures++; await pause(); return mock.retainLearning(input, context); },
+  async retainLearning(input, context) { fixture.captures++; await pause(); return mock.retainLearning!(input, context); },
 };
 const emptyAdapter = createMockLessonAdapter({ ...mockLesson, activities: [] });
 function Preview() {
