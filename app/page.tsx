@@ -29,7 +29,7 @@ import { ReviewCelebration } from "./study-effects";
 import { MaterialManager } from "./material-manager";
 import { SettingsDialog } from "./settings-dialog";
 import { StudyCardEditor } from "./study-card-editor";
-import { AssetIcon, IconLabel, type AssetName } from "./asset-icon";
+import { AssetIcon, IconLabel } from "./asset-icon";
 import type {
   AppData,
   Card,
@@ -154,7 +154,7 @@ function Shell({ screen, setScreen, children, title }: {
     mainRef.current?.focus();
   }, [screen]);
   return (
-    <div className={`app-shell ${screen === "home" ? "patch-home-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
+    <div className={`app-shell ${screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
       {screen !== "study" && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
         {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
         {title && <h1 className="screen-title">{t(title)}</h1>}
@@ -174,7 +174,7 @@ function Shell({ screen, setScreen, children, title }: {
             aria-current={active ? "page" : undefined}
             onClick={() => { if (!active) setScreen(item.id); }}
           >
-            <span className="nav-icon nav-image" aria-hidden="true">{screen === "home" ? <PatchIcon name={({home:"home",sets:"document",import:"plus",records:"bars"} as Record<string, PatchIconName>)[item.id]} size={30} /> : <img src={`/nav-icons/${item.id}.png`} width={1254} height={1254} alt="" />}</span>
+            <span className="nav-icon nav-image" aria-hidden="true"><PatchIcon name={({home:"home",sets:"document",import:"plus",records:"bars"} as Record<string, PatchIconName>)[item.id]} size={30} /></span>
             <span>{t(item.label)}</span>
           </button>
           );
@@ -370,9 +370,9 @@ function SetDetail({ data, selectedSetId, selectSet, startStudy, now, onData, fo
       <div className="set-view-toolbar"><span /><button className="secondary" onClick={() => setManaging(true)}>{t("カードセットを編集")}</button></div>
       <section className="set-hero"><span className="big-icon" aria-hidden="true">{setEmoji(set)}</span><div><p>{set.category}</p><h1>{set.title}</h1><span>{set.summary}</span></div></section>
       <div className="set-meta">
-        <div><span className="set-meta-icon" aria-hidden="true"><img src="/set-meta-icons/cards.png" width={1254} height={1254} alt="" /></span><span><small>{t("カード数")}</small><strong>{t("{0}枚", activeCards.length)}</strong></span></div>
-        <div><span className="set-meta-icon" aria-hidden="true"><img src="/set-meta-icons/last-studied.png" width={1254} height={1254} alt="" /></span><span><small>{t("最終学習日")}</small><strong>{relativeDate(set.lastStudiedAt, now, language)}</strong></span></div>
-        <div><span className="set-meta-icon" aria-hidden="true"><img src="/set-meta-icons/next-review.png" width={1254} height={1254} alt="" /></span><span><small>{t("次の復習日")}</small><strong>{relativeDate(set.nextReviewAt, now, language)}</strong></span></div>
+        <div><span className="set-meta-icon" aria-hidden="true"><PatchIcon name="document" size={24} /></span><span><small>{t("カード数")}</small><strong>{t("{0}枚", activeCards.length)}</strong></span></div>
+        <div><span className="set-meta-icon" aria-hidden="true"><PatchIcon name="calendar" size={24} /></span><span><small>{t("最終学習日")}</small><strong>{relativeDate(set.lastStudiedAt, now, language)}</strong></span></div>
+        <div><span className="set-meta-icon" aria-hidden="true"><PatchIcon name="refresh" size={24} /></span><span><small>{t("次の復習日")}</small><strong>{relativeDate(set.nextReviewAt, now, language)}</strong></span></div>
       </div>
       <button className="primary wide" disabled={!activeCards.length} onClick={() => startStudy(set.id)}>{t("このセットを学習")}</button>
       <section className="memory-panel">
@@ -854,7 +854,7 @@ function Records({ data, now, startStudy }: { data: AppData; now: Date; startStu
       <div className="record-stats">
         {[["streak", "連続学習", t("{0}日", streak)], ["weekly-study", "直近7日間の学習", t("{0}枚", weekReviews)], ["long-term", "長期記憶したカード数", t("{0}枚", milestones.longTerm)], ["memory-clock", "もう少しで長期記憶に到達するカード数", t("{0}枚", milestones.nearLongTerm)], ["completed-sets", "学習し切ったセット数", t("{0}セット", milestones.completedSets)]].map(([icon, label, value], index) => (
           <article key={label} className={index < 2 ? "record-stat-summary" : "record-stat-memory"}>
-            <span className="record-stat-icon" aria-hidden="true"><AssetIcon name={icon as AssetName} size={index < 2 ? 28 : 34} /></span>
+            <span className="record-stat-icon" aria-hidden="true"><PatchIcon name={({streak:"flame","weekly-study":"calendar","long-term":"book","memory-clock":"refresh","completed-sets":"check"} as Record<string, PatchIconName>)[icon]} size={26} /></span>
             <small>{t(label)}</small>
             <strong>{value}</strong>
           </article>

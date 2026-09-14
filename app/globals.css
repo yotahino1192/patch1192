@@ -821,8 +821,8 @@ small,button small,.muted,[class] small { font-family: var(--font-body); font-si
 
 /* Focused Patch phase 1 visual system. */
 
-/* Phase 1 tokens are scoped to Home, preview and completion. Other product flows keep their styles. */
-.patch-ui, .patch-home-shell, .app-shell:has(.patch-complete) {
+/* Home tokens also serve the main tabs; study and onboarding retain their scoped styles. */
+.patch-ui, :is(.patch-home-shell, .patch-main-shell), .app-shell:has(.patch-complete) {
   --font-heading: var(--font-body);
   --patch-ink: #142333;
   --patch-muted: #7c8da9;
@@ -842,17 +842,17 @@ small,button small,.muted,[class] small { font-family: var(--font-body); font-si
   color: var(--patch-ink);
   font-family: var(--font-body);
 }
-html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-complete), .patch-home-shell, .app-shell:has(.patch-complete) { background: #fff; }
-.patch-home-shell { width: min(100%, 720px); }
-.patch-home-shell > main { padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px)); }
-.patch-home-shell .topbar-home { padding: calc(4px + env(safe-area-inset-top, 0px)) 14px 0; }
-.patch-home-shell .settings-button { width: 32px; min-width: 32px; height: 32px; min-height: 32px; opacity: .65; }
-.patch-home-shell .settings-button .asset-icon { width: 19px !important; height: 19px !important; }
-.patch-home-shell .bottom-nav { left: 50%; transform: translateX(-50%); bottom: max(10px, env(safe-area-inset-bottom, 0px)); width: min(calc(100% - 20px), 700px); height: 64px; padding: 5px; gap: 4px; border: 1px solid #dce5ed; border-radius: 13px; background: #fff; }
-.patch-home-shell .bottom-nav::after { content: ""; position: absolute; top: 100%; left: -10px; right: -10px; height: max(10px, env(safe-area-inset-bottom, 0px)); background: white; pointer-events: none; }
-.patch-home-shell .bottom-nav button { border-radius: 10px; color: var(--patch-muted); gap: 0; font-size: 12px; }
-.patch-home-shell .bottom-nav button.active { background: #d7f6e9; color: #21ad6c; }
-.patch-home-shell .bottom-nav .nav-image { width: 30px; height: 30px; }
+html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-shell, .patch-main-shell)), body:has(.patch-complete), :is(.patch-home-shell, .patch-main-shell), .app-shell:has(.patch-complete) { background: #fff; }
+:is(.patch-home-shell, .patch-main-shell) { width: min(100%, 720px); }
+:is(.patch-home-shell, .patch-main-shell) > main { padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px)); }
+:is(.patch-home-shell, .patch-main-shell) .topbar-home { padding: calc(4px + env(safe-area-inset-top, 0px)) 14px 0; }
+:is(.patch-home-shell, .patch-main-shell) .settings-button { width: 32px; min-width: 32px; height: 32px; min-height: 32px; opacity: .65; }
+:is(.patch-home-shell, .patch-main-shell) .settings-button .asset-icon { width: 19px !important; height: 19px !important; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav { left: 50%; transform: translateX(-50%); bottom: max(10px, env(safe-area-inset-bottom, 0px)); width: min(calc(100% - 20px), 700px); height: 64px; padding: 5px; gap: 4px; border: 1px solid #dce5ed; border-radius: 13px; background: #fff; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav::after { content: ""; position: absolute; top: 100%; left: -10px; right: -10px; height: max(10px, env(safe-area-inset-bottom, 0px)); background: white; pointer-events: none; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav button { border-radius: 10px; color: var(--patch-muted); gap: 0; font-size: 12px; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav button.active { background: #d7f6e9; color: #21ad6c; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav .nav-image { width: 30px; height: 30px; }
 .patch-home { width: min(100%, 480px); margin: auto; padding: max(44px, env(safe-area-inset-top, 0px)) 22px 16px; }
 .patch-greeting { display: flex; gap: 16px; align-items: center; margin: 0 0 12px; }
 .patch-bubble { position: relative; flex: 1; min-width: 0; padding: 13px 11px; border: 1px solid var(--patch-line); border-radius: 12px; background: #fff; box-shadow: var(--patch-shadow); }
@@ -865,7 +865,7 @@ html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-comple
 .patch-bubble h1 { padding-right: 18px; }
 .patch-primary { border: 0; border-radius: 999px; background: linear-gradient(110deg, #16a260, #1aad65); color: white; min-height: 58px; padding: 13px 22px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 19px; font-weight: 400; width: 100%; line-height: 1.3; }
 .patch-primary:hover { filter: brightness(.97); }
-.patch-ui button:focus-visible, .patch-home-shell button:focus-visible { outline: 3px solid #126d50; outline-offset: 4px; }
+.patch-ui button:focus-visible, :is(.patch-home-shell, .patch-main-shell) button:focus-visible { outline: 3px solid #126d50; outline-offset: 4px; }
 .patch-text-button { display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; background: none; color: #527965; min-height: 44px; padding: 9px 5px; font-size: 13px; width: 100%; }
 .patch-home-early { padding-top: max(128px, env(safe-area-inset-top, 0px)); }
 .patch-home-early .patch-greeting { flex-direction: column-reverse; gap: 20px; margin-bottom: 36px; }
@@ -981,7 +981,7 @@ html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-comple
 .patch-complete .completion-review { font-size: 12px; padding: 10px; }
 .patch-complete .lesson-ai-recap { width: 100%; }
 @media (max-width: 360px) {
-  .patch-home-shell .bottom-nav button { min-width: 0; font-size: 10px; line-height: 1.3; }
+  :is(.patch-home-shell, .patch-main-shell) .bottom-nav button { min-width: 0; font-size: 10px; line-height: 1.3; }
   .patch-home { padding-inline: 15px; }
   .patch-greeting { gap: 7px; }
   .patch-bubble h1 { font-size: 20px; }
@@ -999,10 +999,10 @@ html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-comple
 }
 @media (min-width: 600px) { .patch-home { padding-top: 54px; } .patch-home-early { padding-top: 120px; } }
 
-.patch-home-shell .bottom-nav .nav-image { overflow: visible; mix-blend-mode: normal; color: #8a9cb6; }
-.patch-home-shell .bottom-nav button:first-child .nav-image { color: #22b16c; }
-.patch-home-shell .bottom-nav button:nth-child(3) .nav-image { color: #ff6479; }
-.patch-home-shell .bottom-nav button:nth-child(4) .nav-image { color: #ffb224; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav .nav-image { overflow: visible; mix-blend-mode: normal; color: #8a9cb6; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav button:first-child .nav-image { color: #22b16c; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav button:nth-child(3) .nav-image { color: #ff6479; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav button:nth-child(4) .nav-image { color: #ffb224; }
 .patch-current-node small { color: white; }
 .patch-ui { font-weight: 400; }
 .patch-ui p, .patch-ui small { font-weight: 400; }
@@ -1013,3 +1013,89 @@ html:has(.patch-home-shell), body:has(.patch-home-shell), body:has(.patch-comple
 
 /* Existing assigned Lessons use the same Home action cards without reprioritizing Continue. */
 .patch-home-lessons { width: 100%; margin-top: 20px; }
+
+
+/* Main tabs share Home's palette and navigation; study/onboarding keep their own layout. */
+.patch-main-shell {
+  --ink: var(--patch-ink);
+  --leaf: #168653;
+  --shadow: var(--patch-shadow);
+  --blue: #168653;
+  --cyan: #168653;
+  --color-muted: #60748b;
+  --muted: var(--color-muted);
+  background: #fff;
+}
+.patch-main-shell .topbar { background: #fff; border-color: var(--patch-line); }
+.patch-main-shell .page { padding-inline: 22px; }
+.patch-main-shell h1 { font-size: 22px; letter-spacing: -.035em; }
+.patch-main-shell h2 { letter-spacing: -.02em; }
+.patch-main-shell :is(.primary, .secondary, .folder-text-button) { font-weight: 500; }
+.patch-main-shell .primary {
+  background: linear-gradient(110deg, #16a260, #1aad65);
+  color: #fff;
+  border-radius: 999px;
+  min-height: 50px;
+  box-shadow: none;
+}
+.patch-main-shell .secondary { background: #fff; color: var(--blue); border-color: var(--patch-line); border-radius: 14px; }
+.patch-main-shell :is(input, textarea, select):focus-visible { outline: 3px solid #126d50; outline-offset: 3px; }
+.patch-main-shell :is(input, textarea, select) { border-color: var(--patch-line); }
+.patch-main-shell :is(.panel, .memory-panel, .chart-panel, .edit-card-list article) { border-color: var(--patch-line); border-radius: 20px; box-shadow: var(--patch-shadow); }
+.patch-main-shell :is(.option-group button.selected, .format-option.selected, .manager-tabs button[aria-pressed="true"]) { background: var(--patch-mint); color: #126d50; border-color: #a4dcc4; }
+.patch-main-shell .library-page { padding-top: 10px; }
+.patch-main-shell .folder-breadcrumb { color: var(--muted); margin-bottom: 14px; }
+.patch-main-shell .material-search { margin-bottom: 20px; }
+.patch-main-shell .material-search input { min-height: 48px; background: #f5f8fa; border-radius: 16px; }
+.patch-main-shell .folder-controls { margin: 18px 0; }
+.patch-main-shell :is(.folder-tile, .library-sets article, .search-hit-list button) {
+  background: #fff;
+  border: 1px solid var(--patch-line);
+  border-radius: 18px;
+  box-shadow: var(--patch-shadow);
+}
+.patch-main-shell .folder-tile { padding: 16px; gap: 6px 12px; }
+.patch-main-shell .folder-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; background: var(--patch-mint); color: #168653; }
+.patch-main-shell .folder-arrow { color: var(--patch-muted); }
+.patch-main-shell .library-sets { gap: 14px; margin-top: 18px; }
+.patch-main-shell .library-set-open { padding: 18px 14px; gap: 12px; }
+.patch-main-shell .library-set-open > span:first-child { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; background: var(--patch-mint); font-size: 23px; }
+.patch-main-shell .library-set-open > svg { color: var(--patch-muted); flex-shrink: 0; }
+.patch-main-shell .library-sets .folder-text-button { font-size: 13px; }
+.patch-main-shell .library-empty { background: #f5f8fa; border-radius: 18px; margin-top: 20px; }
+.patch-main-shell .folder-create { padding: 18px; border: 1px solid var(--patch-line); border-radius: 18px; background: #f8fcfa; }
+.patch-main-shell .set-hero { background: #edf9f3; border: 1px solid var(--patch-line); border-bottom: 0; padding: 22px 18px; border-radius: 22px 22px 0 0; }
+.patch-main-shell .set-hero p { color: #168653; }
+.patch-main-shell .set-hero div > span { color: #526779; line-height: 1.7; }
+.patch-main-shell .set-meta { background: #fff; border: 1px solid var(--patch-line); border-top: 0; border-radius: 0 0 22px 22px; padding: 16px 12px; }
+.patch-main-shell .set-meta-icon { display: grid; place-items: center; color: #168653; }
+.patch-main-shell .set-meta small { font-size: 12px; }
+.patch-main-shell .set-page > .primary.wide { margin: 20px 0; min-height: 54px; }
+.patch-main-shell .set-page .memory-panel { padding: 18px; }
+.patch-main-shell .memory-grid > div { background: #f5f8fa; border: 0; padding: 12px; }
+.patch-main-shell .memory-grid strong { color: var(--patch-ink); }
+.patch-main-shell .topic-list { display: grid; gap: 12px; border: 0; background: transparent; overflow: visible; }
+.patch-main-shell .topic-list button { border: 1px solid var(--patch-line); border-radius: 18px; padding: 16px 12px; box-shadow: var(--patch-shadow); }
+.patch-main-shell .topic-list button > span { background: var(--patch-mint); color: #168653; }
+.patch-main-shell .topic-list button :is(i, em) { font-size: 12px; font-weight: 400; }
+.patch-main-shell .topic-list button i { background: #edf9f3; color: #126d50; }
+.patch-main-shell .record-stats { gap: 12px; margin-top: 16px; }
+.patch-main-shell .record-stats article { padding: 16px 12px; border-radius: 18px; box-shadow: var(--patch-shadow); }
+.patch-main-shell .record-stat-icon { color: #168653; display: grid; place-items: center; }
+.patch-main-shell .record-stat-summary strong { font-size: 22px; }
+.patch-main-shell .bar-chart span { background: var(--patch-green); }
+.patch-main-shell .records-page :is(.reminder-list button, .weak-list button) { border-radius: 18px; padding: 16px 12px; box-shadow: var(--patch-shadow); }
+.patch-main-shell .import-page > textarea { background: #f5f8fa; border-radius: 20px; }
+.patch-main-shell :is(.success-banner, .auto-count-note) { background: var(--patch-mint); }
+.patch-main-shell .sticky-actions { background: #fff; }
+:is(.patch-home-shell, .patch-main-shell) .settings-dialog { background: #fff; color: var(--patch-ink); border-color: var(--patch-line); border-radius: 24px; box-shadow: var(--patch-shadow); }
+:is(.patch-home-shell, .patch-main-shell) .settings-dialog::backdrop { background: #14233345; }
+:is(.patch-home-shell, .patch-main-shell) .settings-language button[aria-pressed="true"] { color: #126d50; border-color: #a4dcc4; }
+@media (max-width: 360px) {
+  .patch-main-shell .page { padding-inline: 16px; }
+  .patch-main-shell .set-meta { grid-template-columns: 1fr; gap: 12px; }
+  .patch-main-shell .topic-list button { grid-template-columns: 28px minmax(0,1fr); }
+  .patch-main-shell .topic-list button > div { grid-row: 1; }
+  .patch-main-shell .topic-list button i { grid-column: 2; grid-row: 2; justify-self: start; }
+  .patch-main-shell .topic-list button em { grid-column: 2; grid-row: 3; justify-self: start; }
+}

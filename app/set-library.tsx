@@ -3,7 +3,8 @@
 import { useApiFetch } from "./account-context";
 
 import { useLanguage } from "./language";
-import { AssetIcon, IconLabel } from "./asset-icon";
+import { IconLabel } from "./asset-icon";
+import { PatchIcon } from "./patch-ui";
 
 import { useRef, useState, type ReactNode } from "react";
 import type { AppData, Folder } from "../lib/types";
@@ -77,9 +78,9 @@ export function SetLibrary({ data, folderId, openSetId, onFolder, onSet, onData,
         {!results.sets.length && !results.cards.length && <p className="muted">{t("一致する教材・カードがありません。")}</p>}
         {Math.max(results.sets.length, results.cards.length) > searchLimit && <button className="secondary wide" onClick={() => setSearchLimit((limit) => limit + 50)}>{t("さらに表示")}</button>}
       </section> : currentSet ? <div className="folder-toolbar"><button className="secondary" onClick={() => navigate(currentFolderId)}><IconLabel name="chevron-left" size={18}>{t("フォルダへ戻る")}</IconLabel></button><button className="secondary" onClick={() => { setMovingSet(currentSet.id); setDestination(currentSet.folderId || ""); }}>{t("別のフォルダへ移動")}</button></div> : <>
-        <div className="library-heading">{folder && <h1>{folder.name}</h1>}<button className="primary" onClick={onAdd}><IconLabel name="plus-dark">{t("カードセットを追加")}</IconLabel></button></div>
+        <div className="library-heading">{folder && <h1>{folder.name}</h1>}<button className="primary" onClick={onAdd}><span className="icon-label"><PatchIcon name="plus" size={20} /><span>{t("カードセットを追加")}</span></span></button></div>
         <div className="folder-controls">
-          <button ref={folderButtonRef} type="button" className="secondary" disabled={busy} aria-expanded={folderFormOpen && !renaming} aria-controls="folder-create-form" onClick={() => { setFolderFormOpen(!folderFormOpen || renaming); setRenaming(false); setName(""); }}><IconLabel name="plus">{t("フォルダ")}</IconLabel></button>
+          <button ref={folderButtonRef} type="button" className="secondary" disabled={busy} aria-expanded={folderFormOpen && !renaming} aria-controls="folder-create-form" onClick={() => { setFolderFormOpen(!folderFormOpen || renaming); setRenaming(false); setName(""); }}><span className="icon-label"><PatchIcon name="plus" size={18} /><span>{t("フォルダ")}</span></span></button>
           {folder && <button type="button" className="folder-text-button" disabled={busy} aria-expanded={folderFormOpen && renaming} aria-controls="folder-create-form" onClick={() => { setFolderFormOpen(true); setRenaming(true); setName(folder.name); }}>{t("このフォルダの名前を変更")}</button>}
         </div>
         {folderFormOpen && <form id="folder-create-form" className="folder-create" onSubmit={async (e) => { e.preventDefault(); if (await run({ action: renaming ? "renameFolder" : "createFolder", folderId: currentFolderId, name: name.trim() })) { setName(""); setRenaming(false); setFolderFormOpen(false); folderButtonRef.current?.focus(); setMessage(renaming ? t("フォルダ名を変更しました。") : t("フォルダを作成しました。")); } }}>
@@ -87,8 +88,8 @@ export function SetLibrary({ data, folderId, openSetId, onFolder, onSet, onData,
           <button className="secondary" disabled={busy || !name.trim()}>{renaming ? t("名前を保存") : t("フォルダを作成")}</button>
           <button type="button" className="folder-text-button" disabled={busy} onClick={() => { setFolderFormOpen(false); setRenaming(false); setName(""); folderButtonRef.current?.focus(); }}>{t("キャンセル")}</button>
         </form>}
-        <div className="folder-grid">{folders.map((f) => <button className="folder-tile" key={f.id} onClick={() => navigate(f.id)}><AssetIcon name="folder" size={30} /><strong>{f.name}</strong><small>{data.folders.filter((c) => c.parentId === f.id).length}{t("フォルダ ·")}{data.sets.filter((set) => set.folderId === f.id).length}{language === "en" ? " sets" : "セット"}</small><span className="folder-arrow"><AssetIcon name="chevron-right" size={18} /></span></button>)}</div>
-        <div className="library-sets">{sets.map((set) => <article key={set.id}><button className="library-set-open" onClick={() => onSet(set.id)}><span aria-hidden="true">{setEmoji(set)}</span><div><strong>{set.title}</strong><small>{set.cards.filter((c) => !["アーカイブ", "削除済み"].includes(c.status)).length}{t("枚 ·")}{set.category}</small></div><AssetIcon name="chevron-right" size={18} /></button><button className="folder-text-button" onClick={() => { setMovingSet(set.id); setDestination(set.folderId || ""); }}>{t("移動")}</button></article>)}</div>
+        <div className="folder-grid">{folders.map((f) => <button className="folder-tile" key={f.id} onClick={() => navigate(f.id)}><span className="folder-icon"><PatchIcon name="folder" size={24} /></span><strong>{f.name}</strong><small>{data.folders.filter((c) => c.parentId === f.id).length}{t("フォルダ ·")}{data.sets.filter((set) => set.folderId === f.id).length}{language === "en" ? " sets" : "セット"}</small><span className="folder-arrow"><PatchIcon name="chevron" size={18} /></span></button>)}</div>
+        <div className="library-sets">{sets.map((set) => <article key={set.id}><button className="library-set-open" onClick={() => onSet(set.id)}><span aria-hidden="true">{setEmoji(set)}</span><div><strong>{set.title}</strong><small>{set.cards.filter((c) => !["アーカイブ", "削除済み"].includes(c.status)).length}{t("枚 ·")}{set.category}</small></div><PatchIcon name="chevron" size={18} /></button><button className="folder-text-button" onClick={() => { setMovingSet(set.id); setDestination(set.folderId || ""); }}>{t("移動")}</button></article>)}</div>
         {!sets.length && !folders.length && <p className="library-empty">{t("まだ教材がありません。カードセットを追加するか、フォルダを作って整理しましょう。")}</p>}
       </>}
       {movingSet && !searching && <form className="folder-move panel" onSubmit={async (e) => { e.preventDefault(); if (await run({ action: "moveSet", setId: movingSet, folderId: destination || null })) { setMovingSet(null); setMessage(t("カードセットを移動しました。")); if (currentSet) onFolder(destination || null); } }}><h2>{t("「")}{data.sets.find((set) => set.id === movingSet)?.title}{t("」の移動先")}</h2><label>{t("フォルダ")}<select value={destination} onChange={(e) => setDestination(e.target.value)}>{options}</select></label><div className="manager-actions"><button className="primary" disabled={busy}>{t("ここへ移動")}</button><button type="button" disabled={busy} onClick={() => setMovingSet(null)}>{t("キャンセル")}</button></div></form>}

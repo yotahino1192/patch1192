@@ -3,9 +3,10 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useLanguage } from "./language";
 
-export type PatchIconName = "book" | "check" | "arrow" | "chevron" | "calendar" | "flame" | "close" | "plus" | "home" | "refresh" | "document" | "bars";
+export type PatchIconName = "folder" | "book" | "check" | "arrow" | "chevron" | "calendar" | "flame" | "close" | "plus" | "home" | "refresh" | "document" | "bars";
 export function PatchIcon({ name, size = 24 }: { name: PatchIconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {name === "folder" && <path d="M3 9a3 3 0 0 1 3-3h7l3 4h10a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3Z" />}
     {name === "book" && <path d="M16 7C12 3 6 3 2 5v22c5-2 10-2 14 1 4-3 9-3 14-1V5c-4-2-10-2-14 2Zm0 0v21" />}
     {name === "check" && <path strokeWidth="4" d="m7 16 6 6L26 8" />}
     {name === "arrow" && <path d="M5 16h22M19 7l9 9-9 9" />}
