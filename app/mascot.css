@@ -1,0 +1,31 @@
+/* All mascot fitting, canvas sizing and placement live here. Keep these boxes
+   stable as final artwork is integrated.
+   No object crop, blend mode, CSS ground shadow or mascot accent overlay. */
+.patch-mascot {
+  display: block;
+  width: var(--mascot-width);
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  flex-shrink: 0;
+}
+.patch-mascot-standing { --mascot-width: 264px; }
+.patch-mascot-reading { --mascot-width: 116px; }
+/* The supplied square canvas includes confetti padding. Scale only the artwork,
+   keeping the reserved layout box and every following control unchanged. */
+.patch-mascot-celebrate { --mascot-width: 310px; transform: scale(1.1); }
+
+/* Existing screen placements; only the containing screen chooses the size. */
+.patch-greeting > .patch-mascot { margin-left: -4px; }
+.patch-home-early .patch-mascot { margin: 0; }
+.patch-preview-heading .patch-mascot { --mascot-width: 105px; }
+.patch-complete > .patch-mascot { width: min(100%, var(--mascot-width)); margin: 0 auto 17px; }
+
+@media (max-width: 360px) {
+  .patch-greeting > .patch-mascot { --mascot-width: 94px; }
+  .patch-preview-heading .patch-mascot { --mascot-width: 85px; }
+}
+@media (max-height: 740px) {
+  .patch-home-early .patch-mascot { --mascot-width: 205px; }
+  .patch-complete > .patch-mascot { --mascot-width: 235px; }
+}

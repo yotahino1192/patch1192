@@ -2,6 +2,7 @@ import { createClient } from '@libsql/client';
 import { migrate } from './infra/migrations.mjs';
 // Run after npm run build. Real UI + authenticated APIs, isolated browser/DB and test-only SDK entry.
 import {createServer} from 'vite';
+import {continueLearning} from '../lib/continue-learning.ts';
 import react from '@vitejs/plugin-react';
 import {headers as authHeaders, token} from '../tests/auth-fixture.mjs';
 import assert from 'node:assert/strict';
@@ -71,6 +72,17 @@ try {
  const post=async(path,body)=>{const r=await fetch(origin+path,{method:'POST',headers:authHeaders('user_onboarding',identity.userId,{'content-type':'application/json'}),body:JSON.stringify(body)});assert.equal(r.status,200);return r.json();};
  const created=await post('/api/data',{action:'saveSet',material:{title:'Retention browser set',category:'Test',summary:'',keyPoints:[],sourceContent:'Source',cards:Array.from({length:8},(_,i)=>({question:'Retention question '+i,answer:'Retention answer '+i,format:'qa',choices:[],difficulty:2}))}});
  const set=created.data.sets.find(s=>s.id===created.setId);
+ // Home preview is read-only against the real authenticated API and dismisses back to Home.
+ await reload();await waitText('連続学習');
+ const previewData=await data();const beforePreview=previewData.retention.session;
+ const previewDestination=continueLearning(previewData,[]);
+ const previewTitle=previewDestination.kind==='set'?previewData.sets.find(s=>s.id===previewDestination.id).title:'今日の復習';
+ await until(()=>evaluate('!!document.querySelector(".patch-home .patch-action-card")'));
+ await click('.patch-home .patch-action-card');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
+ assert.equal(await evaluate('document.querySelector("#lesson-preview-title").textContent'), previewTitle);
+ assert.deepEqual((await data()).retention.session,beforePreview);
+ await click('.patch-sheet-close');await until(()=>evaluate('!document.querySelector(".patch-sheet").open'));
+
  await evaluate(`(async()=>{const m=await import('/lib/retention-platform.ts');window.retentionMock={queue:[],published:[],cleared:[],owner:null,snapshot:null,notifications:[],signedOutCount:0};const r=window.retentionMock;m.configureRetention({activate:async v=>{r.owner=v.userId},clear:async v=>{r.cleared.push(v.userId);if(r.owner===v.userId){r.owner=null;r.snapshot=null;r.notifications=[];r.queue=[]}},signedOut:async()=>{r.signedOutCount++;r.owner=null;r.snapshot=null;r.notifications=[];r.queue=r.queue.filter(l=>!l.owner)},publish:async v=>{r.published.push(v);r.snapshot=v.snapshot;r.notifications=v.notifications},permission:async()=>({granted:true}),links:async()=>({links:r.queue.splice(0)})});await m.activateRetention(${JSON.stringify(identity.userId)});window.dispatchEvent(new Event('patch-retention-refresh'));})()`);
  const link=async url=>evaluate(`window.retentionMock.queue.push({url:${JSON.stringify(url)},at:Date.now(),owner:${JSON.stringify(identity.userId)}})`);
 
@@ -92,6 +104,12 @@ try {
  assert.equal((await data()).retention.streak,1); // Onboarding + official session still only one day.
  assert.equal(await evaluate("window.retentionMock.published.some(p=>'dueCardIds' in p.snapshot || 'session' in p.snapshot)"),false);
  await link('patch://card/deleted-or-foreign');await waitText('連続学習');await noOverflow();
+ // Starting the preview enters the same real Study flow; opening alone made no session.
+ await until(()=>evaluate('!!document.querySelector(".patch-home .patch-action-card")'));
+ await click('.patch-home .patch-action-card');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
+ await click('.patch-sheet .patch-primary');await waitText('タップで回答を表示');
+ assert.ok((await data()).retention.session?.id);
+
  console.log('PASS: Retention set/card/continue links, server session restore, official completion, once per day, snapshot allow-list, missing-resource fallback');
 
  // The SDK is a test fixture; email-form UI, account bootstrap and resource APIs are real.

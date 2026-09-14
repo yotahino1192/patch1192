@@ -29,7 +29,7 @@ export function SetLibrary({ data, folderId, openSetId, onFolder, onSet, onData,
   onData: (data: AppData) => void; onAdd: () => void; children: ReactNode;
 }) {
   const apiFetch = useApiFetch();
-  const { t, language, locale, setLanguage } = useLanguage();
+  const { t, language } = useLanguage();
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
   const [searchLimit, setSearchLimit] = useState(50);

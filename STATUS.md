@@ -1,3 +1,9 @@
+## 現在の統合チェックポイント
+
+UI Phase 1 `076a35c` とU2 `f4588a2` を統合した `520bc9c` が、このhygiene作業の基準です。Home→割当済みLessonのPreview→U2→Phase 1 Complete→Homeは接続済みです。新LessonのStreak資格・Composer・最終U2デザインは引き続き未変更／未実装です。
+
+最新の範囲・検証は [統合記録](docs/patch-integration-checkpoint.md) と [hygiene記録](docs/repository-hygiene.md) を参照してください。以下は過去checkpointの履歴であり、その時点の未実装事項・テスト数・マージ状況を記録しています。
+
 ## Patch Domain — Dev統合検証
 
 Domain `a23d6cb1876162a3e9b45a66fc96bec7e473f210` をDev `40957db35100b7b02d115a39971bb38c6750cc73` へ統合。両worktree clean、Devの追加更新・競合なし。機能コードの修正不要。以下のcheckpointにある「Dev未merge」は作成時点の履歴。

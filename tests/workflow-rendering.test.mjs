@@ -9,6 +9,7 @@ import { EMPTY_SESSION } from "../lib/workspace.ts";
 
 registerHooks({
   resolve(specifier, context, next) {
+    if (specifier.endsWith(".module.css")) return {url:"data:text/javascript,export default new Proxy({}, {get:(_,key)=>String(key)})",shortCircuit:true};
     if (specifier.startsWith(".") && context.parentURL?.startsWith("file:")) {
       for (const suffix of [".tsx", ".ts"]) {
         const url = new URL(specifier + suffix, context.parentURL);
@@ -97,4 +98,54 @@ test("a saved correction opens inside study with the original multiple-choice op
   assert.ok(html.includes("保存して学習に戻る"));
   assert.ok(html.includes('value="D"'));
   assert.ok(!html.includes('class="flashcard '));
+});
+
+const homeProps = { now, startStudy: noop, setScreen: noop, selectSet: noop, onSample: noop, onResume: noop, onContinue: noop, resumableSessions: [] };
+const retention = { version: 1, generatedAt: now.getTime(), expiresAt: now.getTime() + 3600000, day: 20, dayEnd: now.getTime() + 4000000, timezone: "Asia/Tokyo", achievedDays: [17, 19], streak: 2, hot: false, completed: false, broken: false, dueCount: 1, dueCardIds: ["c1"], reminderTime: "18:00", reviewReminder: false, streakWarning: false };
+test("Home uses authoritative completion and hot/broken flags instead of legacy counters", () => {
+  const legacyCompleted = { ...data, dailyReview: { ...data.dailyReview, completed: true, streak: 90 }, retention: { ...retention, streak: 12, hot: false } };
+  const normal = render(Home, { ...homeProps, data: legacyCompleted }, "en");
+  assert.ok(normal.includes('data-streak="normal"'));
+  assert.ok(!normal.includes("Done for today!"));
+  assert.ok(!normal.includes("Hot streak")); // A count alone cannot enable Hot UI.
+  const hot = render(Home, { ...homeProps, data: { ...data, retention: { ...retention, hot: true, completed: true } } }, "en");
+  assert.ok(hot.includes('data-streak="hot"'));
+  assert.ok(hot.includes("Done for today!"));
+  assert.equal((hot.match(/patch-streak-day is-achieved/g) || []).length, 2); // No inferred contiguous history.
+  const broken = render(Home, { ...homeProps, data: { ...data, retention: { ...retention, broken: true, streak: 0 } } }, "en");
+  assert.ok(broken.includes('data-streak="broken"'));
+});
+test("Home hides expired completion and uses a generic greeting when no profile name exists", () => {
+  const html = render(Home, { ...homeProps, data: { ...data, retention: { ...retention, completed: true, expiresAt: now.getTime() - 1 } } }, "en");
+  assert.ok(html.includes('data-streak="stale"'));
+  assert.ok(!html.includes("Done for today!"));
+  assert.ok(!html.includes("Yota"));
+});
+test("Home distinguishes empty material from learnable sample cards without inventing a lesson path", () => {
+  const early = render(Home, { ...homeProps, data: { ...data, sets: [] } }, "en");
+  assert.ok(early.includes("patch-home-early"));
+  assert.ok(early.includes("3 cards"));
+  const active = render(Home, { ...homeProps, data }, "en");
+  assert.ok(!active.includes("patch-home-early"));
+  assert.ok(active.includes("Continue learning"));
+  assert.ok(!active.includes("Chapter"));
+  assert.ok(!active.includes("Milestone"));
+  assert.ok(!active.includes("7 minutes"));
+});
+test("Lesson completion renders supported results without promising a daily achievement for short practice", async () => {
+  const { LessonCompletion } = await import("../app/lesson-completion.tsx");
+  const html = render(LessonCompletion, { data: { ...data, retention }, now, cards: 3, mistakes: 2 }, "en");
+  assert.ok(html.includes("Your practice has been saved."));
+  assert.ok(!html.includes("completed today"));
+  assert.ok(!html.includes("weak spot"));
+  assert.ok(!html.includes("new concept"));
+  assert.ok(html.includes("Recall retries"));
+});
+
+test("A mixed-set resumed review does not claim the first set describes the whole lesson", () => {
+  const second = { ...set, id: "s2", title: "別の教材", cards: [{ ...card, id: "c2", setId: "s2" }] };
+  const session = { ...EMPTY_SESSION, id: "mixed", setId: "s1", queue: ["c1", "c2"] };
+  const html = render(Home, { ...homeProps, data: { ...data, sets: [set, second] }, resumableSessions: [session] }, "en");
+  assert.match(html, /id="lesson-preview-title">Today&#x27;s review<\/h2>/);
+  assert.ok(!html.includes('class="patch-preview-description"'));
 });

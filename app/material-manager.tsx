@@ -9,7 +9,7 @@ import type { AppData, Card, CardSet } from "../lib/types";
 
 export function MaterialManager({ set, onData }: { set: CardSet; onData: (data: AppData) => void }) {
   const apiFetch = useApiFetch();
-  const { t, language, locale, setLanguage } = useLanguage();
+  const { t } = useLanguage();
   const [title, setTitle] = useState(set.title);
   const [editing, setEditing] = useState<Card | null>(null);
   const [tab, setTab] = useState("学習中");
