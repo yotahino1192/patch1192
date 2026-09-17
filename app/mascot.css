@@ -18,12 +18,13 @@
 
 /* Existing screen placements; only the containing screen chooses the size. */
 .patch-greeting > .patch-mascot { margin-left: 4px; }
+.patch-greeting > .patch-mascot-reading { --mascot-width: 120px; }
 .patch-home-early .patch-mascot { margin: 0; }
 .patch-preview-heading .patch-mascot { --mascot-width: 120px; align-self: flex-start; margin-top: 8px; }
 .patch-complete > .patch-mascot { width: min(100%, var(--mascot-width)); margin: 0 auto 17px; }
 
 @media (max-width: 360px) {
-  .patch-greeting > .patch-mascot { --mascot-width: 94px; }
+  .patch-greeting > .patch-mascot { --mascot-width: 110px; }
   .patch-preview-heading .patch-mascot { --mascot-width: 85px; }
 }
 @media (max-height: 740px) {

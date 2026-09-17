@@ -97,6 +97,7 @@ try{
    await viewport(width,width===320?568:852);await navigate(query);
    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,query+' Home overflow');
    await screenshot('home-'+query.replaceAll('&','-').replaceAll('=','-')+'-'+width);
+   assert.equal(await evaluate(`(()=>{const n=document.querySelector('.patch-current-node').getBoundingClientRect(),b=document.querySelector('.patch-lesson-start').getBoundingClientRect();return [b.left,b.right].every(x=>[b.top,b.bottom].every(y=>((x-n.left-n.width/2)/(n.width/2))**2+((y-n.top-n.height/2)/(n.height/2))**2<=1));})()`),true,'Entire learning button stays within the evergreen ellipse');
    await evaluate('document.querySelector(".patch-lesson-start").scrollIntoView({block:"center"})');
    assert.equal(await evaluate('document.querySelector(".patch-lesson-start").getBoundingClientRect().bottom < document.querySelector(".bottom-nav").getBoundingClientRect().top'),true,'Home CTA stays reachable above navigation');
    await click('.patch-lesson-start');await click('.patch-sheet .patch-primary');
@@ -144,6 +145,7 @@ try{
  assert.equal(await evaluate('!!document.querySelector(".patch-home-completed")'),true);
  await evaluate('window.uiFixture.updateSnapshot({streak:0,hot:false,completed:false,broken:true})');await until(()=>evaluate('!!document.querySelector(".patch-streak-broken")'));
  assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'0-day streak');
+ assert.equal(await evaluate('getComputedStyle(document.querySelector(".patch-streak-broken .is-achieved .patch-day-check")).backgroundColor'),'rgb(40, 132, 91)','Past achievements remain green after a gap');
  await viewport(393);await navigate('state=resume');
  await click('.patch-lesson-start');await until(()=>evaluate('window.uiFixture.pending.length===1'));
  assert.equal(await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).method"),'GET');

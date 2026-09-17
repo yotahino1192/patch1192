@@ -26,7 +26,7 @@ import { isLongTermDue, memoryMilestones } from "../lib/long-term-review";
 import { setEmoji } from "../lib/set-presentation";
 import { Home } from "./home-screen";
 import { LessonCompletion } from "./lesson-completion";
-import { PatchWordmark, PatchIcon, type PatchIconName } from "./patch-ui";
+import { PatchIcon, type PatchIconName } from "./patch-ui";
 import { ReviewCelebration } from "./study-effects";
 import { MaterialManager } from "./material-manager";
 import { SettingsDialog } from "./settings-dialog";
@@ -44,7 +44,7 @@ type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
 
 const navItems: { id: Screen; label: string }[] = [
   { id: "home", label: "ホーム" },
-  { id: "sets", label: "セット" },
+  { id: "sets", label: "Patches" },
   { id: "import", label: "教材追加" },
   { id: "records", label: "記録" },
 ];
@@ -158,7 +158,6 @@ function Shell({ screen, setScreen, children, title }: {
   return (
     <div className={`app-shell ${screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
       {screen !== "study" && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
-        {screen === "home" && !title && <PatchWordmark />}
         {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
         {title && <h1 className="screen-title">{t(title)}</h1>}
         <button type="button" className="settings-button" aria-label={t("設定")} aria-haspopup="dialog" onClick={() => settingsRef.current?.showModal()}>
