@@ -127,7 +127,7 @@ test("Home distinguishes empty material from learnable sample cards without inve
   assert.ok(early.includes("3 cards"));
   const active = render(Home, { ...homeProps, data }, "en");
   assert.ok(!active.includes("patch-home-early"));
-  assert.ok(active.includes("Continue learning"));
+  assert.ok(active.includes("Start lesson"));
   assert.ok(!active.includes("Chapter"));
   assert.ok(!active.includes("Milestone"));
   assert.ok(!active.includes("7 minutes"));
@@ -146,6 +146,7 @@ test("A mixed-set resumed review does not claim the first set describes the whol
   const second = { ...set, id: "s2", title: "別の教材", cards: [{ ...card, id: "c2", setId: "s2" }] };
   const session = { ...EMPTY_SESSION, id: "mixed", setId: "s1", queue: ["c1", "c2"] };
   const html = render(Home, { ...homeProps, data: { ...data, sets: [set, second] }, resumableSessions: [session] }, "en");
+  assert.ok(html.includes("Continue learning"));
   assert.match(html, /id="lesson-preview-title">Today&#x27;s review<\/h2>/);
   assert.ok(!html.includes('class="patch-preview-description"'));
 });

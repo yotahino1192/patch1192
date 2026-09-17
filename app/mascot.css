@@ -10,14 +10,14 @@
   flex-shrink: 0;
 }
 .patch-mascot-standing { --mascot-width: 264px; }
-.patch-mascot-reading { --mascot-width: 84px; }
+.patch-mascot-reading { --mascot-width: 100px; }
 .patch-mascot-happy { --mascot-width: 120px; }
 /* The supplied square canvas includes confetti padding. Scale only the artwork,
    keeping the reserved layout box and every following control unchanged. */
 .patch-mascot-celebrate { --mascot-width: 310px; transform: scale(1.1); }
 
 /* Existing screen placements; only the containing screen chooses the size. */
-.patch-greeting > .patch-mascot { margin-left: -4px; }
+.patch-greeting > .patch-mascot { margin-left: 4px; }
 .patch-home-early .patch-mascot { margin: 0; }
 .patch-preview-heading .patch-mascot { --mascot-width: 120px; align-self: flex-start; margin-top: 8px; }
 .patch-complete > .patch-mascot { width: min(100%, var(--mascot-width)); margin: 0 auto 17px; }

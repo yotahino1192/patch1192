@@ -57,16 +57,24 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
     </section> : <>
       <DailyReviewRail data={data} now={now} onStudy={startStudy} />
       <section className="patch-learning" aria-label={t("今日の学習")}>
-        {recentSets.length > 0 && <><h2 className="patch-section-label">{t("最近学んだ教材")}</h2><div className="patch-recent-path">{recentSets.map(set => <button key={set.id} className="patch-path-stop" title={set.title} onClick={() => { selectSet(set.id); setScreen("sets"); }}><span><PatchIcon name="book" size={25} /></span><small>{set.title}</small></button>)}</div></>}
+        {recentSets.length > 0 && <><h2 className="patch-section-label">{t("最近学んだ教材")}</h2><div className="patch-recent-path">
+          <svg className="patch-path-curve" viewBox={`0 0 100 ${recentSets.length * 68 + 20}`} preserveAspectRatio="none" aria-hidden="true"><path d={[
+            "M53 0 C53 28 40 10 40 34",
+            recentSets.length > 1 ? "C40 83 58 54 58 102" : "C40 66 50 58 50 88",
+            recentSets.length > 2 ? "C58 148 45 122 45 170 C45 200 50 190 50 224" : recentSets.length > 1 ? "C58 136 50 126 50 156" : "",
+          ].join(" ")} /></svg>
+          {recentSets.map((set, index) => <button key={set.id} className={`patch-path-stop patch-path-stop-${index + 1}`} title={set.title} onClick={() => { selectSet(set.id); setScreen("sets"); }}><span><PatchIcon name="book" size={25} /></span><small>{set.title}</small></button>)}
+        </div></>}
+
         <div className={`patch-current-node${completed ? " is-completed" : ""}`} role={completed ? "status" : undefined}>
-          <PatchIcon name={completed ? "check" : learnable ? "book" : "plus"} size={42} />
+          <span className={`patch-current-book${learnable && !completed ? " has-rays" : ""}`}><PatchIcon name={completed ? "check" : learnable ? "lesson-book" : "plus"} size={42} /></span>
           {completed ? <><strong>{t("今日は完了！")}</strong><small>{t("今日の学習目標を達成しました。")}</small></> : <>
-            <span className="patch-current-label">{t("今日のマイレッスン")}</span>
+            <span className="patch-current-label">{t("今日のレッスン")}</span>
             <h2>{learnable ? title : t("新しい教材を追加")}</h2>
             {learnable && <p className="patch-current-context">{selectedSession || remoteSession ? t("続きから学習") : destination.kind === "review" ? t("今日の復習") : t("学習")}
               {remaining !== undefined ? <> · {t("残り{0}枚", remaining)}</> : destination.kind === "review" && !stale && data.retention ? <> · {t("{0}枚", data.retention.dueCount)}</> : null}
             </p>}
-            <button className="patch-lesson-start" onClick={openNext}>{t(learnable ? "続きから学習" : "教材を追加")}<PatchIcon name="arrow" size={21} /></button>
+            <button className="patch-lesson-start" onClick={openNext}>{t(learnable ? selectedSession || remoteSession ? "続きから学習" : "レッスンを始める" : "教材を追加")}<PatchIcon name="arrow" size={21} /></button>
           </>}
         </div>
       </section>

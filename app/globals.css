@@ -855,9 +855,15 @@ small,button small,.muted,[class] small { font-family: var(--font-body); font-si
   --patch-line: #cddce1;
   --patch-shadow: none;
 }
-.patch-home-shell.app-shell .topbar-home { position: relative; display: flex; min-height: 60px; padding: max(16px, env(safe-area-inset-top, 0px)) 24px 4px; }
-.patch-wordmark { margin-right: auto; color: var(--patch-ink); font: 900 32px / 1.1 var(--font-nunito), var(--font-body); letter-spacing: -.04em; }
-.patch-home-shell.app-shell .bottom-nav button.active { background: var(--patch-mint); color: var(--patch-green); }
+.patch-home-shell.app-shell .topbar-home { position: relative; display: flex; min-height: 70px; padding: max(24px, env(safe-area-inset-top, 0px)) 24px 4px; }
+.patch-wordmark { display: block; width: 94px; height: auto; margin-right: auto; object-fit: contain; }
+.patch-home-shell.app-shell .settings-button { width: 42px; height: 42px; min-height: 42px; color: var(--patch-ink); background: var(--patch-mint); border: 0; opacity: 1; border-radius: 50%; display: grid; place-items: center; }
+.patch-home-shell.app-shell .bottom-nav { height: 70px; border-color: var(--patch-line); border-radius: 15px; }
+.patch-home-shell.app-shell .bottom-nav button { font-size: 12px; gap: 2px; }
+.patch-home-shell.app-shell .bottom-nav .nav-image { width: 29px; height: 29px; }
+.patch-home-shell .bottom-nav svg { stroke-width: 1.8; }
+
+.patch-home-shell.app-shell .bottom-nav button.active { background: linear-gradient(110deg, #d6f3e5, #cef0e1); color: var(--patch-green); }
 
 .patch-home .patch-primary, .patch-sheet .patch-primary { background: var(--patch-ink); box-shadow: 0 4px 0 var(--patch-peach); }
 .patch-home .patch-text-button { color: var(--patch-ink); }
@@ -873,12 +879,12 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav button { border-radius: 10px; color: var(--patch-muted); gap: 0; font-size: 12px; }
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav button.active { background: #d7f6e9; color: #21ad6c; }
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav .nav-image { width: 30px; height: 30px; }
-.patch-home { width: min(100%, 480px); margin: auto; padding: 8px 24px 20px; }
-.patch-greeting { display: flex; gap: 18px; align-items: center; margin: 0 0 14px; }
-.patch-bubble { position: relative; flex: 1; min-width: 0; padding: 13px 11px; border: 1px solid var(--patch-line); border-radius: 12px; background: #fff; box-shadow: var(--patch-shadow); }
+.patch-home { width: min(100%, 480px); margin: auto; padding: 4px 24px 20px; }
+.patch-greeting { display: flex; gap: 14px; align-items: center; margin: 0 0 14px; }
+.patch-bubble { position: relative; flex: 0 1 190px; min-width: 0; padding: 7px 11px; border: 1px solid var(--patch-line); border-radius: 12px; background: #fff; box-shadow: var(--patch-shadow); }
 .patch-bubble::before { content: ""; position: absolute; left: -8px; top: 52%; width: 13px; height: 13px; background: #fff; border-left: 1px solid var(--patch-line); border-bottom: 1px solid var(--patch-line); transform: rotate(45deg); }
-.patch-bubble h1 { margin: 0 0 6px; font-family: var(--font-body); font-size: 20px; line-height: 1.3; letter-spacing: -.025em; overflow-wrap: anywhere; }
-.patch-bubble p { margin: 0; color: var(--patch-ink); font-size: 14px; line-height: 1.4; letter-spacing: -.035em; }
+.patch-bubble h1 { margin: 0 0 2px; font-family: var(--font-body); font-size: 19px; line-height: 1.3; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.patch-bubble p { margin: 0; color: var(--patch-ink); font-size: 17px; line-height: 1.15; letter-spacing: -.035em; }
 .patch-rays { position: absolute; right: 10px; top: 13px; width: 23px; height: 26px; pointer-events: none; opacity: .8; }
 .patch-rays::before, .patch-rays::after { content: ""; position: absolute; width: 5px; height: 17px; border-radius: 5px; background: #9af0cf; transform: rotate(24deg); }
 .patch-rays::after { left: 13px; top: 11px; transform: rotate(58deg); }
@@ -889,7 +895,7 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-text-button { display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; background: none; color: #527965; min-height: 44px; padding: 9px 5px; font-size: 13px; width: 100%; }
 .patch-home-early { padding-top: max(128px, env(safe-area-inset-top, 0px)); }
 .patch-home-early .patch-greeting { flex-direction: column-reverse; gap: 20px; margin-bottom: 36px; }
-.patch-home-early .patch-bubble { width: 100%; max-width: 286px; padding: 18px; border-radius: 25px; }
+.patch-home-early .patch-bubble { flex: auto; width: 100%; max-width: 286px; padding: 18px; border-radius: 25px; }
 .patch-home-early .patch-bubble::before { top: auto; bottom: -10px; left: 48%; width: 18px; height: 18px; transform: rotate(-45deg); }
 .patch-home-early .patch-bubble h1 { font-size: 31px; margin-bottom: 9px; }
 .patch-home-early .patch-bubble p { font-size: 19px; }
@@ -898,51 +904,58 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-first-lesson .patch-primary { font-size: 20px; }
 .patch-first-lesson .patch-text-button { margin-top: 7px; }
 .patch-home .daily-review-rail { display: block; background: none; padding: 0; margin: 0; border: 0; box-shadow: none; }
-.patch-streak { background: white; border: 1px solid var(--patch-line); border-radius: 14px; padding: 10px 12px; box-shadow: var(--patch-shadow); }
-.patch-streak-heading { display: flex; align-items: center; gap: 8px; }
-.patch-streak-icon { flex-shrink: 0; width: 35px; height: 35px; border-radius: 50%; background: var(--patch-mint); display: grid; place-items: center; color: var(--patch-green); }
-.patch-streak-heading h2 { margin: 0; color: var(--patch-green); font-size: 17px; letter-spacing: -.025em; }
-.patch-streak-count { margin-left: auto; padding: 5px 10px; border-radius: 12px; background: var(--patch-mint); color: var(--patch-green); white-space: nowrap; font-size: 14px; font-weight: 400; }
-.patch-streak-message { margin: 0 0 6px 43px; color: var(--patch-muted); font-size: 11px; line-height: 1.4; }
-.patch-streak-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
-.patch-streak-day { display: flex; align-items: center; flex-direction: column; gap: 7px; font-size: 11px; line-height: 1.2; color: var(--patch-muted); }
+.patch-streak { background: white; border: 1px solid var(--patch-line); border-radius: 12px; padding: 8px 12px; box-shadow: var(--patch-shadow); }
+.patch-streak-heading { display: flex; align-items: center; gap: 7px; }
+.patch-streak-icon { display: grid; place-items: center; color: var(--patch-green); }
+.patch-streak-heading .patch-streak-count { margin: 0; padding: 0; border-radius: 0; background: none; color: var(--patch-green); font-size: 20px; font-weight: 700; line-height: 1.2; letter-spacing: -.025em; }
+.patch-streak-message { margin: 5px 0 3px; color: var(--patch-muted); font-size: 11px; line-height: 1.4; }
+.patch-streak-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 6px -4px 0; }
+.patch-streak-day { position: relative; display: flex; align-items: center; flex-direction: column; gap: 5px; font-size: 11px; line-height: 1.2; color: var(--patch-muted); }
 .patch-streak-day.is-today > span:first-child { color: var(--patch-green); font-weight: 700; }
-.patch-streak-day button, .patch-day-check { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--patch-line); background: #fff; border-radius: 50%; color: white; padding: 0; }
+.patch-streak-day button, .patch-day-check { position: relative; z-index: 1; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--patch-line); background: #fff; border-radius: 50%; color: white; padding: 0; }
 .patch-streak-day button { position: relative; }
 .patch-streak-day button::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
 .patch-streak-day.is-achieved button, .patch-streak-day.is-achieved .patch-day-check { background: var(--patch-green); border-color: transparent; }
+.patch-streak-day.is-achieved + .patch-streak-day.is-achieved::before { content: ""; position: absolute; top: 30px; right: 50%; width: calc(100% + 4px); height: 5px; background: var(--patch-mint); }
+.patch-streak-broken .patch-streak-day.is-achieved + .patch-streak-day.is-achieved::before { background: var(--patch-inactive, #a9bbc5); opacity: .45; }
 .patch-streak .is-today button { border: 2px solid var(--patch-green); }
 .patch-streak-hot { background: white; }
 .patch-streak-hot .patch-streak-icon { background: transparent; }
 .patch-streak-hot h2 { color: var(--patch-orange, #ff9600); }
-.patch-streak-hot .patch-streak-count { color: var(--patch-ink); background: var(--patch-peach, #ffdcb5); }
+.patch-streak-hot .patch-streak-heading .patch-streak-count { color: var(--patch-orange, #ff9600); }
 .patch-streak-hot .is-achieved .patch-day-check, .patch-streak-hot .is-achieved button { background: var(--patch-orange, #ff9600); }
 .patch-streak-hot .is-today button { border-color: var(--patch-orange, #ff9600); }
-.patch-streak-broken .patch-streak-icon, .patch-streak-broken .patch-streak-count, .patch-streak-stale .patch-streak-icon, .patch-streak-stale .patch-streak-count { color: var(--patch-ink); background: var(--patch-inactive, #a9bbc5); }
+.patch-streak-broken .patch-streak-icon, .patch-streak-broken .patch-streak-count, .patch-streak-stale .patch-streak-icon, .patch-streak-stale .patch-streak-count { color: var(--patch-muted); background: none; }
 .patch-streak-broken .is-achieved .patch-day-check, .patch-streak-broken .is-achieved button { background: var(--patch-inactive, #a9bbc5); }
-.patch-streak-broken h2, .patch-streak-stale h2, .patch-streak-broken .is-today > span:first-child, .patch-streak-stale .is-today > span:first-child { color: var(--patch-muted); }
+.patch-streak-broken .patch-streak-heading .patch-streak-count, .patch-streak-stale .patch-streak-heading .patch-streak-count, .patch-streak-broken h2, .patch-streak-stale h2, .patch-streak-broken .is-today > span:first-child, .patch-streak-stale .is-today > span:first-child { color: var(--patch-muted); }
 .patch-streak-broken .is-today button, .patch-streak-stale .is-today button { border-color: var(--patch-inactive, #a9bbc5); }
 .patch-home .daily-todo { border: 0; margin: 3px 0 0; padding: 0; }
-.patch-home .today-todo-button { min-height: 34px; padding: 5px 4px; color: var(--patch-muted); font-size: 11px; }
+.patch-home .today-todo-button { min-height: 22px; padding: 3px 0; color: var(--patch-muted); font-size: 11px; }
 .patch-home .today-todo-button small { font-size: inherit; font-weight: 400; }
 .patch-home .daily-todo-content { padding: 14px 10px; background: #f7fcfa; border-radius: 12px; }
 .patch-home .daily-todos li { padding: 10px 0; gap: 7px; }
 .patch-home .daily-todos strong { overflow-wrap: anywhere; }
-.patch-learning { display: flex; flex-direction: column; align-items: center; padding-top: 10px; border-top: 2px solid var(--patch-mint); }
+.patch-learning { display: flex; flex-direction: column; align-items: center; padding-top: 7px; border-top: 2px solid #72acab; }
 .patch-section-label { font-weight: 400; font-size: 12px; line-height: 1.4; color: var(--patch-muted); margin: 0 0 8px; text-align: center; }
-.patch-learning > .patch-section-label { align-self: flex-start; margin-bottom: 6px; }
+.patch-learning > .patch-section-label { align-self: flex-start; margin-bottom: 0; }
 .patch-recent-path { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; }
-.patch-path-stop { border: 0; padding: 0; min-height: 50px; background: none; width: 100%; position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--patch-ink); text-align: left; }
-.patch-path-stop:nth-child(even) { flex-direction: row-reverse; text-align: right; }
-.patch-path-stop::after { content: ""; position: absolute; top: 50%; left: calc(50% - 30px); width: 60px; height: 52px; border: 6px solid var(--patch-mint); border-width: 0 0 0 6px; border-radius: 50%; transform: rotate(-34deg); pointer-events: none; }
-.patch-path-stop:nth-child(even)::after { transform: rotate(34deg); border-width: 0 6px 0 0; }
-.patch-path-stop > span { position: relative; z-index: 1; width: 42px; height: 42px; flex-shrink: 0; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--patch-green); background: var(--patch-mint); }
-.patch-path-stop small { width: 48%; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; position: relative; z-index: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.patch-current-node { width: min(100%, 272px); min-height: 252px; margin: 10px 0 14px; padding: 24px 22px; flex-shrink: 0; border: 0; border-radius: 48%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: var(--patch-ink); color: white; position: relative; text-align: center; }
-.patch-current-label { font-size: 15px; font-weight: 700; line-height: 1.35; }
-.patch-current-node h2 { font: 700 21px / 1.25 var(--font-body); margin: 0; width: 100%; overflow-wrap: anywhere; letter-spacing: -.025em; }
-.patch-current-context { margin: 0; color: var(--patch-mint); font-size: 13px; line-height: 1.5; }
-.patch-lesson-start { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: 100%; padding: 10px 16px; margin-top: 4px; border: 0; border-radius: 999px; color: var(--patch-ink); background: var(--patch-peach); font-size: 14px; font-weight: 700; line-height: 1.3; }
+.patch-path-curve { position: absolute; top: -12px; left: 0; width: 100%; height: calc(100% + 26px); overflow: visible; pointer-events: none; }
+.patch-path-curve path { fill: none; stroke: var(--patch-mint); stroke-width: 6; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+.patch-path-stop { --node-x: 40%; border: 0; padding: 0; min-height: 68px; background: none; width: 100%; position: relative; display: flex; align-items: center; color: var(--patch-ink); text-align: left; }
+.patch-path-stop-1 { min-height: 56px; }
+.patch-path-stop-2 { --node-x: 58%; }
+.patch-path-stop-3 { --node-x: 45%; }
+.patch-path-stop > span { position: absolute; left: var(--node-x); transform: translateX(-50%); z-index: 1; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--patch-green); background: var(--patch-mint); }
+.patch-path-stop small { margin-left: calc(var(--node-x) + 31px); font-size: 14px; line-height: 1.25; letter-spacing: -.035em; overflow-wrap: anywhere; position: relative; z-index: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.patch-path-stop-3 small { width: calc(var(--node-x) - 31px); margin-left: 0; text-align: right; }
+.patch-current-node { width: min(100%, 212px); min-height: 212px; margin: 8px 0 14px; padding: 20px 16px; flex-shrink: 0; border: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: var(--patch-ink); color: white; position: relative; text-align: center; }
+.patch-current-book { position: relative; display: grid; place-items: center; margin-bottom: 5px; }
+.patch-current-book.has-rays::before, .patch-current-book.has-rays::after { content: ""; position: absolute; width: 3px; height: 12px; background: white; border-radius: 3px; top: 2px; left: -12px; transform: rotate(-53deg); box-shadow: 12px -10px 0 -0.3px white; }
+.patch-current-book.has-rays::after { left: auto; right: -12px; transform: rotate(53deg); box-shadow: -12px -10px 0 -0.3px white; }
+.patch-current-label { font-size: 17px; font-weight: 700; line-height: 1.35; }
+.patch-current-node h2 { font: 400 18px / 1.25 var(--font-body); margin: 0; width: 100%; overflow-wrap: anywhere; letter-spacing: -.025em; }
+.patch-current-context { margin: 0; color: var(--patch-mint); font-size: 13px; line-height: 1.3; }
+.patch-lesson-start { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: 100%; padding: 8px 14px; margin-top: 4px; border: 0; border-radius: 999px; color: var(--patch-ink); background: var(--patch-peach); font-size: 14px; font-weight: 700; line-height: 1.3; }
 .patch-lesson-start svg { flex-shrink: 0; }
 .patch-lesson-start:hover { filter: brightness(1.04); }
 .patch-home .patch-lesson-start:focus-visible { outline-color: white; }

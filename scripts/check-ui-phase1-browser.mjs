@@ -86,6 +86,7 @@ try{
  assert.equal(await evaluate('document.querySelector(".import-page > .primary").disabled'),true,'Empty material must still disable generation');
  await click('.bottom-nav button:nth-child(1)');
  assert.equal(await evaluate('!!document.querySelector(".patch-home")'),true);
+ for(const width of [320,393,430]) { await viewport(width,width===320?568:852);await navigate('reference=1');await screenshot('reference-'+width); }
  for(const state of ['empty','normal','hot','broken','completed','complete','stale']){
   await viewport(393);await navigate('state='+state);await screenshot(state+'-393');
   for(const width of [320,430,768]){await viewport(width,width===320?568:852);assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,`${state}: ${width}px overflow`);if(width!==768)await screenshot(state+'-'+width);}
@@ -139,10 +140,10 @@ try{
  assert.equal(await evaluate('document.querySelector(".patch-current-node").tagName'),'DIV','Today completion is a status, not another start button');
  await navigate('state=normal');await evaluate('window.uiFixture.updateSnapshot({streak:9,hot:true,completed:true,achievedDays:[18,19,20]})');
  await until(()=>evaluate('!!document.querySelector(".patch-streak-hot")'));
- assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'9 days','Streak uses refreshed authoritative value');
+ assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'9-day streak','Streak uses refreshed authoritative value');
  assert.equal(await evaluate('!!document.querySelector(".patch-home-completed")'),true);
  await evaluate('window.uiFixture.updateSnapshot({streak:0,hot:false,completed:false,broken:true})');await until(()=>evaluate('!!document.querySelector(".patch-streak-broken")'));
- assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'0 days');
+ assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'0-day streak');
  await viewport(393);await navigate('state=resume');
  await click('.patch-lesson-start');await until(()=>evaluate('window.uiFixture.pending.length===1'));
  assert.equal(await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).method"),'GET');

@@ -22,6 +22,12 @@ const snapshot={version:1,generatedAt:now.getTime(),expiresAt:now.getTime()+3600
 if(state==='stale')snapshot.expiresAt=now.getTime()-1;
 if(params.has('streak'))snapshot.streak=Number(params.get('streak'));
 const data={profile:{displayName:params.has('long')?'Alexandra · 学び続ける人のための長い名前':'Alex',onboardingCompleted:true},retention:snapshot,sets:state==='empty'?[]:sets,folders:[],reviews:[],chatMessages:[],dailyReview:{day:'2026-09-14',cardIds:[],completedCardIds:[],achievedDays:[],streak:0,completed:false}};
+// Screenshot comparison data only; never imported into the real application.
+if(params.has('reference')) {
+ data.profile.displayName='Yota';
+ ['Supply & Demand','Inflation','Central Bank Basics'].forEach((title,i)=>{sets[i].title=title;sets[i].cards.forEach(card=>card.status='定着中');});
+ sets.push({...sets[0],id:'current',title:'Interest Rates',lastStudiedAt:null,cards:cards.map(c=>({...c,setId:'current'}))});
+}
 window.uiFixture={starts:0,samples:0,reads:[],pending:[]};
 const request=async(url,options)=>{window.uiFixture.reads.push({url,method:options?.method||'GET'});if(!url.startsWith('/api/domain?'))return Response.json(snapshot);const id=new URL(url,'http://fixture').searchParams.get('id');return new Promise(resolve=>{window.uiFixture.pending.push(()=>resolve(Response.json({id,estimatedSeconds:480})));});};
 const account={scope:{account:{userId:'visual-fixture'},request},logout:async()=>{}};

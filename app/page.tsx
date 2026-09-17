@@ -26,7 +26,7 @@ import { isLongTermDue, memoryMilestones } from "../lib/long-term-review";
 import { setEmoji } from "../lib/set-presentation";
 import { Home } from "./home-screen";
 import { LessonCompletion } from "./lesson-completion";
-import { PatchIcon, type PatchIconName } from "./patch-ui";
+import { PatchWordmark, PatchIcon, type PatchIconName } from "./patch-ui";
 import { ReviewCelebration } from "./study-effects";
 import { MaterialManager } from "./material-manager";
 import { SettingsDialog } from "./settings-dialog";
@@ -158,11 +158,11 @@ function Shell({ screen, setScreen, children, title }: {
   return (
     <div className={`app-shell ${screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
       {screen !== "study" && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
-        {screen === "home" && !title && <span className="patch-wordmark">Patch</span>}
+        {screen === "home" && !title && <PatchWordmark />}
         {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
         {title && <h1 className="screen-title">{t(title)}</h1>}
         <button type="button" className="settings-button" aria-label={t("設定")} aria-haspopup="dialog" onClick={() => settingsRef.current?.showModal()}>
-          <AssetIcon name="settings" size={24} />
+          {screen === "home" ? <PatchIcon name="profile" size={27} /> : <AssetIcon name="settings" size={24} />}
         </button>
       </header>}
       {screen !== "study" && <SettingsDialog dialogRef={settingsRef} />}
@@ -177,7 +177,7 @@ function Shell({ screen, setScreen, children, title }: {
             aria-current={active ? "page" : undefined}
             onClick={() => { if (!active) setScreen(item.id); }}
           >
-            <span className="nav-icon nav-image" aria-hidden="true"><PatchIcon name={({home:"home",sets:"document",import:"plus",records:"bars"} as Record<string, PatchIconName>)[item.id]} size={30} /></span>
+            <span className="nav-icon nav-image" aria-hidden="true"><PatchIcon name={({home:"home",sets:"nav-document",import:"nav-add",records:"nav-progress"} as Record<string, PatchIconName>)[item.id]} size={30} /></span>
             <span>{t(item.label)}</span>
           </button>
           );
