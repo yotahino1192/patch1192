@@ -1,15 +1,16 @@
 @import "tailwindcss";
 @import "./mascot.css";
+@import "./palette.css";
 @import "../public/patch/startup.css";
 
 :root, .dark {
-  --color-primary: hsl(52, 50%, 90%);
-  --color-secondary: hsl(52, 50%, 10%);
-  --color-tertiary: hsl(112, 80%, 20%);
+  --color-primary: var(--patch-white);
+  --color-secondary: var(--patch-evergreen);
+  --color-tertiary: var(--patch-leaf-green);
   --color-accent: hsl(352, 80%, 20%);
   --color-muted: color-mix(in srgb, var(--color-secondary) 65%, transparent);
   --color-border: color-mix(in srgb, var(--color-secondary) 18%, var(--color-primary));
-  --color-surface: color-mix(in srgb, var(--color-tertiary) 7%, var(--color-primary));
+  --color-surface: var(--patch-mint-base);
   --color-accent-soft: color-mix(in srgb, var(--color-accent) 7%, var(--color-primary));
   --text-heading: 20px;
   --text-important: 16px;
@@ -36,6 +37,7 @@
 }
 
 .dark {
+  --color-surface: color-mix(in srgb, var(--color-tertiary) 7%, var(--color-primary));
   --color-primary: hsl(52, 50%, 10%);
   --color-secondary: hsl(52, 50%, 90%);
   --color-tertiary: hsl(112, 80%, 80%);
@@ -44,7 +46,7 @@
 
 * { box-sizing: border-box; }
 html { background: var(--color-primary); }
-body { margin: 0; color: var(--navy); font-family: var(--font-body); background: radial-gradient(circle at 50% 0, #fff 0, #f4faee 58%, #e9f4dd 100%); }
+body { margin: 0; color: var(--navy); font-family: var(--font-body); background: var(--color-primary); }
 button, input, textarea { font: inherit; }
 button { color: inherit; cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
@@ -822,13 +824,16 @@ small,button small,.muted,[class] small { font-family: var(--font-body); font-si
 
 /* Focused Patch phase 1 visual system. */
 
-/* Home tokens also serve the main tabs and card study flow. */
+/* Shared palette for Home, main tabs, completion and card study. */
 .patch-ui, :is(.patch-home-shell, .patch-main-shell, .is-studying), .app-shell:has(.patch-complete) {
   --font-heading: var(--font-body);
-  --patch-ink: #142333;
+  --patch-ink: var(--patch-evergreen);
   --patch-muted: #7c8da9;
-  --patch-green: #20b36c;
-  --patch-mint: #dff9ee;
+  --patch-green: var(--patch-leaf-green);
+  --patch-mint: var(--patch-mint-base);
+  --patch-peach: var(--patch-peach-base);
+  --patch-orange: var(--patch-orange-base);
+  --patch-inactive: var(--patch-blue-gray);
   --patch-line: #e1e9f0;
   --patch-shadow: 0 3px 15px #203f5910;
   --color-primary: #fff;
@@ -845,12 +850,12 @@ small,button small,.muted,[class] small { font-family: var(--font-body); font-si
 }
 /* Approved Home palette. Streak state classes still come from the retention snapshot. */
 .patch-home-shell, .patch-home, .patch-home .patch-ui, .patch-sheet.patch-ui {
-  --patch-ink: #12564f;
-  --patch-green: #28845b;
-  --patch-mint: #d6f3e5;
-  --patch-peach: #ffdcb5;
-  --patch-orange: #ff9600;
-  --patch-inactive: #a9bbc5;
+  --patch-ink: var(--patch-evergreen);
+  --patch-green: var(--patch-leaf-green);
+  --patch-mint: var(--patch-mint-base);
+  --patch-peach: var(--patch-peach-base);
+  --patch-orange: var(--patch-orange-base);
+  --patch-inactive: var(--patch-blue-gray);
   --patch-muted: #637f8d;
   --patch-line: #cddce1;
   --patch-shadow: none;
@@ -877,7 +882,7 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav { left: 50%; transform: translateX(-50%); bottom: max(10px, env(safe-area-inset-bottom, 0px)); width: min(calc(100% - 20px), 700px); height: 64px; padding: 5px; gap: 4px; border: 1px solid #dce5ed; border-radius: 13px; background: #fff; }
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav::after { content: ""; position: absolute; top: 100%; left: -10px; right: -10px; height: max(10px, env(safe-area-inset-bottom, 0px)); background: white; pointer-events: none; }
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav button { border-radius: 10px; color: var(--patch-muted); gap: 0; font-size: 12px; }
-:is(.patch-home-shell, .patch-main-shell) .bottom-nav button.active { background: #d7f6e9; color: #21ad6c; }
+:is(.patch-home-shell, .patch-main-shell) .bottom-nav button.active { background: var(--patch-mint-base); color: var(--patch-leaf-green); }
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav .nav-image { width: 30px; height: 30px; }
 .patch-home { width: min(100%, 480px); margin: auto; padding: 4px 24px 20px; }
 .patch-greeting { display: flex; gap: 14px; align-items: center; margin: 0 0 14px; }
@@ -889,7 +894,7 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-rays::before, .patch-rays::after { content: ""; position: absolute; width: 5px; height: 17px; border-radius: 5px; background: #9af0cf; transform: rotate(24deg); }
 .patch-rays::after { left: 13px; top: 11px; transform: rotate(58deg); }
 .patch-bubble h1 { padding-right: 0; }
-.patch-primary { border: 0; border-radius: 999px; background: linear-gradient(110deg, #16a260, #1aad65); color: white; min-height: 58px; padding: 13px 22px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 19px; font-weight: 400; width: 100%; line-height: 1.3; }
+.patch-primary { border: 0; border-radius: 999px; background: var(--patch-evergreen); color: white; min-height: 58px; padding: 13px 22px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 19px; font-weight: 400; width: 100%; line-height: 1.3; }
 .patch-primary:hover { filter: brightness(.97); }
 .patch-ui button:focus-visible, :is(.patch-home-shell, .patch-main-shell) button:focus-visible { outline: 3px solid #126d50; outline-offset: 4px; }
 .patch-text-button { display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; background: none; color: #527965; min-height: 44px; padding: 9px 5px; font-size: 13px; width: 100%; }
@@ -1033,7 +1038,7 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav button:first-child .nav-image { color: #22b16c; }
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav button:nth-child(3) .nav-image { color: #ff6479; }
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav button:nth-child(4) .nav-image { color: #ffb224; }
-.patch-home-shell.app-shell .bottom-nav button .nav-image { color: inherit; }
+:is(.patch-home-shell, .patch-main-shell).app-shell .bottom-nav button .nav-image { color: inherit; }
 .patch-current-node small { color: inherit; }
 .patch-ui { font-weight: 400; }
 .patch-ui p, .patch-ui small { font-weight: 400; }
@@ -1049,10 +1054,10 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 /* Main tabs share Home's palette and navigation; study/onboarding keep their own layout. */
 .patch-main-shell {
   --ink: var(--patch-ink);
-  --leaf: #168653;
+  --leaf: var(--patch-leaf-green);
   --shadow: var(--patch-shadow);
-  --blue: #168653;
-  --cyan: #168653;
+  --blue: var(--patch-leaf-green);
+  --cyan: var(--patch-leaf-green);
   --color-muted: #60748b;
   --muted: var(--color-muted);
   background: #fff;
@@ -1063,7 +1068,7 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-main-shell h2 { letter-spacing: -.02em; }
 .patch-main-shell :is(.primary, .secondary, .folder-text-button) { font-weight: 500; }
 .patch-main-shell .primary {
-  background: linear-gradient(110deg, #16a260, #1aad65);
+  background: var(--patch-evergreen);
   color: #fff;
   border-radius: 999px;
   min-height: 50px;
@@ -1135,9 +1140,9 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 html:has(.is-studying), body:has(.is-studying), .is-studying { background: #fff; }
 .is-studying {
   --ink: var(--patch-ink);
-  --leaf: #168653;
-  --blue: #168653;
-  --cyan: #168653;
+  --leaf: var(--patch-leaf-green);
+  --blue: var(--patch-leaf-green);
+  --cyan: var(--patch-leaf-green);
   --color-muted: #60748b;
   --muted: var(--color-muted);
   --color-accent: #aa4058;
@@ -1148,7 +1153,7 @@ html:has(.is-studying), body:has(.is-studying), .is-studying { background: #fff;
 .is-studying .page { padding-inline: 22px; }
 .is-studying h1 { letter-spacing: -.035em; }
 .is-studying :is(.primary, .secondary, .undo-review-button, .edit-study-button, .card-ai-button, .study-choice-grid button, .swipe-actions button strong, .study-header .pause-study) { font-weight: 500; }
-.is-studying .primary { background: linear-gradient(110deg, #16a260, #1aad65); color: #fff; border-radius: 999px; min-height: 50px; box-shadow: none; }
+.is-studying .primary { background: var(--patch-evergreen); color: #fff; border-radius: 999px; min-height: 50px; box-shadow: none; }
 .is-studying .secondary { background: #fff; color: var(--muted); border-color: var(--patch-line); border-radius: 14px; }
 .is-studying .study-header .pause-study { background: #f5f8fa; border-color: var(--patch-line); color: var(--muted); }
 .is-studying .study-progress-track { height: 8px; background: #edf3f0; box-shadow: none; }

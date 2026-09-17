@@ -1,0 +1,10 @@
+/* Patch brand palette — see design/COLOR_PALETTE.md. */
+:root {
+  --patch-evergreen: #12564f;
+  --patch-mint-base: #d6f3e5;
+  --patch-peach-base: #ffdcb5;
+  --patch-leaf-green: #28845b;
+  --patch-orange-base: #ff9600;
+  --patch-blue-gray: #a9bbc5;
+  --patch-white: #ffffff;
+}
