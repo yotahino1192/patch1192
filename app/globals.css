@@ -951,20 +951,21 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-path-stop > span { position: absolute; left: var(--node-x); transform: translateX(-50%); z-index: 1; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--patch-green); }
 .patch-path-stop small { margin-left: calc(var(--node-x) + 31px); font-size: 14px; line-height: 1.25; letter-spacing: -.035em; overflow-wrap: anywhere; position: relative; z-index: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .patch-path-stop-3 small { width: calc(var(--node-x) - 31px); margin-left: 0; text-align: right; }
-.patch-current-node { width: min(100%, 280px); min-height: 280px; margin: 8px 0 14px; padding: 36px 32px 44px; flex-shrink: 0; border: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: var(--patch-ink); color: white; position: relative; text-align: center; }
+.patch-current-node { width: min(100%, 224px); min-height: 232px; margin: 8px 0 14px; padding: 24px 23px 28px; flex-shrink: 0; border: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; background: var(--patch-ink); color: white; position: relative; text-align: center; }
 .patch-book-filter { position: absolute; pointer-events: none; }
-.patch-lesson-book-image { filter: url(#patch-book-crisp); display: block; width: 88px; height: 58px; object-fit: contain; }
-.patch-current-book { flex-shrink: 0; position: relative; display: grid; place-items: center; margin-bottom: 5px; }
-.patch-current-label { font-size: 17px; font-weight: 700; line-height: 1.35; }
-.patch-current-node h2 { font: 400 18px / 1.25 var(--font-body); margin: 0; width: 100%; overflow-wrap: anywhere; letter-spacing: -.025em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.patch-current-context { margin: 0; color: var(--patch-mint); font-size: 13px; line-height: 1.3; }
-.patch-lesson-start { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; max-width: min(100%, 190px); flex-shrink: 0; overflow-wrap: anywhere; padding: 8px 14px; margin-top: 4px; border: 0; border-radius: 999px; color: var(--patch-ink); background: var(--patch-peach); font-size: 14px; font-weight: 700; line-height: 1.3; }
+.patch-lesson-book-image { filter: url(#patch-book-crisp); display: block; width: 70px; height: 45px; object-fit: contain; }
+.patch-current-book { flex-shrink: 0; position: relative; display: grid; place-items: center; margin-bottom: 3px; }
+.patch-current-label { font-size: 14px; font-weight: 700; line-height: 1.25; }
+.patch-current-node h2 { font: 400 15px / 1.2 var(--font-body); margin: 0; width: 100%; overflow-wrap: anywhere; letter-spacing: -.025em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.patch-current-context { margin: 0; color: var(--patch-mint); font-size: 11px; line-height: 1.25; }
+.patch-lesson-start { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; max-width: min(100%, 150px); flex-shrink: 0; overflow-wrap: anywhere; padding: 7px 9px; margin-top: 2px; border: 0; border-radius: 999px; color: var(--patch-ink); background: var(--patch-peach); font-size: 12px; font-weight: 700; line-height: 1.2; }
+.patch-lesson-start svg { width: 17px; height: 17px; }
 .patch-lesson-start svg { flex-shrink: 0; }
 .patch-lesson-start:hover { filter: brightness(1.04); }
 .patch-home .patch-lesson-start:focus-visible { outline-color: white; }
-.patch-current-node.is-completed { background: var(--patch-mint); color: var(--patch-ink); min-height: 220px; width: min(100%, 260px); }
-.patch-current-node.is-completed strong { font-size: 22px; font-weight: 700; line-height: 1.4; }
-.patch-current-node small { font-size: 13px; line-height: 1.5; }
+.patch-current-node.is-completed { background: var(--patch-mint); color: var(--patch-ink); min-height: 208px; width: min(100%, 208px); }
+.patch-current-node.is-completed strong { font-size: 18px; font-weight: 700; line-height: 1.3; }
+.patch-current-node small { font-size: 11px; line-height: 1.4; }
 .patch-optional-label { display: flex; align-items: center; gap: 8px; margin: 18px 0 7px; }
 .patch-optional-label::before, .patch-optional-label::after { content: ""; flex: 1; height: 1px; background: var(--patch-line); }
 .patch-action-card { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 57px; padding: 9px 10px; margin: 5px 0; border: 1px solid var(--patch-line); border-radius: 12px; background: #fff; box-shadow: var(--patch-shadow); text-align: left; }
