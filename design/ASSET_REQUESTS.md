@@ -31,3 +31,9 @@ The final transparent reading export was supplied as `patch-2.png` and integrate
 Home retains the approved reading asset. Lesson Preview now uses `public/patch/mascot-happy.png`, copied byte-for-byte from `~/Downloads/Happy Patch.png` (2026-09-17 18:43 JST), 1125×1398 PNG with alpha. Source and repository SHA-256: `4edf9dfa054dd0fa7abcbb1bc5b1cdf797aec478260cd0ec836956c14d5cfdc5`.
 
 The asset registry now has four poses; Happy is reserved for Lesson Preview. No generation, cropping, recoloring, or background processing was applied. Standing and celebration artwork remain unchanged. The reading mascot's Home presentation is more compact; the Happy preview uses its native aspect ratio with responsive containment.
+
+## 2026-09-17 startup splash
+
+`public/patch/mascot-hello.png` was copied byte-for-byte from `~/Downloads/Hello Patch.png` (2026-09-17 18:43 JST), 1245×1263 transparent PNG. Its waving pose matches the approved startup reference more closely than the existing standing pose. Source/repository SHA-256: `c2398394e10f36d3776bee0be9f05da248995c7b92ecb294fd7432618e03f6c6`.
+
+The registry now includes Hello as the fifth pose, used only by startup. The mobile initial HTML references the same canonical file before React loads. Other mascot artwork is unchanged. No cropping, background processing or generated artwork was used.

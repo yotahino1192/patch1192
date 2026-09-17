@@ -1,5 +1,7 @@
 "use client";
 
+import { StartupPending, useStartupReady } from "./startup-splash";
+
 import { readApiResponse, ReliabilityError } from '../lib/reliability/errors';
 import { ReliabilityBoundary, ReliabilityRuntime } from './reliability/boundary';
 import { useAccount, useApiFetch } from "./account-context";
@@ -883,6 +885,7 @@ function App() {
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const { workspace, getWorkspace, setWorkspace, workspaceReady, saveError } = useWorkspace();
   const { destination, draft, lastGeneration, importDraft } = workspace;
+  useStartupReady(!!loadingError || (!!data && workspaceReady));
   const session = workspace.session || EMPTY_SESSION;
   const { queue, flipped, done: sessionDone, setId: sessionSetId, id: sessionId, total: sessionTotal, mistakes: sessionMistakes } = session;
   function updateField<K extends keyof Workspace>(key: K, value: React.SetStateAction<Workspace[K]>) {
@@ -1043,7 +1046,7 @@ function App() {
     setScreen(next);
   };
 
-  if (!data || !workspaceReady) return <Shell screen={screen} setScreen={navigate}><div className="page loading-state" aria-live="polite">{loadingError ? <><h1>{t("読み込めませんでした")}</h1><p>{t(loadingError)}</p><button className="primary" onClick={reload}>{t("再読み込み")}</button></> : <><span><AssetIcon name="sparkles" /></span><p>{t("学習データを準備しています…")}</p></>}</div></Shell>;
+  if (!data || !workspaceReady) return <StartupPending pending={!loadingError} fallback={<Shell screen={screen} setScreen={navigate}><div className="page loading-state" aria-live="polite">{loadingError ? <><h1>{t("読み込めませんでした")}</h1><p>{t(loadingError)}</p><button className="primary" onClick={reload}>{t("再読み込み")}</button></> : <><span><AssetIcon name="sparkles" /></span><p>{t("学習データを準備しています…")}</p></>}</div></Shell>} />;
 
   const saveDraft = async () => {
     if (!draft) return;

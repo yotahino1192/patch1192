@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./mascot.css";
+@import "../public/patch/startup.css";
 
 :root, .dark {
   --color-primary: hsl(52, 50%, 90%);

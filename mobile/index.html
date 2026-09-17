@@ -2,12 +2,26 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f2eed9" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#12564F" />
+    <link rel="stylesheet" href="/patch/startup.css" />
     <title>Patch</title>
   </head>
   <body>
-    <div id="root"><main style="max-width:40rem;margin:3rem auto;padding:1.5rem"><h1>Patch</h1><p role="status">起動しています。画面が進まない場合は接続を確認して再読み込みしてください。</p><p>再読み込み前に、保存できていない変更がないか確認してください。保存領域は消去しません。</p><button onclick="location.reload()">再読み込み</button></main></div>
+    <div id="root">
+      <main id="patch-startup-document" class="patch-startup" aria-label="Patch" aria-busy="true"><div class="patch-startup-brand"><img class="patch-mascot" src="/patch/mascot-hello.png" width="1245" height="1263" alt="" /><span class="patch-startup-wordmark">Patch</span></div></main>
+      <main id="patch-startup-recovery" hidden style="max-width:40rem;margin:3rem auto;padding:1.5rem"><h1>Patch</h1><p role="status">起動できませんでした。接続を確認して再読み込みしてください。</p><p>再読み込み前に、保存できていない変更がないか確認してください。保存領域は消去しません。</p><button onclick="location.reload()">再読み込み</button></main>
+    </div>
+    <script>
+      // Recovery only if the module never mounts. React removes both document
+      // placeholders at mount; this timer cannot reintroduce a splash in-app.
+      setTimeout(() => {
+        const startup = document.getElementById('patch-startup-document');
+        const recovery = document.getElementById('patch-startup-recovery');
+        if (startup && recovery) { startup.remove(); recovery.hidden = false; }
+      }, 15000);
+    </script>
+    <noscript><style>.patch-startup { display: none; }</style>Patchを起動するにはJavaScriptを有効にしてください。</noscript>
     <script type="module" src="/main.tsx"></script>
   </body>
 </html>
