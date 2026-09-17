@@ -156,6 +156,7 @@ function Shell({ screen, setScreen, children, title }: {
   return (
     <div className={`app-shell ${screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
       {screen !== "study" && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
+        {screen === "home" && !title && <span className="patch-wordmark">Patch</span>}
         {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
         {title && <h1 className="screen-title">{t(title)}</h1>}
         <button type="button" className="settings-button" aria-label={t("設定")} aria-haspopup="dialog" onClick={() => settingsRef.current?.showModal()}>

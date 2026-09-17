@@ -13,7 +13,7 @@ const port=5207,debugPort=9397;
 let server,chrome,ws,startupError;
 // Test-only image responses exercise drop-in artwork without altering public files.
 let mascotMode='current';const mascotRequests=[];
-const finalMascotPaths=['/patch/mascot-standing.png','/patch/mascot-reading.png','/patch/mascot-celebrate.png'];
+const finalMascotPaths=['/patch/mascot-standing.png','/patch/mascot-reading.png','/patch/mascot-celebrate.png','/patch/mascot-happy.png'];
 const replacementPng=await readFile('public/home-landscape.png');
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn){for(let i=0;i<150;i++){if(startupError)throw startupError;try{if(await fn())return;}catch{}await delay(100);}throw Error('Timed out: '+fn);}
@@ -90,6 +90,18 @@ try{
   await viewport(393);await navigate('state='+state);await screenshot(state+'-393');
   for(const width of [320,430,768]){await viewport(width,width===320?568:852);assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,`${state}: ${width}px overflow`);if(width!==768)await screenshot(state+'-'+width);}
  }
+ // History length and unusually long content must not hide or misroute the CTA.
+ for(const query of ['state=normal&history=0','state=normal&history=1','state=normal&history=2','state=normal&long=1&lang=ja','state=normal&streak=1','state=hot&streak=123']) {
+  for(const width of [320,393,430]) {
+   await viewport(width,width===320?568:852);await navigate(query);
+   assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,query+' Home overflow');
+   await screenshot('home-'+query.replaceAll('&','-').replaceAll('=','-')+'-'+width);
+   await evaluate('document.querySelector(".patch-lesson-start").scrollIntoView({block:"center"})');
+   assert.equal(await evaluate('document.querySelector(".patch-lesson-start").getBoundingClientRect().bottom < document.querySelector(".bottom-nav").getBoundingClientRect().top'),true,'Home CTA stays reachable above navigation');
+   await click('.patch-lesson-start');await click('.patch-sheet .patch-primary');
+   assert.equal(await evaluate('window.uiFixture.starts'),1,'Variable Home composition still starts the existing learning flow');
+  }
+ }
  for(const query of ['screen=sets&state=empty&lang=ja','screen=sets&lang=en&long=1','screen=records&lang=en','screen=import&lang=en']) {
   await viewport(320,568);
   await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?${query}`});
@@ -98,21 +110,25 @@ try{
   await screenshot(query.replaceAll('&','-').replaceAll('=','-'));
  }
  await viewport(393);await navigate('state=normal');
- await click('.patch-current-node');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
+ assert.equal(await evaluate('document.querySelector(".patch-lesson-start").getBoundingClientRect().bottom < document.querySelector(".bottom-nav").getBoundingClientRect().top'),true,'Primary action is visible at 393 × 852 without scrolling');
+ assert.equal(await evaluate('!!document.querySelector(".patch-current-node .patch-lesson-start")'),true,'Primary learning action belongs inside Today’s Lesson');
+ assert.equal(await evaluate('document.querySelector(".patch-current-node h2").textContent'),'Learning through recall','Home displays the real selected set');
+ assert.equal(await evaluate('getComputedStyle(document.querySelector(".patch-current-node")).backgroundColor'),'rgb(18, 86, 79)');
+ await click('.patch-lesson-start');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
  assert.equal(await evaluate('window.uiFixture.starts'),0,'Opening preview must not start study');
  assert.equal(await evaluate('document.activeElement.className'),'patch-sheet-close');
  await screenshot('preview-393');
  await cdp('Input.dispatchKeyEvent',{type:'rawKeyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});await until(()=>evaluate('!document.querySelector(".patch-sheet").open'));
  assert.equal(await evaluate('document.body.style.overflow'),'');
- assert.equal(await evaluate('document.activeElement.className'),'patch-current-node','Escape restores trigger focus');
- await click('.patch-current-node');
+ assert.equal(await evaluate('document.activeElement.className'),'patch-lesson-start','Escape restores trigger focus');
+ await click('.patch-lesson-start');
  for(let i=0;i<5;i++){await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9});assert.equal(await evaluate('document.activeElement===document.body||document.querySelector(".patch-sheet").contains(document.activeElement)'),true,'Tab never enters inert Home controls (browser chrome may receive focus)');}
  assert.equal(await evaluate('document.querySelector(".patch-sheet").getBoundingClientRect().bottom < document.querySelector(".bottom-nav").getBoundingClientRect().top'),true,'Sheet leaves dimmed navigation visible');
  await cdp('Input.dispatchMouseEvent',{type:'mousePressed',x:3,y:20,button:'left',clickCount:1});await cdp('Input.dispatchMouseEvent',{type:'mouseReleased',x:3,y:20,button:'left',clickCount:1});await until(()=>evaluate('!document.querySelector(".patch-sheet").open'));
 
- await click('.patch-current-node');await click('.patch-sheet-close');assert.equal(await evaluate('window.uiFixture.starts'),0);
- await click('.patch-current-node');await click('.patch-sheet .patch-primary');assert.equal(await evaluate('window.uiFixture.starts'),1);
- await viewport(320,568);await navigate('state=normal&long=1&lang=ja');await click('.patch-current-node');await screenshot('preview-ja-long-320');assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+ await click('.patch-lesson-start');await click('.patch-sheet-close');assert.equal(await evaluate('window.uiFixture.starts'),0);
+ await click('.patch-lesson-start');await click('.patch-sheet .patch-primary');assert.equal(await evaluate('window.uiFixture.starts'),1);
+ await viewport(320,568);await navigate('state=normal&long=1&lang=ja');await click('.patch-lesson-start');await screenshot('preview-ja-long-320');assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
  assert.equal(await evaluate('(()=>{const e=document.querySelector(".patch-sheet"),r=e.getBoundingClientRect();return r.top>=15&&r.bottom<=innerHeight-87;})()'),true,'Long mobile sheet stays within safe bounds');
  await evaluate('document.querySelector(".patch-sheet .patch-primary").scrollIntoView({block:"end"})');
  assert.equal(await evaluate('(()=>{const r=document.querySelector(".patch-sheet .patch-primary").getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;})()'),true,'Long sheet Start remains reachable');
@@ -128,7 +144,7 @@ try{
  await evaluate('window.uiFixture.updateSnapshot({streak:0,hot:false,completed:false,broken:true})');await until(()=>evaluate('!!document.querySelector(".patch-streak-broken")'));
  assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'0 days');
  await viewport(393);await navigate('state=resume');
- await click('.patch-current-node');await until(()=>evaluate('window.uiFixture.pending.length===1'));
+ await click('.patch-lesson-start');await until(()=>evaluate('window.uiFixture.pending.length===1'));
  assert.equal(await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).method"),'GET');
  assert.ok((await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).url")).includes('id=saved-a'));
  await click('.patch-sheet-close');
@@ -152,8 +168,8 @@ try{
   assert.equal(mascotRequests.includes('/loop-companion.jpeg'),false,'Valid final artwork never uses the fallback');
   assert.deepEqual(await layout(),before,`${pose}: new artwork must not move the UI`);
  }
- mascotMode='current';await navigate('state=normal');await click('.patch-current-node');const previewLayout=await layout();
- mascotMode='replacement';await navigate('state=normal');await click('.patch-current-node');assert.deepEqual(await layout(),previewLayout,'Preview stays stable with replacement artwork');
+ mascotMode='current';await navigate('state=normal');await click('.patch-lesson-start');const previewLayout=await layout();
+ mascotMode='replacement';await navigate('state=normal');await click('.patch-lesson-start');assert.deepEqual(await layout(),previewLayout,'Preview stays stable with replacement artwork');
  // A missing final image must keep its canvas without resurrecting temporary art.
  mascotMode='missing-standing';mascotRequests.length=0;
  await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?state=empty`});

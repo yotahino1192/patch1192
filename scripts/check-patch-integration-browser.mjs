@@ -80,7 +80,7 @@ try {
  assert.equal(await evaluate(`!!document.querySelector('[data-lesson-id="${abandoned.id}"]')`),false);
  await capture('home');
  // The original CTA continues to select its original card/review destination.
- await click('.patch-current-node');await until(()=>evaluate('!!document.querySelector(".patch-sheet[open]")'));
+ await click('.patch-lesson-start');await until(()=>evaluate('!!document.querySelector(".patch-sheet[open]")'));
  const expectedTitle=selectionBefore.kind==='set'?before.sets.find(s=>s.id===selectionBefore.id).title:'今日の復習';
  assert.equal(await evaluate('document.querySelector(".patch-sheet[open] h2").textContent'),expectedTitle);
  await click('.patch-sheet[open] .patch-sheet-close');

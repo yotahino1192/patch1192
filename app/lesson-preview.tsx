@@ -30,8 +30,8 @@ export function LessonPreview({ open, onClose, onStart, title, summary, sessionI
       {seconds !== undefined && seconds > 0 && <p className="patch-preview-time">{t("予定時間：約{0}分", Math.ceil(seconds / 60))}</p>}
       {remaining !== undefined && <p>{t("残り{0}枚", remaining)}</p>}
       {dueCount !== undefined && <p>{t("今日の復習：{0}枚", dueCount)}</p>}
-    </div><Mascot /></div>
-    {summary && <p className="patch-preview-description">{summary}</p>}
+      {summary && <p className="patch-preview-description">{summary}</p>}
+    </div><Mascot pose="happy" /></div>
     <button className="patch-primary" onClick={onStart}>{t("マイレッスンを始める")}<PatchIcon name="arrow" /></button>
   </BottomSheet>;
 }
