@@ -7,8 +7,8 @@ import { useLanguage } from "./language";
 import { Mascot } from "./mascot";
 import { BottomSheet, PatchIcon } from "./patch-ui";
 
-export function LessonPreview({ open, onClose, onStart, title, summary, sessionId, remaining, dueCount, label, titleId = "lesson-preview-title" }: {
-  open: boolean; onClose: () => void; onStart: () => void; title: string;
+export function LessonPreview({ open, onClose, onStart, onChoosePatch, title, summary, sessionId, remaining, dueCount, label, titleId = "lesson-preview-title" }: {
+  open: boolean; onClose: () => void; onStart: () => void; onChoosePatch?: () => void; title: string;
   titleId?: string; label?: string; summary?: string; sessionId?: string; remaining?: number; dueCount?: number;
 }) {
   const { t } = useLanguage();
@@ -33,5 +33,6 @@ export function LessonPreview({ open, onClose, onStart, title, summary, sessionI
       {summary && <p className="patch-preview-description">{summary}</p>}
     </div><Mascot pose="happy" /></div>
     <button className="patch-primary" onClick={onStart}>{t("マイレッスンを始める")}<PatchIcon name="arrow" /></button>
+    {onChoosePatch && <button className="patch-choose-patch" onClick={onChoosePatch}>{t("別のPatchを選ぶ")}</button>}
   </BottomSheet>;
 }

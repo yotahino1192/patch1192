@@ -989,6 +989,8 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-preview-heading p { margin: 0 0 8px; color: var(--patch-muted); font-size: 15px; }
 .patch-preview-heading .patch-preview-description { color: var(--patch-muted); font-size: 16px; line-height: 1.45; margin: 8px 0 20px; overflow-wrap: anywhere; }
 .patch-sheet .patch-primary { min-height: 56px; font-size: 17px; }
+.patch-choose-patch { display: block; width: 100%; min-height: 44px; margin-top: 15px; padding: 8px 12px; border: 0; background: transparent; color: var(--patch-ink); font-size: 16px; font-weight: 700; text-align: center; }
+.patch-choose-patch:hover { text-decoration: underline; }
 .app-shell:has(.patch-complete) { width: min(100%, 720px); }
 .app-shell:has(.patch-complete) > main { padding-bottom: 0; }
 .page.patch-complete { padding: max(62px, env(safe-area-inset-top, 0px)) 20px calc(36px + env(safe-area-inset-bottom, 0px)); min-height: 100svh; justify-content: flex-start; max-width: 480px; margin: auto; }

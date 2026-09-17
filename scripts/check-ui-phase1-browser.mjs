@@ -39,6 +39,17 @@ try{
  const viewport=(width,height=852)=>cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:true});
  const navigate=async query=>{await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?${query}`});await until(()=>evaluate('!!document.querySelector(".patch-greeting,.patch-complete")'));await evaluate('document.fonts.ready');await until(()=>evaluate('[...document.images].every(i=>i.complete&&i.naturalWidth>0)'));};
  await cdp('Runtime.enable');await cdp('Page.enable');
+ for(const [width,lang,label] of [[320,'ja','別のPatchを選ぶ'],[393,'en','Choose another Patch']]) {
+  await viewport(width,width===320?568:852);await navigate(`screen=home&lang=${lang}`);
+  await click('.patch-lesson-start');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
+  assert.equal(await evaluate('document.querySelector(".patch-choose-patch").textContent'),label);
+  assert.equal(await evaluate('(()=>{const start=document.querySelector(".patch-sheet .patch-primary").getBoundingClientRect(),choose=document.querySelector(".patch-choose-patch").getBoundingClientRect();return choose.top>start.bottom&&choose.left>=0&&choose.right<=innerWidth;})()'),true,'Choose another Patch stays below Start inside the mobile sheet');
+  await screenshot(`choose-patch-preview-${width}`);
+  await click('.patch-choose-patch');await until(()=>evaluate('!!document.querySelector(".library-page")'));
+  assert.equal(await evaluate('document.querySelector(".bottom-nav button:nth-child(2)").getAttribute("aria-current")'),'page');
+  assert.equal(await evaluate('window.uiFixture.starts'),0,'Choosing Patches never starts a lesson');
+  assert.equal(await evaluate('document.body.style.overflow'),'','Closing preview restores page scrolling');
+ }
  // Main navigation visual consistency and the existing Sets actions.
  for(const screen of ['sets','records','import','generate']) {
   for(const width of [320,393,430,768]) {

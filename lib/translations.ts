@@ -1,4 +1,5 @@
 export const english: Record<string, string> = {
+"別のPatchを選ぶ": "Choose another Patch",
 "今回取り組んだこと": "What you practised",
 "この端末での学習時間：{0}分{1}秒": "Study time on this device: {0}m {1}s",
 "完了したアクティビティ": "Activities completed",

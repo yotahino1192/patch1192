@@ -15,12 +15,12 @@ import { Mascot } from "./mascot";
 import { PatchIcon } from "./patch-ui";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
-export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resumableSessions, onResume, onSample, onContinue, onOpenLesson }: {
+export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resumableSessions, onResume, onSample, onContinue, onChoosePatch, onOpenLesson }: {
   data: AppData; now: Date;
   startStudy: (setId?: string, startCardId?: string, batchSize?: number) => void;
   setScreen: (screen: Screen) => void; selectSet: (id: string) => void;
   resumeDraft?: () => void; resumableSessions: StudySession[];
-  onResume: (session: StudySession) => void; onSample: () => Promise<void>; onContinue: () => void; onOpenLesson?: (id: string) => void;
+  onResume: (session: StudySession) => void; onSample: () => Promise<void>; onContinue: () => void; onChoosePatch: () => void; onOpenLesson?: (id: string) => void;
 }) {
   const { t } = useLanguage();
   const [preview, setPreview] = useState<string | null>(null);
@@ -95,6 +95,6 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
     </>}
     {onOpenLesson && <AvailableLessons onStart={onOpenLesson} />}
     {resumeDraft && <button className="patch-action-card" onClick={resumeDraft}><span>{t("下書きの続きから")}</span><PatchIcon name="arrow" size={20} /></button>}
-    <LessonPreview open={preview !== null} onClose={() => setPreview(null)} onStart={startPreview} title={title} summary={currentSet?.summary} sessionId={selectedSession?.id ?? remoteSession?.id} remaining={remaining} dueCount={!currentSet && destination.kind === "review" && !stale ? data.retention?.dueCount : undefined} />
+    <LessonPreview open={preview !== null} onClose={() => setPreview(null)} onStart={startPreview} onChoosePatch={() => { setPreview(null); onChoosePatch(); }} title={title} summary={currentSet?.summary} sessionId={selectedSession?.id ?? remoteSession?.id} remaining={remaining} dueCount={!currentSet && destination.kind === "review" && !stale ? data.retention?.dueCount : undefined} />
   </div>;
 }

@@ -1089,7 +1089,7 @@ function App() {
   if (screen === "home") content = <Home onOpenLesson={id => {
     const url = new URL(window.location.href); url.searchParams.set("lesson", id);
     history.pushState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate"));
-  }} onContinue={()=>{const target=continueLearning(data,[session,...workspace.pausedSessions]);if(target.kind==="set")void startStudy(target.id);else openDestination(target);}} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
+  }} onChoosePatch={()=>{ setFolderId(null); setSetDetailOpen(false); setScreen("sets"); }} onContinue={()=>{const target=continueLearning(data,[session,...workspace.pausedSessions]);if(target.kind==="set")void startStudy(target.id);else openDestination(target);}} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
       const result = await api<{ data: AppData }>("/api/data", { method: "POST", body: JSON.stringify({ action: "sample", language }) });
       const sample = result.data.sets[0];
       setData(result.data);
