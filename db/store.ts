@@ -17,6 +17,7 @@ import type {
   BinaryReviewRating,
 } from "../lib/types";
 import { scheduleBinaryReview } from "../lib/review";
+import { createHash } from 'node:crypto';
 
 
 export async function ensureDatabase(): Promise<void> {
@@ -143,17 +144,18 @@ function mapCard(row: Record<string, unknown>): Card {
   };
 }
 
-export async function saveGeneratedSet(userId: string, material: GeneratedMaterial & { sourceContent: string; folderId?: string | null }): Promise<string> {
+export async function saveGeneratedSet(userId: string, material: GeneratedMaterial & { sourceContent: string; folderId?: string | null }, operationId?: string): Promise<string> {
   await ensureDatabase();
   const db = database();
   const now = new Date().toISOString();
   await requireFolder(userId, material.folderId || null);
+  if (operationId) return (await persistMaterialOnce(userId, operationId, { action: 'saveSet', material }, material.cards.length, cardIds => materialStatements(db, userId, material, now, cardIds))).setId;
   const { setId, statements } = materialStatements(db, userId, material, now);
   await db.batch(statements);
   return setId;
 }
 
-function materialStatements(db: ReturnType<typeof database>, userId: string, material: GeneratedMaterial & { sourceContent: string; folderId?: string | null }, now: string) {
+function materialStatements(db: ReturnType<typeof database>, userId: string, material: GeneratedMaterial & { sourceContent: string; folderId?: string | null }, now: string, cardIds?: string[]) {
   const sourceId = id("src");
   const setId = id("set");
   const statements = [
@@ -164,11 +166,11 @@ function materialStatements(db: ReturnType<typeof database>, userId: string, mat
       VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(setId, userId, sourceId, material.title, material.category, material.summary,
         JSON.stringify(material.keyPoints), now, now, null, now),
-    ...material.cards.map((card) =>
+    ...material.cards.map((card, index) =>
       db.prepare(`INSERT INTO cards
         (id,set_id,user_id,question,answer,format,choices,status,difficulty,due_at,interval_days,review_count,correct_count,created_at,updated_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(id("card"), setId, userId, card.question.trim(), card.answer.trim(), normalizeFormat(card.format), JSON.stringify(normalizeChoices(card)), "未学習",
+        .bind(cardIds?.[index] || id("card"), setId, userId, card.question.trim(), card.answer.trim(), normalizeFormat(card.format), JSON.stringify(normalizeChoices(card)), "未学習",
           Math.max(1, Math.min(3, Math.round(card.difficulty || 2))), now, 0, 0, 0, now, now)),
   ];
   statements.push(db.prepare("UPDATE card_sets SET folder_id = ? WHERE id = ? AND user_id = ?").bind(material.folderId || null, setId, userId));
@@ -187,22 +189,53 @@ function normalizeChoices(card: GeneratedCard): string[] {
   return [...choices.slice(0, 3), answer];
 }
 
-export async function addCardsToSet(userId: string, setId: string, newCards: GeneratedCard[], source?: { title: string; content: string }): Promise<void> {
+export async function addCardsToSet(userId: string, setId: string, newCards: GeneratedCard[], source?: { title: string; content: string }, operationId?: string): Promise<string[]> {
   await ensureDatabase();
   const db = database();
   const existing = await db.prepare("SELECT id FROM card_sets WHERE id = ? AND user_id = ?").bind(setId, userId).first<{ id: string }>();
   if (!existing) throw new Error("SET_NOT_FOUND");
   const now = new Date().toISOString();
-  await db.batch([
+  const statements = (cardIds: string[]) => [
     ...(source ? [db.prepare("UPDATE sources SET content = content || ?, updated_at = ? WHERE user_id = ? AND id = (SELECT source_id FROM card_sets WHERE id = ? AND user_id = ?)")
       .bind(`\n\n--- ${source.title} ---\n${source.content}`, now, userId, setId, userId)] : []),
-    ...newCards.map((card) => db.prepare(`INSERT INTO cards
+    ...newCards.map((card, index) => db.prepare(`INSERT INTO cards
       (id,set_id,user_id,question,answer,format,choices,status,difficulty,due_at,interval_days,review_count,correct_count,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(id("card"), setId, userId, card.question.trim(), card.answer.trim(), normalizeFormat(card.format), JSON.stringify(normalizeChoices(card)), "未学習",
+      .bind(cardIds[index], setId, userId, card.question.trim(), card.answer.trim(), normalizeFormat(card.format), JSON.stringify(normalizeChoices(card)), "未学習",
         Math.max(1, Math.min(3, Math.round(card.difficulty || 2))), now, 0, 0, 0, now, now)),
     db.prepare("UPDATE card_sets SET updated_at = ?, next_review_at = ? WHERE id = ? AND user_id = ?").bind(now, now, setId, userId),
-  ]);
+  ];
+  if (operationId) return (await persistMaterialOnce(userId, operationId, { action: 'addCardsToSet', setId, newCards, source }, newCards.length, cardIds => ({ setId, statements: statements(cardIds) }))).cardIds;
+  const cardIds = newCards.map(() => id('card'));
+  await db.batch(statements(cardIds));
+  return cardIds;
+}
+
+// Existing card primary keys retain a durable, account-bound save receipt, including
+// after soft deletion. No extra table or learning/progress writes are needed.
+function materialOperationPrefix(userId: string, operationId: string) {
+  return `buildcard_${createHash('sha256').update(JSON.stringify([userId, operationId])).digest('hex').slice(0, 32)}_`;
+}
+export async function materialOperationCardIds(userId: string, operationId: string) {
+  const prefix = materialOperationPrefix(userId, operationId);
+  const result = await database().prepare('SELECT id FROM cards WHERE user_id = ? AND id >= ? AND id < ?').bind(userId, prefix, prefix + '\uffff').all<{ id: string }>();
+  return result.results.map(row => row.id).sort((a, b) => Number(a.split('_').at(-1)) - Number(b.split('_').at(-1)));
+}
+async function persistMaterialOnce(userId: string, operationId: string, payload: unknown, count: number, prepare: (ids: string[]) => { setId: string; statements: { sql: string; args: import('@libsql/client').InValue[] }[] }) {
+  const digest = (value: string) => createHash('sha256').update(value).digest('hex');
+  const prefix = materialOperationPrefix(userId, operationId);
+  const fingerprint = digest(JSON.stringify([userId, operationId, payload]));
+  const cardIds = Array.from({ length: count }, (_, i) => `${prefix}${fingerprint}_${i}`);
+  return database().transaction(async tx => {
+    const prior = (await tx.execute({ sql: 'SELECT id,set_id FROM cards WHERE user_id = ? AND id >= ? AND id < ?', args: [userId, prefix, prefix + '\uffff'] })).rows;
+    if (prior.length) {
+      if (prior.length !== cardIds.length || prior.some(row => !cardIds.includes(String(row.id)))) throw new Error('MATERIAL_SAVE_CONFLICT');
+      return { setId: String(prior[0].set_id), cardIds };
+    }
+    const { setId, statements } = prepare(cardIds);
+    for (const statement of statements) await tx.execute(statement);
+    return { setId, cardIds };
+  });
 }
 
 export async function reviewCard(userId: string, cardId: string, rating: BinaryReviewRating, responseMs: number, sessionId: string | null, operation?: { operationId: string; expectedReviewCount: number }): Promise<string> {

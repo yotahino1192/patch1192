@@ -59,7 +59,7 @@ export function PrivacyProvider({children}:{children:ReactNode}) {
   if(stopped){await save(consent,"revoked");consent=await refresh();}
   if(stopped || consent.state!=="granted"||consent.consentVersion!==CONSENT_VERSION){
    // Never open an unsolicited dialog or send when automatic lesson summarization runs.
-   if(body.mode==="lesson_summary" || !await ask(consent))throw Error("AIへの送信は許可されていません。保存済みカードで学習を続けられます。");
+   if(body.mode==="lesson_summary" || !await ask(consent))throw Object.assign(Error("AIへの送信は許可されていません。保存済みカードで学習を続けられます。"), { code: 'AI_CONSENT_REQUIRED' });
   }
   scope.assertCurrent();
   check();

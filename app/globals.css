@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "./mascot.css";
 @import "./palette.css";
+@import "./build-patch.css";
+@import "./build-review.css";
+@import "./free-v1.css";
 @import "../public/patch/startup.css";
 
 :root, .dark {

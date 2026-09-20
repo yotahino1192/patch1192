@@ -1,6 +1,12 @@
 "use client";
 
 import { StartupPending, useStartupReady } from "./startup-splash";
+import { ImportScreen } from './build-patch';
+import { useBuildGeneration } from './use-build-generation';
+import { normalizeBuildDraft } from '../lib/build-draft';
+import { BuildReview, PatchReady } from './build-review';
+import { useMaterialSave } from './use-material-save';
+import type { SavedMaterial } from '../lib/material-save';
 
 import { readApiResponse, ReliabilityError } from '../lib/reliability/errors';
 import { ReliabilityBoundary, ReliabilityRuntime } from './reliability/boundary';
@@ -20,9 +26,8 @@ import { Onboarding } from "./onboarding";
 import { useWorkspace } from "./use-workspace";
 import { EMPTY_IMPORT, EMPTY_SESSION, workspaceSessionIds, activateSession, reconcileWorkspace, reconcileSession, pendingStudyCount, startStudyBatch, nextStudyBatch, studyUndoCheckpoint, restoreStudyUndo, studyReturnTarget, resolveStudyReturn, type DraftCard, type DraftMaterial, type ImportDraft, type StudySession, type Workspace } from "../lib/workspace";
 import { SetLibrary, folderPath } from "./set-library";
-import { DocumentAttachments, type Attachment } from "./document-attachments";
 import { Dropdown } from "./dropdown";
-import { isLongTermDue, memoryMilestones } from "../lib/long-term-review";
+import { isLongTermDue } from "../lib/long-term-review";
 import { setEmoji } from "../lib/set-presentation";
 import { Home } from "./home-screen";
 import { LessonCompletion } from "./lesson-completion";
@@ -41,6 +46,8 @@ import type {
 import { advanceLessonQueue, type LessonVerdict } from "../lib/review";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
+// Free v1 presentation only. Existing learning engines remain available to core tests.
+const advancedStudyEnabled = false;
 
 const navItems: { id: Screen; label: string }[] = [
   { id: "home", label: "ホーム" },
@@ -143,11 +150,12 @@ function IconButton({ children, label, onClick }: { children: React.ReactNode; l
   return <button className="icon-button" aria-label={t(label)} onClick={onClick}>{children}</button>;
 }
 
-function Shell({ screen, setScreen, children, title }: {
+function Shell({ screen, setScreen, children, title, buildStep = 1 }: {
   screen: Screen;
   setScreen: (screen: Screen) => void;
   children: React.ReactNode;
   title?: string;
+  buildStep?: number | string;
 }) {
   const { t } = useLanguage();
   const mainRef = useRef<HTMLElement>(null);
@@ -156,8 +164,8 @@ function Shell({ screen, setScreen, children, title }: {
     mainRef.current?.focus();
   }, [screen]);
   return (
-    <div className={`app-shell ${screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
-      {screen !== "study" && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
+    <div className={`app-shell ${screen === 'import' ? 'build-shell' : screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
+      {screen !== "study" && screen !== 'import' && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
         {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
         {title && <h1 className="screen-title">{t(title)}</h1>}
         <button type="button" className="settings-button" aria-label={t("設定")} aria-haspopup="dialog" onClick={() => settingsRef.current?.showModal()}>
@@ -166,7 +174,7 @@ function Shell({ screen, setScreen, children, title }: {
       </header>}
       {screen !== "study" && <SettingsDialog dialogRef={settingsRef} />}
       <main ref={mainRef} tabIndex={-1}>{children}</main>
-      {screen !== "study" && <nav className="bottom-nav" aria-label={t("メインナビゲーション")}>
+      {screen !== "study" && (screen !== 'import' || buildStep === 1) && <nav className="bottom-nav" aria-label={t("メインナビゲーション")}>
         {navItems.map((item) => {
           const active = item.id === screen || (item.id === "import" && screen === "generate");
           return (
@@ -195,71 +203,6 @@ function DestinationPicker({ data, value, onChange, disabled = false }: { data: 
   ]} /><p className="attachment-hint">{t(value.startsWith("set:") ? "選んだセットにカードを追加します。" : "選んだ場所に新しいセットを作成します。")}</p></div>;
 }
 
-function ImportScreen({ onGenerate, data, destination, setDestination, importDraft, setImportDraft }: { onGenerate: (text: string, detail: string, style: string) => Promise<void>; data: AppData; destination: string; setDestination: (value: string) => void; importDraft: ImportDraft; setImportDraft: React.Dispatch<React.SetStateAction<ImportDraft>> }) {
-  const { t } = useLanguage();
-  const [showImportHelp, setShowImportHelp] = useState(false);
-  const { detail, style, text, attachments } = importDraft;
-  const setDetail = (detail: string) => setImportDraft((draft) => ({ ...draft, detail }));
-  const setStyle = (style: string) => setImportDraft((draft) => ({ ...draft, style }));
-  const setText = (text: string) => setImportDraft((draft) => ({ ...draft, text }));
-  const setAttachments = (attachments: Attachment[]) => setImportDraft((draft) => ({ ...draft, attachments }));
-  const [reading, setReading] = useState(false);
-  const source = [text.trim(), ...attachments.map((file) => file.text)].filter(Boolean).join("\n\n");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const submit = async () => {
-    if (source.length < 80 || source.length > 30000) {
-      setError("文章と添付資料の合計を80〜30,000文字にしてください。");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try { await onGenerate(source, detail, style); }
-    catch (e) { setError(e instanceof Error ? e.message : "解析できませんでした。"); }
-    finally { setBusy(false); }
-  };
-  return (
-    <div className="page import-page">
-      <div className="page-heading import-heading"><h1>{t("教材を追加")}</h1><button type="button" className="help info-button" aria-label={t("教材追加の説明")} aria-expanded={showImportHelp} aria-controls="import-help" onClick={() => setShowImportHelp(!showImportHelp)}><AssetIcon name="info" size={22} /></button></div>
-      {showImportHelp && <div className="inline-help" id="import-help"><p>{t("文章を貼り付けると、AIが学びやすいカードへ整理します。")}</p><p>{t("文章の貼り付けと資料の添付を組み合わせて使えます。画像だけのPDFや旧形式の.doc・.pptには対応していません。URLの自動取り込みはできません。")}</p></div>}
-      <textarea aria-label={t("教材にする文章")} disabled={busy || reading} id="source-text" value={text} onChange={(e) => setText(e.target.value)} placeholder={t("ここに文章を貼り付けてください…\n例）ChatGPTとの会話、記事の本文、授業ノートなど")} maxLength={30000} />
-      <DocumentAttachments files={attachments} onChange={setAttachments} onBusy={setReading} disabled={busy} />
-      <p className={`counter ${source.length > 30000 ? "over-limit" : ""}`}>{source.length.toLocaleString()} / 30,000 {attachments.length > 0 && t("（添付資料を含む）")}</p>
-      {source.length > 30000 && <p className="inline-error" role="alert">{t("文章と添付資料の合計を80〜30,000文字にしてください。")}</p>}
-      <OptionGroup label={t("情報の粒度")} values={["要点のみ", "標準", "詳しく"]} value={detail} setValue={setDetail} help={t("要点のみ：重要なポイントに絞ります。標準：要点と関連知識をバランスよく。詳しく：細かな内容までカードにします。")} />
-      <fieldset className="format-group">
-        <legend>{t("学習形式")}</legend>
-        <div className="format-grid">
-          {[
-            ["一問一答", "💬", "質問を見て、答えを思い出す"],
-            ["4択問題", "🔢", "4つの選択肢から正解を選ぶ"],
-          ].map(([name, icon, description]) => (
-            <button
-              type="button"
-              key={t(name)}
-              aria-pressed={style === name}
-              className={`format-option ${style === name ? "selected" : ""}`}
-              onClick={() => setStyle(name)}
-            >
-              <span aria-hidden="true">{icon}</span>
-              <strong>{t(name)}</strong>
-              <small>{t(description)}</small>
-            </button>
-          ))}
-        </div>
-      </fieldset>
-      <DestinationPicker data={data} value={destination} onChange={setDestination} disabled={busy || reading} />
-      {error && <p className="inline-error" role="alert">{t(error)}</p>}
-      <button className="primary wide" onClick={submit} disabled={busy || reading || source.length < 80 || source.length > 30000} aria-busy={busy}>{busy ? t("教材を分析して、カード枚数を決めています…") : <IconLabel name="sparkles">{t("AIでカードを作る")}</IconLabel>}</button>
-    </div>
-  );
-}
-
-function OptionGroup({ label, values, value, setValue, help }: { label: string; values: string[]; value: string; setValue: (value: string) => void; help?: string }) {
-  const { t } = useLanguage();
-  const [open, setOpen] = useState(false);
-  return <fieldset className="option-group"><legend>{t(label)} {help && <button type="button" className="info-button" aria-label={t("情報の粒度の説明")} aria-expanded={open} aria-controls="detail-help" onClick={() => setOpen(!open)}><AssetIcon name="info" size={22} /></button>}</legend>{open && <p className="inline-help" id="detail-help">{help}</p>}<div>{values.map((v) => <button type="button" key={v} aria-pressed={v === value} className={v === value ? "selected" : ""} onClick={() => setValue(v)}>{t(v)}</button>)}</div></fieldset>;
-}
 
 function Generate({ draft, setDraft, onSave, onRegenerate, data, destination, setDestination }: {
   data: AppData; destination: string; setDestination: (value: string) => void;
@@ -272,6 +215,7 @@ function Generate({ draft, setDraft, onSave, onRegenerate, data, destination, se
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   if (!draft) return <div className="page empty-panel"><h1>{t("生成する教材がありません")}</h1><p>{t("「新しい教材を追加」から文章を取り込んでください。")}</p></div>;
+  if (!advancedStudyEnabled && draft.cards.some(card => card.format !== 'qa' && card.format !== 'multiple_choice')) return <div className="page empty-panel"><h1>{t("このカードは現在のバージョンでは学習できません")}</h1><p>{t("FlashcardsまたはMultiple ChoiceのPatchを選んでください。")}</p></div>;
   const selectedCards = draft.cards.filter((card) => card.selected);
   const allSelected = selectedCards.length === draft.cards.length;
   const updateCard = (draftId: string, key: "question" | "answer", value: string) => {
@@ -311,7 +255,8 @@ function Generate({ draft, setDraft, onSave, onRegenerate, data, destination, se
     <div className="page generation-page">
       <div className="success-banner"><AssetIcon name="check" size={40} /><div><h2>{t("解析完了")}</h2><p>{t("要点とカード候補を生成しました。保存前に編集できます。")}</p></div></div>
       <section className="panel">
-        <label className="field-label" htmlFor="draft-title">{t("セット名")}</label>
+        {destination.startsWith('set:') && <p>Adding to: {data.sets.find(s => s.id === destination.slice(4))?.title}</p>}
+        <label className="field-label" htmlFor="draft-title">{destination.startsWith('set:') ? 'New material title' : t("セット名")}</label>
         <input id="draft-title" className="title-input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
         <h2>{t("抽出された要点")}</h2>
         <ul>{draft.keyPoints.map((point, index) => <li key={`${point}-${index}`}>{point}</li>)}</ul>
@@ -462,7 +407,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
   }, [flipped, selectedChoice]);
 
   const summarizeAiHistory = async (messages: ChatMessage[]) => {
-    if (!messages.length || summaryStarted.current) return;
+    if (!advancedStudyEnabled || !messages.length || summaryStarted.current) return;
     summaryStarted.current = true;
     setSummaryBusy(true);
     setSummaryError("");
@@ -725,7 +670,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         {dailyCelebration && <ReviewCelebration onDismiss={() => setDailyCelebration(false)} />}
         <LessonCompletion data={data} now={now} cards={sessionTotal} mistakes={sessionMistakes} />
         {set?.nextReviewAt && <div className="completion-review"><span>{t("🕒 次のおすすめ復習")}</span><strong>{relativeDate(set.nextReviewAt, now, language)}</strong><small>{formatDate(new Date(set.nextReviewAt), locale, "review")}<br />{t("エビングハウスの忘却曲線を参考にした復習タイミングです。")}</small></div>}
-        {sessionAiMessages.length > 0 && (
+        {advancedStudyEnabled && sessionAiMessages.length > 0 && (
           <section className="lesson-ai-recap">
             <details className="recap-conversation">
             <summary className="recap-heading"><AssetIcon name="sparkles" /><h2>{t("このレッスンでAIと深掘りしたこと")}</h2><span className="recap-chevron-closed"><AssetIcon name="chevron-down" size={16} /></span><span className="recap-chevron-open"><AssetIcon name="chevron-up" size={16} /></span></summary>
@@ -747,6 +692,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
     );
   }
   if (!queue.length || !card || !set) return <div className="page empty-panel"><h1>{t("学習するカードがありません")}</h1><p>{t("カードセットを作るか、セット画面から学習を開始してください。")}</p><button className="primary" onClick={goHome}>{t("ホームで確認")}</button></div>;
+  if (!advancedStudyEnabled && card.format !== 'qa' && card.format !== 'multiple_choice') return <div className="page empty-panel"><h1>{t("このカードは現在のバージョンでは学習できません")}</h1><p>{t("FlashcardsまたはMultiple ChoiceのPatchを選んでください。")}</p><button className="primary" onClick={backToSets}>{t("Patchesに戻る")}</button></div>;
   const progressTotal = session.batchSize ? session.batchTotal || sessionTotal : sessionTotal;
   const completed = Math.max(0, progressTotal - queue.length);
   const progress = progressTotal ? Math.round((completed / progressTotal) * 100) : 0;
@@ -776,18 +722,19 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         <button ref={flashcardTapRef} className="flashcard-tap" type="button" onClick={toggleCard} aria-pressed={flipped} aria-label={flipped ? t("回答を表示中") : card.format === "multiple_choice" ? t("質問。選択肢から回答") : t("質問。タップして回答を表示")}>
           <span key={`${card.id}:${flipped ? "answer" : "question"}`} className={`flashcard-content ${flipped ? "showing-answer" : "showing-question"} ${(flipped ? card.answer : card.question).length > 120 ? "long-content" : ""}`}>
             <span className="chip blue">{flipped ? t("回答") : card.format === "multiple_choice" ? t("4択問題") : t("質問")}</span>
+            {flipped && card.format === 'multiple_choice' && <span className="study-question-context">{card.question}</span>}
             <strong aria-live="polite">{flipped ? card.answer : card.question}</strong>
             {!flipped && <small className={card.format !== "multiple_choice" ? "card-tap-hint" : undefined}>{card.format === "multiple_choice" ? t("答えを1つ選んでください") : t("タップで回答を表示")}</small>}
           </span>
         </button>
         {(correctFeedback || (flipped && selectedChoice === card.answer)) && <span className="correct-check" role="status" aria-label={t("正解です。")}><AssetIcon name="check" size={46} /></span>}
-        {!flipped && card.format === "multiple_choice" && <div className="study-choice-grid">{card.choices.map((choice) => <button key={choice} type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedChoice(choice); setFlipped(true); setGestureMessage(t("答えを確認し、「選択結果を記録」で次へ進みます。")); }}>{choice}</button>)}</div>}
+        {card.format === "multiple_choice" && <div className="study-choice-grid" aria-label={t("選択肢")}>{card.choices.map((choice, index) => <button key={choice} type="button" aria-pressed={selectedChoice === choice} disabled={flipped || busy} className={flipped ? choice === card.answer ? 'choice-correct' : choice === selectedChoice ? 'choice-selected-incorrect' : '' : ''} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedChoice(choice); setFlipped(true); setGestureMessage(t("答えを確認し、「選択結果を記録」で次へ進みます。")); }}><span className="study-option-letter" aria-hidden="true">{String.fromCharCode(65 + index)}</span><span>{choice}</span>{flipped && choice === card.answer && <PatchIcon name="check" size={20} />}</button>)}</div>}
         {flipped && selectedChoice && <p role="status" aria-live="polite" className={`choice-feedback ${selectedChoice === card.answer ? "is-correct" : "is-incorrect"}`}>{t("選んだ答え：")}{selectedChoice}{t("。")}{selectedChoice === card.answer ? t("正解です。") : t("正解は「{0}」です。", card.answer)}</p>}
-        {flipped && !introductory && <button type="button" className="card-ai-button" disabled={busy || aiBusy} onPointerDown={(event) => event.stopPropagation()} onClick={openAiExplanation}><IconLabel name="sparkles">{t("AIに解説してもらう")}</IconLabel></button>}
+        {advancedStudyEnabled && flipped && !introductory && <button type="button" className="card-ai-button" disabled={busy || aiBusy} onPointerDown={(event) => event.stopPropagation()} onClick={openAiExplanation}><IconLabel name="sparkles">{t("AIに解説してもらう")}</IconLabel></button>}
       </article>
       {introductory && !flipped && <button className="primary wide" onClick={()=>setFlipped(true)}>{t("答えを見る")}</button>}
       <p className="study-sr-only" role="status">{busy ? t("学習記録を保存しています…") : aiBusy ? t("AIが解説を作成しています…") : t(gestureMessage)}</p>
-      {aiOpen && (
+      {advancedStudyEnabled && aiOpen && (
         <section className="inline-ai-panel">
           <div className="inline-ai-header"><div><span><AssetIcon name="sparkles" /></span><h2>{t("AI解説")}</h2></div><button type="button" aria-label={t("AI解説を閉じる")} disabled={aiBusy} onClick={() => setAiOpen(false)}><AssetIcon name="close" size={20} /></button></div>
           {!cardMessages.length && !aiBusy && <div className="ai-start-options">
@@ -830,7 +777,6 @@ function Records({ data, now, startStudy }: { data: AppData; now: Date; startStu
   });
   const maxDailyReviews = Math.max(1, ...dayData.map((day) => day.count));
   const weekReviews = dayData.reduce((sum, day) => sum + day.count, 0);
-  const milestones = memoryMilestones(data.sets);
   const streak = data.retention?.streak ?? data.dailyReview.streak;
   const weak = data.sets.flatMap((set) => set.cards.map((card) => ({ card, set }))).filter(({ card }) => card.status === "苦手");
   const aiHistory = data.chatMessages.reduce<Array<{ message: ChatMessage; question: string; card: Card | undefined; setTitle: string }>>((history, message, index) => {
@@ -850,11 +796,11 @@ function Records({ data, now, startStudy }: { data: AppData; now: Date; startStu
     <div className="page records-page">
       <div className="page-heading"><div><h1>{t("学習の記録")}</h1></div></div>
       <section className="chart-panel">
-        <div className="section-row"><div><h2>{t("記憶し直したカード数")}</h2><small className="muted">{t("直近7日間")}</small></div><p>{t("合計")}<strong>{weekReviews}{t("枚")}</strong></p></div>
+        <div className="section-row"><div><h2>{t("復習したカード数")}</h2><small className="muted">{t("直近7日間")}</small></div><p>{t("合計")}<strong>{weekReviews}{t("枚")}</strong></p></div>
         <div className="bar-chart">{dayData.map((day) => <div key={dayKey(day.date)}><span style={{ height: `${day.count === 0 ? 2 : Math.max(4, day.count / maxDailyReviews * 90)}px` }}><i>{day.count}{language === "ja" && t("枚")}</i></span><b>{new Intl.DateTimeFormat(locale, { timeZone: "Asia/Tokyo", weekday: "short" }).format(day.date)}</b></div>)}</div>
       </section>
       <div className="record-stats">
-        {[["streak", "連続学習", t("{0}日", streak)], ["weekly-study", "直近7日間の学習", t("{0}枚", weekReviews)], ["long-term", "長期記憶したカード数", t("{0}枚", milestones.longTerm)], ["memory-clock", "もう少しで長期記憶に到達するカード数", t("{0}枚", milestones.nearLongTerm)], ["completed-sets", "学習し切ったセット数", t("{0}セット", milestones.completedSets)]].map(([icon, label, value], index) => (
+        {[["streak", "連続学習", t("{0}日", streak)], ["weekly-study", "直近7日間の学習", t("{0}枚", weekReviews)]].map(([icon, label, value], index) => (
           <article key={label} className={index < 2 ? "record-stat-summary" : "record-stat-memory"}>
             <span className="record-stat-icon" aria-hidden="true"><PatchIcon name={({streak:"flame","weekly-study":"calendar","long-term":"book","memory-clock":"refresh","completed-sets":"check"} as Record<string, PatchIconName>)[icon]} size={26} /></span>
             <small>{t(label)}</small>
@@ -863,7 +809,8 @@ function Records({ data, now, startStudy }: { data: AppData; now: Date; startStu
         ))}
       </div>
       <section><div className="section-row"><h2>{t("復習リマインド")}</h2></div><div className="reminder-list">{data.sets.slice(0, 5).map((set) => { const due = set.cards.filter((card) => isDue(card, now)).length; return <button key={set.id} onClick={() => startStudy(set.id)}><AssetIcon name="clock" size={26} /><div><strong>{due ? t("{0}枚のカードが復習待ち", due) : t("{0}の次回復習", set.title)}</strong><small>{set.title}</small></div><em>{relativeDate(set.nextReviewAt, now, language)} <AssetIcon name="chevron-right" size={16} /></em></button>; })}</div></section>
-      <details className="ai-history-disclosure"><summary>{t("AI解説の学習履歴")}</summary><div className="ai-history-list">{aiHistory.length ? aiHistory.map(({ message, question, card: historyCard, setTitle }) => <details key={message.id}><summary><span><span><AssetIcon name="sparkles" /></span><small>{setTitle}{t("・")}{relativeDate(message.createdAt, now, language)}</small></span><strong>{historyCard?.question || question}</strong></summary><p className="history-question">{t("あなた：")}{question}</p><p>{message.content}</p></details>) : <p className="list-empty">{t("学習中にAIへ質問すると、解説がここへ保存されます。")}</p>}</div></details>
+      {!data.sets.length && <p className="list-empty">{t("Patchを作って学習すると、ここに記録が表示されます。")}</p>}
+      {advancedStudyEnabled && <details className="ai-history-disclosure"><summary>{t("AI解説の学習履歴")}</summary><div className="ai-history-list">{aiHistory.length ? aiHistory.map(({ message, question, card: historyCard, setTitle }) => <details key={message.id}><summary><span><span><AssetIcon name="sparkles" /></span><small>{setTitle}{t("・")}{relativeDate(message.createdAt, now, language)}</small></span><strong>{historyCard?.question || question}</strong></summary><p className="history-question">{t("あなた：")}{question}</p><p>{message.content}</p></details>) : <p className="list-empty">{t("学習中にAIへ質問すると、解説がここへ保存されます。")}</p>}</div></details>}
       <section><div className="section-row"><h2>{t("苦手カード")}</h2><span className="muted">{weak.length}{t("枚")}</span></div><div className="weak-list">{weak.length ? weak.slice(0, 8).map(({ card, set }) => <button key={card.id} onClick={() => startStudy(set.id, card.id)}><i>{set.category}</i><strong>{card.question}</strong><span>{t("復習")}{card.reviewCount}{t("回")} <AssetIcon name="chevron-right" size={16} /></span></button>) : <p className="list-empty">{t("苦手カードはまだありません。")}</p>}</div></section>
     </div>
   );
@@ -883,6 +830,9 @@ function App() {
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const { workspace, getWorkspace, setWorkspace, workspaceReady, saveError } = useWorkspace();
+  const [savedMaterial, setSavedMaterial] = useState<SavedMaterial | null>(null);
+  const materialSave = useMaterialSave(getWorkspace, setWorkspace, api, (updated, saved) => { setData(updated); setSavedMaterial(saved); setScreen('import'); });
+  const generation = useBuildGeneration(getWorkspace, setWorkspace, api, language);
   const { destination, draft, lastGeneration, importDraft } = workspace;
   useStartupReady(!!loadingError || (!!data && workspaceReady));
   const session = workspace.session || EMPTY_SESSION;
@@ -890,7 +840,7 @@ function App() {
   function updateField<K extends keyof Workspace>(key: K, value: React.SetStateAction<Workspace[K]>) {
     setWorkspace((w) => ({ ...w, [key]: typeof value === "function" ? (value as (current: Workspace[K]) => Workspace[K])(w[key]) : value }));
   }
-  const setDestination = (value: string) => updateField("destination", value);
+  const setDestination = (value: string) => setWorkspace(w => ({ ...w, destination: value, importDraft: { ...w.importDraft, ...(w.importDraft.build ? { build: { ...w.importDraft.build, destinationMode: value.startsWith('set:') ? 'existing' as const : 'new' as const, existingPatchId: value.startsWith('set:') ? value.slice(4) : w.importDraft.build.existingPatchId } } : {}) } }));
   const setDraft = (value: DraftMaterial | null) => updateField("draft", value);
   const setImportDraft: React.Dispatch<React.SetStateAction<ImportDraft>> = (value) => updateField("importDraft", value);
   const updateSession: React.Dispatch<React.SetStateAction<StudySession>> = (value) => setWorkspace((w) => {
@@ -947,50 +897,44 @@ function App() {
     return () => { active = false; };
   }, [activeDay, workspaceReady, setWorkspace, getWorkspace, api]);
 
-  const generate = async (text: string, detail: string, style: string) => {
-    const material = await api<GeneratedMaterial>("/api/ai/cards", {
-      method: "POST",
-      body: JSON.stringify({ text, detail, style, language }),
-    });
-    setDraft({
-      ...material,
-      sourceContent: text,
-      cards: material.cards.map((card) => ({ ...card, draftId: crypto.randomUUID(), selected: true })),
-    });
-    updateField("lastGeneration", { text, detail, style });
-    setScreen("generate");
+  const regenerate = async () => {
+    if (importDraft.build) { setScreen('import'); await generation.run(true); return; }
+    if (!lastGeneration) return;
+    const material = await api<GeneratedMaterial>('/api/ai/cards', { method: 'POST', body: JSON.stringify({ ...lastGeneration, language }) });
+    setDraft({ ...material, sourceContent: lastGeneration.text, cards: material.cards.map(card => ({ ...card, draftId: crypto.randomUUID(), selected: true })) });
   };
 
   const pendingStudyStart=useRef<{signature:string;id:string}|null>(null);
   const studyStarting=useRef(false);
-  const startStudy = async (setId?: string, startCardId?: string, batchSize?: number) => {
-    if (!data) return;
+  const startStudy = async (setId?: string, startCardId?: string, batchSize?: number, materialCardIds?: string[]) => {
+    if (!data) return false;
     const memorySetId = setId?.startsWith("__memory__:") ? setId.slice("__memory__:".length) : undefined;
     const daily = setId?.startsWith("__daily__") || setId === "__due__";
     const dailySetId = setId?.startsWith("__daily__:") ? setId.slice("__daily__:".length) : undefined;
     const dailyPending = new Set(data.retention?.dueCardIds ?? data.dailyReview.cardIds.filter((id) => !data.dailyReview.completedCardIds.includes(id)));
     const target = data.sets.find((set) => set.id === (memorySetId || dailySetId || setId)) || data.sets.find((set) => set.id === selectedSetId) || data.sets[0];
-    if (!target) { setScreen("sets"); return; }
-    const scope = setId || target.id;
+    if (!target) { if (!materialCardIds) setScreen("sets"); return false; }
+    const scope = materialCardIds ? `material:${materialCardIds[0]}` : setId || target.id;
     const previous = [workspace.session, ...workspace.pausedSessions].find((saved) => saved && saved.scope === scope && !saved.done && pendingStudyCount(saved));
-    if (!startCardId && previous) { resumeStudy(batchSize && !previous.batchSize ? startStudyBatch(previous, batchSize) : previous); return; }
+    if (!materialCardIds && !startCardId && previous) { resumeStudy(batchSize && !previous.batchSize ? startStudyBatch(previous, batchSize) : previous); return true; }
     const due = target.cards.filter((card) => isDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
     const scheduledCards = memorySetId ? target.cards.filter((card) => isLongTermDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()) : daily ? data.sets.filter((set) => !dailySetId || set.id === dailySetId).flatMap((set) => set.cards).filter((card) => isActiveCard(card) && dailyPending.has(card.id)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()) : due.length ? due : target.cards.filter(isActiveCard);
     const requestedCard = startCardId ? target.cards.find((card) => card.id === startCardId && isActiveCard(card)) : undefined;
-    const cards = requestedCard ? [requestedCard, ...scheduledCards.filter((card) => card.id !== requestedCard.id)] : scheduledCards;
+    const cards = materialCardIds ? materialCardIds.map(id => target.cards.find(card => card.id === id && isActiveCard(card))).filter((card): card is Card => !!card) : requestedCard ? [requestedCard, ...scheduledCards.filter((card) => card.id !== requestedCard.id)] : scheduledCards;
     setSelectedSetId(target.id);
     const nextSession = { ...EMPTY_SESSION, id: `lesson_${crypto.randomUUID()}`, scope, setId: target.id, queue: cards.map((card) => card.id), total: cards.length, returnTo: studyReturnTarget(screen, target.id, session.returnTo) };
-    if (!cards.length) {setScreen("home");return;}
-    if(studyStarting.current)return;studyStarting.current=true;
+    if (!cards.length) {if (!materialCardIds) setScreen("home");return false;}
+    if(studyStarting.current)return false;studyStarting.current=true;
     const signature=JSON.stringify(nextSession.queue);
     if(pendingStudyStart.current?.signature===signature)nextSession.id=pendingStudyStart.current.id;
     else pendingStudyStart.current={signature,id:nextSession.id};
     try {
       const plan=await api<{id:string;cardIds:string[]}>("/api/retention",{method:"POST",body:JSON.stringify({action:"start",id:nextSession.id,cardIds:nextSession.queue})});
       nextSession.queue=plan.cardIds;nextSession.total=plan.cardIds.length;pendingStudyStart.current=null;
-    } catch {setLoadingError("学習セッションを開始できませんでした。もう一度お試しください。");return;}finally{studyStarting.current=false;}
+    } catch {if (!materialCardIds) setLoadingError("学習セッションを開始できませんでした。もう一度お試しください。");return false;}finally{studyStarting.current=false;}
     setWorkspace((w) => activateSession(w, batchSize ? startStudyBatch(nextSession, batchSize) : nextSession));
     setScreen("study");
+    return true;
   };
 
   const openDestination=(target:Destination,resolved=data)=>{
@@ -1049,6 +993,8 @@ function App() {
 
   const saveDraft = async () => {
     if (!draft) return;
+    if (!draft.title.trim()) throw new Error('Enter a title before saving.');
+    if (destination.startsWith('set:') && !data.sets.some(s => s.id === destination.slice(4))) throw new Error('Choose an available Patch before saving.');
     const selectedCards = draft.cards.filter((card) => card.selected).map(({ question, answer, difficulty, format, choices }) => ({ question, answer, difficulty, format, choices }));
     const targetSetId = destination.startsWith("set:") ? destination.slice(4) : null;
     const targetFolderId = destination.startsWith("folder:") ? destination.slice(7) : null;
@@ -1066,7 +1012,7 @@ function App() {
     setSelectedSetId(savedSetId);
     setFolderId(result.data.sets.find((set) => set.id === savedSetId)?.folderId || null);
     setSetDetailOpen(true);
-    setWorkspace((w) => ({ ...w, draft: null, importDraft: EMPTY_IMPORT, lastGeneration: null }));
+    setWorkspace((w) => ({ ...w, destination: 'root', draft: null, importDraft: EMPTY_IMPORT, lastGeneration: null }));
     setScreen("sets");
   };
   const updateData: React.Dispatch<React.SetStateAction<AppData>> = (value) => {
@@ -1086,10 +1032,10 @@ function App() {
 
   let content: React.ReactNode;
   let title: string | undefined;
-  if (screen === "home") content = <Home onOpenLesson={id => {
+  if (screen === "home") content = <Home onOpenLesson={advancedStudyEnabled ? id => {
     const url = new URL(window.location.href); url.searchParams.set("lesson", id);
     history.pushState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate"));
-  }} onChoosePatch={()=>{ setFolderId(null); setSetDetailOpen(false); setScreen("sets"); }} onContinue={()=>{const target=continueLearning(data,[session,...workspace.pausedSessions]);if(target.kind==="set")void startStudy(target.id);else openDestination(target);}} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
+  } : undefined} onChoosePatch={()=>{ setFolderId(null); setSetDetailOpen(false); setScreen("sets"); }} onContinue={()=>{const target=continueLearning(data,[session,...workspace.pausedSessions]);if(target.kind==="set")void startStudy(target.id);else openDestination(target);}} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
       const result = await api<{ data: AppData }>("/api/data", { method: "POST", body: JSON.stringify({ action: "sample", language }) });
       const sample = result.data.sets[0];
       setData(result.data);
@@ -1099,15 +1045,16 @@ function App() {
         setWorkspace((w) => activateSession(w, { ...EMPTY_SESSION, id: `lesson_${crypto.randomUUID()}`, scope: sample.id, setId: sample.id, queue: cards.map((c) => c.id), total: cards.length, returnTo: { screen: "home" } }));
         setScreen("study");
       }
-    }} resumeDraft={draft || importDraft.text || importDraft.attachments.length ? () => setScreen(draft ? "generate" : "import") : undefined} />;
-  else if (screen === "import") content = <ImportScreen importDraft={importDraft} setImportDraft={setImportDraft} onGenerate={generate} data={data} destination={destination} setDestination={setDestination} />;
-  else if (screen === "generate") { content = <Generate data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={async () => { if (lastGeneration) await generate(lastGeneration.text, lastGeneration.detail, lastGeneration.style); }} />; title = "カードの確認"; }
+    }} resumeDraft={draft || importDraft.text || importDraft.attachments.length ? () => setScreen(importDraft.build ? 'import' : draft ? "generate" : "import") : undefined} />;
+  else if (screen === "import") content = savedMaterial ? <PatchReady saved={savedMaterial} onHome={() => { setSavedMaterial(null); setScreen('home'); }} onStart={async () => { if (!await startStudy(savedMaterial.setId, undefined, undefined, savedMaterial.cardIds)) throw new Error('Lesson could not start'); setSavedMaterial(null); }} /> : <ImportScreen importDraft={importDraft} setImportDraft={setImportDraft} onGenerate={() => generation.run()} generationRunning={generation.isRunning()} data={data} destination={destination} setDestination={setDestination} patchesError={loadingError} onRetryPatches={reload} reviewLocked={materialSave.saving || !!workspace.pendingMaterialSave} review={<BuildReview data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} importDraft={importDraft} onSave={() => materialSave.save(data)} saving={materialSave.saving} pendingSave={!!workspace.pendingMaterialSave} error={materialSave.error} />} />;
+  else if (screen === "generate") { content = <Generate data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={regenerate} />; title = "カードの確認"; }
   else if (screen === "sets") { content = <SetLibrary data={data} folderId={folderId} openSetId={setDetailOpen ? selectedSetId : null} onFolder={(id) => { setFolderId(id); setSetDetailOpen(false); }} onSet={(id, cardId) => { setSelectedSetId(id); setFocusedCardId(cardId || null); setSetDetailOpen(true); }} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} onAdd={() => { setDestination(folderId ? `folder:${folderId}` : "root"); setScreen("import"); }}>
       <SetDetail key={selectedSetId} focusedCardId={focusedCardId} data={data} selectedSetId={selectedSetId} selectSet={setSelectedSetId} startStudy={startStudy} now={now} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} />
     </SetLibrary>; title = "カードセット"; }
   else if (screen === "study") content = studyContent;
   else content = <Records data={data} now={now} startStudy={(id) => { if (id) setSelectedSetId(id); setSetDetailOpen(true); setScreen("sets"); }} />;
-  return <LessonEntry onHome={() => setScreen("home")} renderComplete={(lesson, actualSeconds, onHome) => <DomainLessonCompletion lesson={lesson} actualSeconds={actualSeconds} data={data} now={now} onHome={onHome} />}><Shell screen={screen} setScreen={navigate} title={title}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell></LessonEntry>;
+  const shell = <Shell screen={screen} setScreen={navigate} title={title} buildStep={savedMaterial ? 'ready' : normalizeBuildDraft(importDraft.build, destination).step}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell>;
+  return advancedStudyEnabled ? <LessonEntry onHome={() => setScreen("home")} renderComplete={(lesson, actualSeconds, onHome) => <DomainLessonCompletion lesson={lesson} actualSeconds={actualSeconds} data={data} now={now} onHome={onHome} />}>{shell}</LessonEntry> : shell;
 }
 
 export default function LocalizedApp() {

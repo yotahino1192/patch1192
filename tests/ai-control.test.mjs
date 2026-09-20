@@ -47,7 +47,7 @@ test('timeout is unknown, maximum charge remains and repeated key never runs',()
  const k=key();let calls=0;
  await rejects(runAi(db,'a','cards',k,{},async()=>{calls++;await execution.getStore().dispatch();throw new ProviderError(true);}), 'AI_UNKNOWN');
  await rejects(runAi(db,'a','cards',k,{},work),'AI_UNKNOWN');
- await rejects(runAi(db,'a','chat',key(),{},work),'AI_CONCURRENCY_LIMIT');
+ await rejects(runAi(db,'a','chat',key(),{},work),'AI_PREVIOUS_UNRESOLVED');
  const row=(await c.execute('SELECT * FROM ai_requests')).rows[0];assert.equal(row.state,'unknown');assert.equal(row.cost_micros,3600);assert.equal(calls,1);
 }));
 test('known provider rejection is final, no same-key retry and no slot leak',()=>fixture(async(db,c)=>{
@@ -71,7 +71,7 @@ test('atomic result/side effect rollback becomes unknown; expiry cannot replay',
  assert.equal((await c.execute("SELECT result_json FROM ai_requests WHERE user_id='b'")).rows[0].result_json,null);
 }));
 test('crashed dispatch expires to unknown and crashed reservation fails before sending',()=>fixture(async(db,c)=>{
- await seed(c,{state:'dispatching'});await rejects(runAi(db,'a','cards',key(),{},work),'AI_CONCURRENCY_LIMIT');
+ await seed(c,{state:'dispatching'});await rejects(runAi(db,'a','cards',key(),{},work),'AI_PREVIOUS_UNRESOLVED');
  // Admission rejection rolls its sweep back; a successful independent admission commits it.
  await runAi(db,'b','chat',key(),{},work);assert.equal((await c.execute("SELECT state FROM ai_requests WHERE user_id='a'")).rows[0].state,'unknown');
 }));

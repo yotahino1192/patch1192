@@ -33,6 +33,16 @@ test('chat response, usage and exactly one pair commit together; replay uses own
  const b=await account('user_foreign');assert.equal((await chat(request(b,'/api/ai/chat',body,k))).status,404);assert.equal(calls(),1);
  });
 });
+
+test('cards validates optional focus before provider dispatch', async () => {
+ const a = await account('user_focus_validation');
+ await mock('{}', async calls => {
+  for (const focus of ['', '   ', 'x'.repeat(1001), { instruction: 'invalid' }]) {
+   assert.equal((await cards(request(a, '/api/ai/cards', { text: 'source '.repeat(30), focus }, randomUUID()))).status, 400);
+  }
+  assert.equal(calls(), 0);
+ });
+});
 test('deletion during provider flight scrubs AI content, rejects result and retains shared spend',async()=>{
  const {issuer}=await import('./auth-fixture.mjs');
  const {createDeletionChallenge,requestDeletion}=await import('../db/account-deletion.ts');

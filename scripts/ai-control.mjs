@@ -1,10 +1,16 @@
 import { command, target } from './infra/cli.mjs';
 import { createDatabase } from '../db/client.ts';
+import { logAiDiagnostic } from '../lib/ai/diagnostics.ts';
 await command(async () => {
   const action = process.argv[2];
-  if (!['status', 'stop', 'resume', 'resolve-final'].includes(action)) throw Error('AI_ACTION_REQUIRED');
-  const { client, options } = target({ write: action !== 'status' });
+  if (!['status', 'stop', 'resume', 'resolve-final', 'resolve-local-unknown'].includes(action)) throw Error('AI_ACTION_REQUIRED');
+  const { client, options, config } = target({ write: action !== 'status' });
   try {
+    if (action === 'resolve-local-unknown') {
+      const url = options.get('--url') || config.databaseUrl;
+      if (process.env.PATCH_ENV !== 'development' || !url.startsWith('file:')) throw Error('LOCAL_DEVELOPMENT_ONLY');
+      if (!options.has('--confirm-local-worker-stopped') || !options.has('--acknowledge-unknown-provider-outcome') || !options.has('--retain-maximum-cost')) throw Error('AI_LOCAL_REVIEW_REQUIRED');
+    }
     const db = createDatabase(client);
     await db.initialize();
     if (action === 'status') {
@@ -12,6 +18,7 @@ await command(async () => {
       console.info(JSON.stringify({ enabled: (await client.execute('SELECT enabled FROM ai_control WHERE id=1')).rows[0]?.enabled, windows: 'rolling_31_days_plus_unresolved', states: rows }));
       return;
     }
+    let resolution;
     await db.transaction(async tx => {
       if (action === 'stop') await tx.execute('UPDATE ai_control SET enabled=0 WHERE id=1');
       if (action === 'resume') {
@@ -19,14 +26,19 @@ await command(async () => {
         if ((await tx.execute("SELECT 1 FROM ai_requests WHERE state IN ('unknown','dispatching','reserved') LIMIT 1")).rows.length) throw Error('AI_UNRESOLVED_REQUESTS');
         await tx.execute('UPDATE ai_control SET enabled=1 WHERE id=1');
       }
-      if (action === 'resolve-final') {
-        if (!options.has('--confirm-provider-final') || !options.has('--retain-maximum-cost')) throw Error('AI_PROVIDER_RECONCILIATION_REQUIRED');
+      if (action === 'resolve-final' || action === 'resolve-local-unknown') {
+        if (action === 'resolve-final' && (!options.has('--confirm-provider-final') || !options.has('--retain-maximum-cost'))) throw Error('AI_PROVIDER_RECONCILIATION_REQUIRED');
         const id = options.get('--request');
         if (!/^[a-f0-9-]{36}$/.test(id || '')) throw Error('AI_REQUEST_ID_REQUIRED');
-        const changed = await tx.execute({ sql: "UPDATE ai_requests SET state='failed_final' WHERE id=? AND state IN ('unknown','dispatching') AND lease_until<CAST(strftime('%s','now') AS INTEGER)*1000", args: [id] });
+        const local = action === 'resolve-local-unknown';
+        if (local && !options.get('--user')) throw Error('AI_REQUEST_OWNER_REQUIRED');
+        const row = (await tx.execute({ sql: 'SELECT id,endpoint,cost_micros FROM ai_requests WHERE id=?', args: [id] })).rows[0];
+        const changed = await tx.execute({ sql: `UPDATE ai_requests SET state='failed_final' WHERE id=? AND state IN ('unknown','dispatching') AND lease_until<CAST(strftime('%s','now') AS INTEGER)*1000 ${local ? 'AND user_id=?' : ''}`, args: local ? [id, options.get('--user')] : [id] });
         if (changed.rowsAffected !== 1) throw Error('AI_REQUEST_NOT_RESOLVABLE');
+        resolution = { requestId: row.id, endpoint: row.endpoint, costMicros: Number(row.cost_micros), reason: local ? 'local_abandoned' : 'operator_final' };
       }
     });
+    if (resolution) logAiDiagnostic(resolution);
     console.info('AI_CONTROL_UPDATED');
   } finally { client.close(); }
 });

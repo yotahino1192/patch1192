@@ -1,10 +1,13 @@
 import type { AppData, GeneratedCard, GeneratedMaterial } from "./types";
+import { normalizeBuildDraft, type BuildDraft } from './build-draft.ts';
+import { validPendingMaterialSave, type PendingMaterialSave } from './material-save.ts';
 
 export type DraftCard = GeneratedCard & { draftId: string; selected: boolean };
 export type DraftMaterial = Omit<GeneratedMaterial, "cards"> & { sourceContent: string; cards: DraftCard[] };
 export type ImportDraft = {
   text: string; detail: string; style: string;
-  attachments: { id: string; name: string; text: string }[];
+  attachments: { id: string; name: string; text: string; size?: number; status?: 'reading' | 'accepted' | 'failed'; error?: string }[];
+  build?: BuildDraft;
 };
 export type StudyUndo = {
   reviewId: string; queue: string[]; remaining: string[]; mistakes: number;
@@ -24,6 +27,7 @@ export type StudySession = {
   returnTo?: StudyReturnTarget;
 };
 export type Workspace = {
+  pendingMaterialSave?: PendingMaterialSave;
   version: 1; importDraft: ImportDraft; destination: string; draft: DraftMaterial | null;
   lastGeneration: { text: string; detail: string; style: string } | null;
   session: StudySession | null; pausedSessions: StudySession[];
@@ -65,7 +69,8 @@ export function parseWorkspace(raw: string | null): Workspace {
     const generation = value.lastGeneration;
     return {
       version: 1,
-      importDraft: record(draft) && typeof draft.text === "string" && typeof draft.detail === "string" && typeof draft.style === "string" && Array.isArray(draft.attachments) && draft.attachments.every((a) => record(a) && [a.id, a.name, a.text].every((v) => typeof v === "string")) ? draft as ImportDraft : EMPTY_IMPORT,
+      ...(validPendingMaterialSave(value.pendingMaterialSave) ? { pendingMaterialSave: value.pendingMaterialSave } : {}),
+      importDraft: record(draft) && typeof draft.text === "string" && typeof draft.detail === "string" && typeof draft.style === "string" && Array.isArray(draft.attachments) && draft.attachments.every((a) => record(a) && [a.id, a.name, a.text].every((v) => typeof v === "string")) ? { ...draft as ImportDraft, ...(draft.build ? { build: normalizeBuildDraft(draft.build) } : {}), attachments: (draft as ImportDraft).attachments.map(a => a.status === 'reading' ? { ...a, status: 'failed', error: 'Reading was interrupted. Remove this file and select it again.' } : a) } : EMPTY_IMPORT,
       destination: typeof value.destination === "string" ? value.destination : "root",
       draft: validDraft(value.draft) ? value.draft : null,
       lastGeneration: record(generation) && [generation.text, generation.detail, generation.style].every((v) => typeof v === "string") ? generation as Workspace["lastGeneration"] : null,

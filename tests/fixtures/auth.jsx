@@ -63,7 +63,7 @@ function PrivateWorkspace(){
  return <section data-private={scope.account.subject}><p>{workspaceReady?'workspace ready':'workspace loading'}</p><output id="draft">{workspace.importDraft.text}</output><output id="result">{result}</output>
  <button id="edit" onClick={()=>setWorkspace(w=>({...w,importDraft:{...w.importDraft,text:'draft '+scope.account.subject}}))}>edit</button>
  <button id="request" onClick={async()=>{try{const response=await scope.request('/api/data');const data=await response.json();setResult(data.value);setWorkspace(w=>({...w,importDraft:{...w.importDraft,text:data.value}}));}catch{ /* Expected stale responses are ignored. */ }}}>request</button>
- <button id="generate" onClick={()=>api('/api/ai/cards',{method:'POST',body:JSON.stringify({text:'test'})}).then(()=>setResult('AI complete')).catch(()=>setResult('AI blocked'))}>generate</button>
+ <button id="generate" onClick={()=>api('/api/ai/cards',{method:'POST',body:JSON.stringify({text:'test'})}).then(()=>setResult('AI complete')).catch(error=>{fixture.lastAiErrorCode=error.code;setResult('AI blocked');})}>generate</button>
  <button id="summary" onClick={()=>api('/api/ai/cards',{method:'POST',body:JSON.stringify({mode:'lesson_summary'})}).catch(()=>setResult('summary blocked'))}>summary</button>
  <button id="revoke" onClick={()=>privacy.change('revoked')}>revoke</button>
  <button id="delete" onClick={()=>setDeleting(true)}>delete</button>{deleting&&<AccountDeletion close={()=>setDeleting(false)}/>}

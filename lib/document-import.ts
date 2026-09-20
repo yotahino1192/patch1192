@@ -1,7 +1,7 @@
 import { unzipSync, strFromU8 } from "fflate";
 
-export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
-export const MAX_SOURCE_LENGTH = 30000;
+import { MAX_DOCUMENT_BYTES, MAX_SOURCE_LENGTH } from './material-limits.ts';
+export { MAX_DOCUMENT_BYTES, MAX_SOURCE_LENGTH } from './material-limits.ts';
 export const DOCUMENT_ACCEPT = ".pdf,.docx,.pptx,.txt,.md,.csv";
 
 function parseXml(xml: string) {

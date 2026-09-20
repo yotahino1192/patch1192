@@ -31,6 +31,7 @@ try {
  assert.equal(await evaluate('!!document.querySelector("dialog[open]")'),false);
  await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));assert.equal(await aiCount(),0);
  await clickText('今は許可しない');await until(()=>evaluate('document.getElementById("result").textContent==="AI blocked"'));assert.equal(await aiCount(),0);
+ assert.equal(await evaluate('fixture.lastAiErrorCode'), 'AI_CONSENT_REQUIRED');
  await click('generate');await until(()=>evaluate('!!document.querySelector("dialog[open]")'));await clickText('同意して続ける');await until(async()=>await aiCount()===1);
 
  // A stale native response can arrive even after a successful consent withdrawal.

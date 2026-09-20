@@ -2,7 +2,7 @@ import { observeRoute } from "../../../lib/reliability/server";
 import { logEvent } from '../../../lib/safe-log';
 import { requireAuth, authErrorResponse } from "../../../lib/auth-server";
 import { InputError, readJsonObject, validId, boundedText } from "../../../lib/api-input";
-import { updateOnboarding, organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, reviewCard, undoReview, saveGeneratedSet } from "../../../db/store";
+import { updateOnboarding, organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, reviewCard, undoReview, saveGeneratedSet, materialOperationCardIds } from "../../../db/store";
 import type { BinaryReviewRating, GeneratedCard, GeneratedMaterial } from "../../../lib/types";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +49,7 @@ async function handlePOST(request: Request): Promise<Response> {
   try {
     const { userId } = await requireAuth(request);
     const body = await readJsonObject(request);
+    if (['saveSet', 'addCardsToSet'].includes(String(body.action)) && body.operationId !== undefined && !validId(body.operationId)) return json({ error: '保存操作を確認してください。' }, 400);
     if (body.action === "onboarding") {
       await updateOnboarding(userId, body);
       return json({ data: await loadAppData(userId) });
@@ -90,15 +91,17 @@ async function handlePOST(request: Request): Promise<Response> {
         category: material.category?.trim().slice(0, 60) || "未分類",
         sourceContent: material.sourceContent.slice(0, 30000),
         folderId: material.folderId ? String(material.folderId) : null,
-      });
-      return json({ setId, data: await loadAppData(userId) });
+      }, typeof body.operationId === 'string' ? body.operationId : undefined);
+      const data = await loadAppData(userId);
+      const cardIds = typeof body.operationId === 'string' ? await materialOperationCardIds(userId, body.operationId) : data.sets.find(set => set.id === setId)?.cards.map(card => card.id) || [];
+      return json({ setId, cardIds, data });
     }
     if (body.action === "addCardsToSet") {
       const setId = String(body.setId || "");
       if (!setId || !validCards(body.cards)) return json({ error: "追加するカードを選択してください。" }, 400);
       if (body.sourceContent !== undefined && (typeof body.sourceContent !== "string" || !body.sourceContent.trim() || body.sourceContent.length > 30000)) return json({ error: "元の文章を1〜30,000文字で指定してください。" }, 400);
-      await addCardsToSet(userId, setId, body.cards, typeof body.sourceContent === "string" ? { title: String(body.sourceTitle || "追加資料").slice(0, 120), content: body.sourceContent.trim() } : undefined);
-      return json({ data: await loadAppData(userId) });
+      const cardIds = await addCardsToSet(userId, setId, body.cards, typeof body.sourceContent === "string" ? { title: String(body.sourceTitle || "追加資料").slice(0, 120), content: body.sourceContent.trim() } : undefined, typeof body.operationId === 'string' ? body.operationId : undefined);
+      return json({ setId, cardIds, data: await loadAppData(userId) });
     }
     if (body.action === "undoReview") {
       const reviewId = String(body.reviewId || "");
@@ -123,6 +126,7 @@ async function handlePOST(request: Request): Promise<Response> {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;
     if (error instanceof InputError) return json({ error: error.message }, error.status);
+    if (error instanceof Error && error.message === 'MATERIAL_SAVE_CONFLICT') return json({ error: '保存操作の内容が一致しません。', code: 'MATERIAL_SAVE_CONFLICT' }, 409);
     if (error instanceof Error && ["REVIEW_OPERATION_CONFLICT", "REVIEW_STATE_CONFLICT"].includes(error.message)) return json({ error: "別の操作で学習状態が変更されています。最新の状態を確認してください。", code: error.message }, 409);
     if (error && typeof error === "object" && "code" in error && ["SQLITE_BUSY", "TRANSACTION_ACTIVE"].includes(String(error.code))) return json({ error: "保存処理が混み合っています。同じ回答をもう一度送信してください。" }, 503);
     logEvent('api_failed', { endpoint: 'data', status: 500 });
