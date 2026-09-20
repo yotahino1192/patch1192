@@ -10,5 +10,6 @@ if [ "$CONFIGURATION" = "Release" ]; then
   # Fail closed if unavailable; do not downgrade Release to the Debug check.
   command -v node >/dev/null 2>&1 || { echo "error: Node 22 required for release validation"; exit 1; }
   repo=$(CDPATH= cd -- "$SRCROOT/../.." && pwd)
+  (cd "$repo" && node scripts/check-ios-release.mjs --config "$SRCROOT/App/capacitor.config.json" --bundle-id "$PRODUCT_BUNDLE_IDENTIFIER")
   (cd "$repo" && node scripts/check-mobile-artifact.mjs --bundle "$bundle")
 fi

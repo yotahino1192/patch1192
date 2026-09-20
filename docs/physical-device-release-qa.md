@@ -1,0 +1,31 @@
+# Physical-device release QA
+
+**All items NOT RUN.** No physical device was used in this preparation. A compiled Simulator app does not count as a pass. Use a signed Internal TestFlight build, real production email OTP, two disposable accounts A/B and non-sensitive rights-cleared sample text/file. Keep deletion testing separate from the primary review account.
+
+Record tester/date, build/version/commit, device model, OS, locale, timezone, network, install type (fresh/update/reinstall), result and issue/evidence link. Run on iPhone and iPad while both are supported; include minimum iOS 17 and current supported iOS where hardware is available, small/large screens and advertised orientations. Never attach OTPs, tokens or personal learning content to evidence.
+
+| Check | Acceptance | Result |
+| --- | --- | --- |
+| Install / launch / update | TestFlight installs and updates cleanly; first and subsequent launch reach working app, no blank view or crash; no wrong environment | NOT RUN |
+| Startup splash | Final Patch branding appears correctly; no Capacitor placeholder, clipping, unexpected flash or stalled splash; portrait/landscape and light/dark | NOT RUN |
+| Email signup/login | Ordinary sign-up/sign-in, actual inbox delivery, wrong/expired code, resend and network interruption recover safely | NOT RUN |
+| Session persistence | Background/foreground, force quit, device reboot and token refresh preserve only valid current session; revoked/expired session prompts login | NOT RUN |
+| Logout / A→B switch | A's drafts/results/history/queued writes, notifications and Widget snapshot never leak into B; delayed A response cannot repopulate B | NOT RUN |
+| Add Material | Final integrated supported inputs, keyboard/file selection, long content, cancel/resume and invalid files behave correctly; no unsupported permission prompt | NOT RUN |
+| Generation | Unset/declined consent prevents dispatch; allow then generate works; double tap, quota, timeout and uncertain result do not silently duplicate AI work | NOT RUN |
+| Review / save | Generated content can be checked and saved in intended destination; retry/duplicate tap produces one durable result; reload finds saved material | NOT RUN |
+| Lesson start | Correct material/cards; resume versus new session is correct; rotate, keyboard and accessibility text do not block controls | NOT RUN |
+| Lesson complete | Completion saves once; retry/resume/Undo works according to current domain rules; AI summary only under existing consent | NOT RUN |
+| Streak | Formal Study Set completion yields expected day state; same-day repeats, Undo, day boundary and timezone change match existing rules; no test-only changes | NOT RUN |
+| Continue Learning | Correct unfinished activity resumes after background/kill; deleted/stale material falls back safely | NOT RUN |
+| Local Notifications | No prompt on first launch alone; allow/deny/settings toggle work; schedule then close app and lock device; tap opens intended route; same-day update does not duplicate; completion/logout/delete cancel; test OS permission revocation | NOT RUN |
+| Widget | Add Small/Medium; confirm signed App Group available, live count/Streak, completed/stale/expired/signed-out states; cold device restart and lock/unlock recovery; tap resumes; A→B never shows A | NOT RUN |
+| Deep Link | Cold/warm `patch://continue` and `patch://review/today`, logged in/out and after account switch; unknown route rejected; stale notification owner does not enter another account's content | NOT RUN |
+| Offline / recovery | Airplane mode at launch/save/AI/completion; clear recoverable states; reconnect explicitly without lost confirmed data or cross-account writes. Do not claim full offline support | NOT RUN |
+| AI consent | Fresh unset → decline → saved/sample study; grant → AI; revoke → new dispatch blocked; in-flight response fencing; app restart, second device and account switch; disclosure names actual data/recipient | NOT RUN |
+| Account deletion | Challenge + fresh email verification + explicit final confirmation; immediate access block, local notification/Widget/draft cleanup, worker completion, Clerk removal, DB deletion and intentional minimal retained records; provider outage retries; repeated request/status safe | NOT RUN |
+| Other device after deletion | Online session denied immediately on next authorized request; offline/closed device clears on reconnection as publicly described; no resurrection by queued writes | NOT RUN |
+| Reinstall | Uninstall → TestFlight reinstall: inspect Clerk installation-marker/Keychain behavior, old account data isolation, Widget reset and notification state; compare documented expectations. Do not assume uninstall erases all Keychain values | NOT RUN |
+| Legal/support/reviewer | Public URLs open without auth, contact works; AI/deletion wording matches; fresh reviewer mailbox/login rehearsal needs no developer intervention | NOT RUN |
+
+Submission gate: all applicable rows passed on the **exact uploaded candidate**, no unresolved critical auth/data/privacy/learning defects, all exceptions explicitly owned. Optional browser/Simulator reproductions assist investigation but do not change NOT RUN device results.

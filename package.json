@@ -43,7 +43,8 @@
     "ai:control": "node scripts/ai-control.mjs",
     "test:ai": "node --test tests/ai-*.test.mjs",
     "test:ui-browser": "node scripts/check-ui-phase1-browser.mjs",
-    "test:integration-browser": "node scripts/check-patch-integration-browser.mjs"
+    "test:integration-browser": "node scripts/check-patch-integration-browser.mjs",
+    "check:ios-release": "node scripts/check-ios-release.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",
