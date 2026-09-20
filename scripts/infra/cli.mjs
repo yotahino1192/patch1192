@@ -4,6 +4,7 @@ import nextEnv from '@next/env';
 const { loadEnvConfig } = nextEnv;
 import { createClient } from '@libsql/client';
 import { validateServer } from '../../lib/env/server.ts';
+import { operationEvent } from '../../lib/operations.ts';
 export function env() { loadEnvConfig(process.cwd(), process.env.NODE_ENV !== 'production', { info() { }, error() { } }); return process.env; }
 export function options() { const args = process.argv.slice(2); const get = name => args[args.indexOf(name) + 1]; return { has: name => args.includes(name), get: name => args.includes(name) ? get(name) : undefined }; }
 export function target({ write = false } = {}) {
@@ -28,10 +29,12 @@ export function target({ write = false } = {}) {
     }
     return { client: createClient({ url, authToken: config.databaseToken }), config, options: o };
 }
-export async function command(action) { try {
+export async function command(action, operation) { try {
     await action();
+    if (operation) operationEvent(operation, 'ok');
 }
 catch (e) {
+    if (operation) operationEvent(operation, 'failed');
     const code = /^[A-Z][A-Z0-9_:]*$/.test(e?.message || '') ? e.message : 'INFRA_CHECK_FAILED';
     console.error(code);
     process.exitCode = 1;

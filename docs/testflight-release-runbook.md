@@ -25,12 +25,15 @@ Prepared 2026-09-20. All account/signing/upload actions below are **future actio
 
 ## Local commands — before enrollment
 
+Current Free v1 scope: **Topic/Text/PDF input; Flashcards and Multiple Choice; History/Review; Streak/Retention**. Fill in the Blank is future work and is not a TestFlight or App Store blocker; no implementation or preparation is included in this release task. Advanced Lesson / Pro / Creator / Video remain outside the initial release scope. Verify these on the final integrated candidate; this release branch does not import active feature branches. Operational prerequisites and owner inputs are maintained in [production operations](production-operations-readiness.md) and [Yota checklist](release-owner-inputs.md).
+
 Use Node 22 on PATH. No production values or live accounts are needed for these **development** checks:
 
 ```sh
 npm ci
 PATCH_ENV=development npm run typecheck
 npm run lint
+PATCH_ENV=development npm run db:rehearse-local
 PATCH_ENV=development npm run test:unit
 PATCH_ENV=development npm run build
 PATCH_ENV=development npm run ios:sync:local
@@ -45,7 +48,7 @@ Provide isolated resolved SPM packages at the path above, or perform a separate 
 
 ## Production commands — only after R02/R07/R08 are satisfied
 
-Set actual values in appropriate ignored local environment files or approved CI/secret manager. Server names: PATCH_ENV=production, PATCH_API_ORIGIN, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_ISSUER, CLERK_SECRET_KEY, AUTH_ALLOWED_ORIGINS, VERCEL_PROJECT_PRODUCTION_URL, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, OPENAI_API_KEY, OPENAI_CARD_MODEL, OPENAI_CHAT_MODEL. Mobile reads **only** PATCH_ENV, PATCH_API_URL, PATCH_CLERK_PUBLISHABLE_KEY, PATCH_CLERK_ISSUER from `mobile/.env.production.local` or environment. All endpoints must match `config/release-policy.json`. Also configure ACCOUNT_DELETION_WORKER_SECRET and its caller; existing check:env does **not** prove the worker secret or scheduler is present.
+Set actual values in appropriate ignored local environment files or approved CI/secret manager. Server names: PATCH_ENV=production, PATCH_API_ORIGIN, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_ISSUER, CLERK_SECRET_KEY, AUTH_ALLOWED_ORIGINS, VERCEL_PROJECT_PRODUCTION_URL, TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, OPENAI_API_KEY, OPENAI_CARD_MODEL, OPENAI_CHAT_MODEL. Mobile reads **only** PATCH_ENV, PATCH_API_URL, PATCH_CLERK_PUBLISHABLE_KEY, PATCH_CLERK_ISSUER from `mobile/.env.production.local` or environment. All endpoints must match `config/release-policy.json`. `check:env` now requires ACCOUNT_DELETION_WORKER_SECRET for staging/production; this validates syntax only. Configure the separately authorized caller and verify its heartbeat/completion; no offline check proves a scheduler is running.
 
 ```sh
 npm run check:env

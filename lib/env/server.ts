@@ -1,6 +1,7 @@
 // node:fs is deliberately server-only; this module must never enter a client graph.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { requireWorkerSecret } from '../operations.ts';
 import { ConfigError, environment, rejectUnsafeFlags, safeOrigin, validatePublic, type EnvInput, type ReleasePolicy } from './public.ts';
 export function readPolicy(): ReleasePolicy { return JSON.parse(readFileSync(resolve(process.cwd(), 'config/release-policy.json'), 'utf8')) as ReleasePolicy; }
 export function validateServer(input: EnvInput, policy: ReleasePolicy = readPolicy()) {
@@ -10,6 +11,7 @@ export function validateServer(input: EnvInput, policy: ReleasePolicy = readPoli
     const publicConfig = validatePublic(input, policy);
     const databaseUrl = input.TURSO_DATABASE_URL || (env === 'development' ? 'file:.data/loop.db' : '');
     if (env !== 'development') {
+        requireWorkerSecret(input.ACCOUNT_DELETION_WORKER_SECRET);
         const target = policy[env];
         let url: URL;
         try {
