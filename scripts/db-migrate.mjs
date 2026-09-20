@@ -7,4 +7,4 @@ await command(async () => { const { client, options } = target({ write: true });
 }
 finally {
     client.close();
-} });
+} }, 'migration');

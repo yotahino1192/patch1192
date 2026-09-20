@@ -17,6 +17,8 @@ Scope: current Dev cb2a0f2 plus release preparation; see release-dev-compatibili
 
 ## Description structure and proposed text
 
+Initial Free v1 / TestFlight scope: Topic/Text/PDF input, **Flashcards and Multiple Choice only** as study formats, History/Review and Streak/Retention. Verify these claims on the integrated candidate before publication. Fill in the Blank is future work, excluded from launch copy, reviewer requirements and screenshots; it is **not a TestFlight or App Store blocker**. No implementation or preparation for it is included in this release task.
+
 **Opening:** Patchは、教材を学習カードにまとめ、学習と復習を続けるためのアプリです。
 
 **Implemented learning workflow:** 教材の文章を使ってカードを作成し、内容を確認して保存。保存したカードで学習し、途中からの再開や日々の復習に取り組めます。
@@ -48,12 +50,12 @@ Reviewer-controlled email sign-up is an additional ordinary path, but relying on
 - Contact: `<YOTA_NAME / WORKING_EMAIL / PHONE>`.
 - Candidate: `<VERSION (BUILD), COMMIT, SUPPORTED_DEVICES>`; main experience is Japanese / `<FINAL_LANGUAGES>`.
 - Authentication: “Patch uses email verification codes. Open the dedicated review inbox at `<PRIVATE_WEBMAIL_URL>` using the credentials supplied privately, then enter `<REVIEW_EMAIL>` in Patch Sign In and enter the latest code. There is no fixed app password or verification code.” Add precise final screen labels after UI freeze.
-- Sample path: sign in → open supplied sample material → start and complete a lesson → return to learning progress. For creation: Add Material → enter supplied non-sensitive sample text → read/allow AI disclosure if desired → generate → review → save. Verify final names and available actions.
-- AI: “Optional features send entered/extracted text and relevant learning/chat context/settings to OpenAI only after explicit permission. Declining still allows saved/sample study. Permission can be withdrawn in Settings.” Describe lesson-end summarization and that earlier transmissions may not be retractable. No guaranteed correctness claims.
+- Sample path: sign in → open supplied sample material → study with Flashcards or Multiple Choice, complete a Study Set → return to learning progress. For creation: Add Material → enter supplied non-sensitive sample text → read/allow AI disclosure if desired → generate → review → save. Verify final names and available actions.
+- AI: “Optional features send entered/extracted text and relevant learning/chat context/settings to OpenAI only after explicit permission. Declining still allows saved/sample study. Permission can be withdrawn in Settings.” Describe only AI features verified in the Free v1 candidate and explain that earlier transmissions may not be retractable; advanced Lesson features are not required for review. No guaranteed correctness claims.
 - Account deletion: Settings → account deletion → email reauthentication → final confirmation. Use `<DISPOSABLE_REVIEW_EMAIL / PRIVATE_INBOX_INSTRUCTIONS>`. Explain asynchronous completion and where status is shown; give the **actual published completion target** after worker QA. Deleting the primary review account may remove its sample content.
 - Notifications/Widget: local reminders requested from settings; add Small/Medium Patch Widget manually. No Push/APNs. Include only after device QA.
 - Known review-relevant constraints: network required for sync/AI, quota messages, available languages, final supported formats. No unreleased feature promises.
 
 ## Screenshots
 
-Use [store asset inventory](store-asset-inventory.md). Capture final candidate Home/progress, Add Material, generated Review/save, Lesson and completion; optional Widget after device validation. Need clean rights-cleared data, no inbox/OTP/account identifiers, and matching iPhone/iPad layouts. Do not generate final screenshots while another session is implementing these screens.
+Use [store asset inventory](store-asset-inventory.md). Capture final candidate Home/progress, Add Material, generated Review/save, Flashcards, Multiple Choice and completion; optional Widget after device validation. Need clean rights-cleared data, no inbox/OTP/account identifiers, and matching iPhone/iPad layouts. Do not generate final screenshots while another session is implementing these screens.

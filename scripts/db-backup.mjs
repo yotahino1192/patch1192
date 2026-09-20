@@ -10,4 +10,4 @@ await command(async () => { const { client, config, options } = target(); try {
 }
 finally {
     client.close();
-} });
+} }, 'backup');
