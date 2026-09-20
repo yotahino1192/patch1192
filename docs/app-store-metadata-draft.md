@@ -1,6 +1,6 @@
 # App Store metadata draft — not approved for publication
 
-Scope: code at d382da8 plus release preparation. Add Material / Review / Ready UI is still changing elsewhere. Verify all wording against the final integrated build. **Yota final product/legal decisions** are marked below; no production URLs, mail addresses or credentials have been invented.
+Scope: current Dev cb2a0f2 plus release preparation; see release-dev-compatibility.md. Add Material / Review / Ready UI is still changing elsewhere. Verify all wording against the final integrated build. **Yota final product/legal decisions** are marked below; no production URLs, mail addresses or credentials have been invented.
 
 | Field | Draft / action |
 | --- | --- |

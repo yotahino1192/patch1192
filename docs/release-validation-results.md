@@ -1,6 +1,8 @@
 # Release preparation validation — 2026-09-20
 
-Baseline d382da8; changes on codex/patch-release-preparation in `/private/tmp/patch-release-preparation`. Checked with Node **22.23.2**, Xcode **26.1.1 (17B100)** and Simulator SDK **26.1**. Tests below ran on the release-preparation code, before the final documentation commit. These are development/local checks, not a production release certificate.
+**Historical first-pass results.** For the current Dev-based candidate, see [Dev compatibility review](release-dev-compatibility.md).
+
+Original baseline d382da8; changes on codex/patch-release-preparation in `/private/tmp/patch-release-preparation`. Checked with Node **22.23.2**, Xcode **26.1.1 (17B100)** and Simulator SDK **26.1**. Tests below ran on the release-preparation code, before the final documentation commit. These are development/local checks, not a production release certificate.
 
 | Check | Observed result |
 | --- | --- |

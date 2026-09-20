@@ -1,12 +1,12 @@
 # Store asset inventory — 2026-09-20
 
-No final screenshots or artwork generated. UI is actively changing in a separate worktree.
+No final screenshots or artwork generated. Inventory reconciled with Dev cb2a0f2; Home/startup assets on separate UI branches are not implicitly included. UI is actively changing in a separate worktree.
 
 | Asset | Existing evidence | Remaining action / owner |
 | --- | --- | --- |
 | App Icon | `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png`: 1024×1024, no alpha, universal iOS slot. **Visually inspected: default blue Capacitor mark/grid** | Yota approves final Patch icon and rights; Codex can replace image without UI work, then check catalog/rendering/device appearance. Current image is not release branding |
 | Launch / splash | LaunchScreen.storyboard loads Splash using scaleAspectFill; three 2732×2732 opaque PNGs. **Visually inspected base image: white with default Capacitor mark** | Approve final static startup appearance; replace assets later and verify all variants, aspect ratios, dark/light and transition into final app UI |
-| Existing brand material | `public/patch/mascot-hello.png`, `mascot-reading.png`, `mascot-celebrate.png`, design references; Widget `companion.jpeg` | Source material, not automatically approved app icon or store assets. Confirm ownership/style/product decision before reuse |
+| Existing brand material | `public/patch/mascot-standing.png`, `mascot-reading.png`, `mascot-celebrate.png`, design references; Widget `companion.jpeg` | Source material, not automatically approved app icon or store assets. Confirm ownership/style/product decision before reuse |
 | Screenshots | Design/QA references in repository, but no certified final App Store candidate set | Wait for UI freeze/integration and signed-device QA; capture exact release candidate with approved sample data |
 | Promotional artwork / preview | No approved final store set established | Optional; Yota chooses whether needed. Do not block initial release on optional artwork or invent features in promotional visuals |
 

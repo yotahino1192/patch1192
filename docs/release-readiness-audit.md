@@ -1,6 +1,6 @@
 # Patch release readiness — 2026-09-20
 
-Audited baseline: `d382da8`, isolated branch `codex/patch-release-preparation`. This is an audit of committed code, not of deployed services or another session's uncommitted Add Material work. No Apple account, production secret, production DB, deployment, push or merge was used. UI/domain/schema/migrations were not changed.
+Current comparison baseline: latest fetched Dev `cb2a0f2`, isolated branch `codex/patch-release-preparation`. Originally audited on `d382da8`; release-only changes were subsequently replayed onto Dev to exclude nine inherited UI commits. See [Dev compatibility review](release-dev-compatibility.md). This is an audit of committed code, not deployed services or another session's uncommitted Add Material work. No Apple account, production secret, production DB, deployment, push or merge was used. UI/domain/schema/migrations were not changed.
 
 **Internal TestFlight: blocked. App Store submission: blocked.** The preparation and local build evidence below do not establish production readiness. Read the [runbook](testflight-release-runbook.md), [metadata/reviewer plan](app-store-metadata-draft.md), [device QA](physical-device-release-qa.md) and [asset inventory](store-asset-inventory.md).
 
