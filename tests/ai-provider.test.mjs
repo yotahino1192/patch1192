@@ -64,7 +64,26 @@ test('focused material stays separate from source and never adds a second AI cal
   assert.ok(!body.instructions.includes(focus));
   assert.match(body.instructions, /唯一の資料/);
   assert.deepEqual(body.text.format.schema.properties.cards.items.properties.format.enum, ['multiple_choice']);
-  return Response.json({ ...response(), output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: 'Recall', category: 'Learning', summary: '', keyPoints: [], cards: [{ question: 'What supports memory?', answer: 'Recall', choices: ['Recall', 'A', 'B', 'C'], format: 'multiple_choice', difficulty: 1 }] }) }] }] });
+  const cardSchema=body.text.format.schema.properties.cards.items;
+  assert.deepEqual(cardSchema.required, ['question','difficulty','format','choices','correctChoiceIndex']);
+  assert.equal(cardSchema.properties.answer, undefined);
+  return Response.json({ ...response(), output: [{ content: [{ type: 'output_text', text: JSON.stringify({ title: 'Recall', category: 'Learning', summary: '', keyPoints: ['Recall strengthens memory.'], cards: [{ question: 'What supports memory?', choices: ['A','Recall','B','C'], correctChoiceIndex: 1, format: 'multiple_choice', difficulty: 1 }] }) }] }] });
  });
  assert.equal(calls, 1);
+});
+test('multiple choice derives the answer from a bounded index and trims choices', async () => {
+ let generated;
+ await mocked(async()=>{generated=await execution.run({endpoint:'cards',dispatch:async()=>{}},()=>generateMaterial({text:'source',detail:'normal',style:'4択問題'}));},async()=>Response.json({...response(),output:[{content:[{type:'output_text',text:JSON.stringify({title:'T',category:'C',summary:'S',keyPoints:['K'],cards:[{question:'Q',choices:[' A ','B','C','D'],correctChoiceIndex:2,format:'multiple_choice',difficulty:1}]})}]}]}));
+ assert.equal(generated.cards[0].answer,'C');
+ assert.deepEqual(generated.cards[0].choices,['A','B','C','D']);
+ assert.equal('correctChoiceIndex' in generated.cards[0],false);
+});
+test('non-choice material keeps answer and requires no correct choice index', async () => {
+ let generated;
+ await mocked(async()=>{generated=await execution.run({endpoint:'cards',dispatch:async()=>{}},()=>generateMaterial({text:'source',detail:'normal',style:'一問一答'}));},async(_url,init)=>{
+  const schema=JSON.parse(init.body).text.format.schema.properties.cards.items;
+  assert.ok(schema.required.includes('answer'));assert.equal(schema.properties.correctChoiceIndex,undefined);
+  return Response.json({...response(),output:[{content:[{type:'output_text',text:JSON.stringify({title:'T',category:'C',summary:'S',keyPoints:['K'],cards:[{question:'Q',answer:'A',choices:[],format:'qa',difficulty:1}]})}]}]});
+ });
+ assert.equal(generated.cards[0].answer,'A');
 });

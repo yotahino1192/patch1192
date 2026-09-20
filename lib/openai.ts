@@ -97,7 +97,7 @@ ${input.focus ? '入力JSONのsourceが唯一の資料です。focusは取り上
 質問は一意に答えられ、回答だけを見ても意味が通るようにしてください。
 情報量は「${input.detail}」、学習形式は「${input.style}」です。
 ${isLessonSummary ? "AIとの学習対話を要約し、新しく学んだ内容だけをカード候補にしてください。" : `教材の長さ・独立した論点数・重複を分析し、${minCards}〜${maxCards}枚の範囲で必要十分なカード枚数をあなたが決めてください。`}
-一問一答ではchoicesを空配列にしてください。4択問題では正解をanswerに入れ、answerを含む重複のない4つのchoicesを作ってください。
+一問一答ではanswerを書き、choicesを空配列にしてください。4択問題では重複のない4つのchoicesと、正解の位置を0〜3のcorrectChoiceIndexで返してください。4択問題ではanswerを返さないでください。
 自分で解説では、questionを説明テーマ、answerを模範解説または確認ポイントとし、choicesは空配列にしてください。
 難易度は1（基礎）〜3（思考）の整数です。タイトルとカテゴリーも入力内容から簡潔に付けてください。`,
     input: input.focus ? JSON.stringify({ source: input.text, focus: input.focus }) : input.text,
@@ -127,10 +127,10 @@ ${isLessonSummary ? "AIとの学習対話を要約し、新しく学んだ内容
               items: {
                 type: "object",
                 additionalProperties: false,
-                required: ["question", "answer", "difficulty", "format", "choices"],
+                required: format === "multiple_choice" ? ["question", "difficulty", "format", "choices", "correctChoiceIndex"] : ["question", "answer", "difficulty", "format", "choices"],
                 properties: {
                   question: { type: "string" },
-                  answer: { type: "string" },
+                  ...(format === "multiple_choice" ? { correctChoiceIndex: { type: "integer", minimum: 0, maximum: 3 } } : { answer: { type: "string" } }),
                   difficulty: { type: "integer", minimum: 1, maximum: 3 },
                   format: { type: "string", enum: [format] },
                   choices: {
@@ -151,14 +151,22 @@ ${isLessonSummary ? "AIとの学習対話を要約し、新しく学んだ内容
   return async () => {
   const response = await createResponse(body);
   const output = outputText(response);
-  let parsed: GeneratedMaterial;
-  try { parsed = JSON.parse(output) as GeneratedMaterial; }
+  type ProviderCard = Omit<GeneratedMaterial['cards'][number], 'answer'> & { answer?: string; correctChoiceIndex?: number };
+  type ProviderMaterial = Omit<GeneratedMaterial, 'cards'> & { cards: ProviderCard[] };
+  let parsed: ProviderMaterial;
+  try { parsed = JSON.parse(output) as ProviderMaterial; }
   catch { throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'parse', providerCode: 'invalid_json' }); }
   if (!parsed || !Array.isArray(parsed.cards) || parsed.cards.length === 0) throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_cards' });
-  if (format === "multiple_choice" && parsed.cards.some((card) => !card || !Array.isArray(card.choices) || card.choices.length !== 4 || !card.choices.includes(card.answer))) {
-    throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_choices' });
+  if (format === "multiple_choice") {
+    if (parsed.cards.some((card) => !card || !Array.isArray(card.choices) || card.choices.length !== 4 || card.choices.some(choice => typeof choice !== 'string' || !choice.trim()) || new Set(card.choices.map(choice => choice.trim())).size !== 4 || !Number.isInteger(card.correctChoiceIndex) || card.correctChoiceIndex! < 0 || card.correctChoiceIndex! > 3)) {
+      throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_choices' });
+    }
+    return { ...parsed, cards: parsed.cards.map(({ correctChoiceIndex, ...card }) => {
+      const choices = card.choices.map(choice => choice.trim());
+      return { ...card, choices, answer: choices[correctChoiceIndex!] };
+    }) };
   }
-  return parsed;
+  return parsed as GeneratedMaterial;
   };
 }
 
