@@ -4,6 +4,8 @@ Baseline: Dev `716d298d8361d217eb1c16ec898a1958861a91bc`. This branch is release
 
 ## Configuration contract
 
+Current Free v1 / TestFlight scope: Topic/Text/PDF input; **Flashcards and Multiple Choice only**; History/Review; Streak/Retention. Fill in the Blank is future work, with no implementation or preparation in this release task, and **not a TestFlight or App Store blocker**. Operational readiness requirements otherwise remain unchanged.
+
 **CODE COMPLETE:** explicit `PATCH_ENV` identity; exact per-environment public allowlists; server/mobile separation; production live Clerk key/issuer matching; remote Turso allowlist and token shape; models allowlist; bypass/debug/secret-leak rejection; offline web/mobile/native artifact gates. Added required worker secret in **staging and production**: independently generated random 32–256 base64url/hex characters, no whitespace/known placeholders/repeated single character. This is a shape check, not entropy or provider authentication proof. Development and mobile public validation do not require server secrets.
 
 **EXTERNAL CONFIGURATION REQUIRED:** policy is intentionally empty. Do not enter example domains or fake keys to pass release checks. Server validation now blocks any staging/production build or DB CLI missing the worker secret; provision it in the build/server environment before integrating this branch. No version/build, mobile config, schema, UI or learning semantics changed.

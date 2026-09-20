@@ -1,6 +1,6 @@
 # Physical-device release QA
 
-Free v1 gate: Topic/Text/PDF, Flashcards/MCQ/Fill in the Blank, History/Review, Streak/Retention. Advanced Lesson / Pro / Creator / Video are not blockers. All results below remain NOT RUN until tested on the signed uploaded candidate. Close the app after requesting deletion and verify scheduler-driven completion independently; never treat the request receipt as completed deletion.
+Free v1 gate: Topic/Text/PDF, Flashcards/Multiple Choice, History/Review, Streak/Retention. Fill in the Blank is future work, with no required implementation, preparation or QA for this release, and is not a TestFlight or App Store blocker. Advanced Lesson / Pro / Creator / Video remain outside the initial release scope. All results below remain NOT RUN until tested on the signed uploaded candidate. Close the app after requesting deletion and verify scheduler-driven completion independently; never treat the request receipt as completed deletion.
 
 **All items NOT RUN.** No physical device was used in this preparation. A compiled Simulator app does not count as a pass. Use a signed Internal TestFlight build, real production email OTP, two disposable accounts A/B and non-sensitive rights-cleared sample text/file. Keep deletion testing separate from the primary review account.
 
@@ -16,7 +16,7 @@ Record tester/date, build/version/commit, device model, OS, locale, timezone, ne
 | Add Material | Topic, Text and PDF inputs: keyboard/file selection, extraction limits, long content, cancel/resume and invalid/encrypted files behave correctly; no unsupported permission prompt | NOT RUN |
 | Generation | Unset/declined consent prevents dispatch; allow then generate works; double tap, quota, timeout and uncertain result do not silently duplicate AI work | NOT RUN |
 | Review / save | Generated content can be checked and saved in intended destination; retry/duplicate tap produces one durable result; reload finds saved material | NOT RUN |
-| Free v1 study | Flashcards, MCQ and Fill in the Blank start with correct material; resume/new session, answer/feedback and accessibility match integrated behavior | NOT RUN |
+| Free v1 study | Flashcards and Multiple Choice start with correct material; resume/new session, answer/feedback and accessibility match integrated behavior | NOT RUN |
 | History / Review | Completion saves once; saved history/review survives reload; retry/resume/Undo match current domain rules; no duplicate completion | NOT RUN |
 | Streak | Formal Study Set completion yields expected day state; same-day repeats, Undo, day boundary and timezone change match existing rules; no test-only changes | NOT RUN |
 | Continue Learning | Correct unfinished activity resumes after background/kill; deleted/stale material falls back safely | NOT RUN |

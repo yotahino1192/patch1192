@@ -25,7 +25,7 @@ Prepared 2026-09-20. All account/signing/upload actions below are **future actio
 
 ## Local commands — before enrollment
 
-Current Free v1 scope: **Topic/Text/PDF input; Flashcards, MCQ, Fill in the Blank; History/Review; Streak/Retention**. Advanced Lesson / Pro / Creator / Video are not release blockers. Verify these on the final integrated candidate; this release branch does not import active feature branches. Operational prerequisites and owner inputs are maintained in [production operations](production-operations-readiness.md) and [Yota checklist](release-owner-inputs.md).
+Current Free v1 scope: **Topic/Text/PDF input; Flashcards and Multiple Choice; History/Review; Streak/Retention**. Fill in the Blank is future work and is not a TestFlight or App Store blocker; no implementation or preparation is included in this release task. Advanced Lesson / Pro / Creator / Video remain outside the initial release scope. Verify these on the final integrated candidate; this release branch does not import active feature branches. Operational prerequisites and owner inputs are maintained in [production operations](production-operations-readiness.md) and [Yota checklist](release-owner-inputs.md).
 
 Use Node 22 on PATH. No production values or live accounts are needed for these **development** checks:
 

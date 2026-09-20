@@ -4,6 +4,8 @@ Branch: `codex/patch-production-readiness`; isolated worktree `/private/tmp/patc
 
 ## Executed results
 
+Scope correction after implementation commit `3e955b4`: Free v1 study formats are Flashcards and Multiple Choice only. Release documents, physical-device QA, metadata and asset plans were aligned; Fill in the Blank remains future work and is not a TestFlight or App Store blocker. This correction changes Markdown only. Verified all remaining format references and `git diff --check`; no tests/builds were rerun for the documentation-only correction. The executable validation below belongs to the preceding implementation; rebuild artifacts for any new release candidate SHA as usual.
+
 | Check | Result |
 | --- | --- |
 | Node / locked dependencies | Node 22.23.2; isolated `npm ci --ignore-scripts --no-audit --no-fund` succeeded |
@@ -33,7 +35,7 @@ Local logs (not committed): `/private/tmp/patch-production-check-final.log`, `pa
 - No monitoring provider/alert recipient, backup retention/custody/offsite storage, production-sized restore, RPO/RTO or remote cutover implementation verified.
 - AI unknown stays reserved until safe operator reconciliation. Add Material fix `ab8192c` was inspected read-only; its control/diagnostics/operator code remains identical at that branch's later `70061ea` (Dev merge). It is not in this branch's Dev baseline. No self-service resolution or feature integration added.
 - Legal fields remain draft. [Owner input list](release-owner-inputs.md) classifies all 19 fields and other release values.
-- Apple membership, final IDs/Team/App Group, signing, Clerk native registration, optional Apple revocation, real-device QA, final icon/splash/screenshots/metadata and store review remain outstanding. Advanced Lesson/Pro/Creator/Video are not Free v1 blockers.
+- Apple membership, final IDs/Team/App Group, signing, Clerk native registration, optional Apple revocation, real-device QA, final icon/splash/screenshots/metadata and store review remain outstanding. Fill in the Blank is future work and not a TestFlight or App Store blocker. Free v1 study formats are only Flashcards and Multiple Choice; no Fill in the Blank implementation/preparation is included. Advanced Lesson/Pro/Creator/Video remain outside the initial release scope.
 - No physical device, distributable signing, archive validation by Apple, upload, TestFlight or App Store success claimed.
 
 Other sessions advanced Add Material to `70061ea` and Home to `33e3e5d` during this work. Only their references/diffs were read; no checkout, edit, test, commit or merge was executed on those branches. Main remains `dd5d6d7a02fcdf6109e032173232ce03f9feee37`.

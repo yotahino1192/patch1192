@@ -22,4 +22,4 @@ No invented identities, addresses, regions, retention promises or business claim
 - [ ] Final icons/splash/screenshots and approved store text; final bundle/team/group IDs after enrollment.
 - [ ] Physical-device tester/hardware and reviewer mailbox/login procedure for the exact candidate.
 
-Free v1 acceptance scope: Topic/Text/PDF → Flashcards / MCQ / Fill in the Blank; History/Review; Streak/Retention. Advanced Lesson, Pro, Creator and Video are **not release blockers**. This is release scope, not a claim that feature-branch changes are already integrated into Dev. Integrate and test active UI branches through their separate reviews.
+Free v1 acceptance scope: Topic/Text/PDF → Flashcards / Multiple Choice; History/Review; Streak/Retention. Fill in the Blank is future work: no implementation or preparation in this release task, and **not a TestFlight or App Store blocker**. Advanced Lesson, Pro, Creator and Video remain outside the initial release scope. This is release scope, not a claim that feature-branch changes are already integrated into Dev. Integrate and test active UI branches through their separate reviews.
