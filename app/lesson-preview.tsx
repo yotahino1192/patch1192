@@ -7,8 +7,8 @@ import { useLanguage } from "./language";
 import { Mascot } from "./mascot";
 import { BottomSheet, PatchIcon } from "./patch-ui";
 
-export function LessonPreview({ open, onClose, onStart, title, summary, sessionId, remaining, dueCount, label, titleId = "lesson-preview-title" }: {
-  open: boolean; onClose: () => void; onStart: () => void; title: string;
+export function LessonPreview({ open, onClose, onStart, onChoosePatch, title, summary, sessionId, remaining, dueCount, label, titleId = "lesson-preview-title" }: {
+  open: boolean; onClose: () => void; onStart: () => void; onChoosePatch?: () => void; title: string;
   titleId?: string; label?: string; summary?: string; sessionId?: string; remaining?: number; dueCount?: number;
 }) {
   const { t } = useLanguage();
@@ -30,8 +30,9 @@ export function LessonPreview({ open, onClose, onStart, title, summary, sessionI
       {seconds !== undefined && seconds > 0 && <p className="patch-preview-time">{t("予定時間：約{0}分", Math.ceil(seconds / 60))}</p>}
       {remaining !== undefined && <p>{t("残り{0}枚", remaining)}</p>}
       {dueCount !== undefined && <p>{t("今日の復習：{0}枚", dueCount)}</p>}
-    </div><Mascot /></div>
-    {summary && <p className="patch-preview-description">{summary}</p>}
+      {summary && <p className="patch-preview-description">{summary}</p>}
+    </div><Mascot pose="happy" /></div>
     <button className="patch-primary" onClick={onStart}>{t("マイレッスンを始める")}<PatchIcon name="arrow" /></button>
+    {onChoosePatch && <button className="patch-choose-patch" onClick={onChoosePatch}>{t("別のPatchを選ぶ")}</button>}
   </BottomSheet>;
 }

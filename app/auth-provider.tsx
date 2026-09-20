@@ -1,5 +1,6 @@
 "use client";
 
+import { StartupProvider, StartupComplete, StartupPending } from "./startup-splash";
 import { AuthWaiting } from './reliability/auth-waiting';
 import { withDeadline } from '../lib/reliability/transport';
 import { DeletionStatus } from "./deletion-status";
@@ -15,10 +16,14 @@ import { logoutKey } from "../lib/account-storage";
 import { getNativeAuth, type NativeAuth } from "../lib/auth-platform";
 
 function AuthMessage({ children }: { children: ReactNode }) {
-  return <main className="auth-screen"><section className="auth-card"><h1>Patch</h1><DeletionStatus/>{children}<LegalLinks /></section></main>;
+  return <StartupComplete><main className="auth-screen"><section className="auth-card"><h1>Patch</h1><DeletionStatus/>{children}<LegalLinks /></section></main></StartupComplete>;
 }
 
 export function AuthBoundary({ children, signUp = false }: { children?: ReactNode; signUp?: boolean }) {
+  return <StartupProvider><AuthBoundaryContent signUp={signUp}>{children}</AuthBoundaryContent></StartupProvider>;
+}
+
+function AuthBoundaryContent({ children, signUp }: { children?: ReactNode; signUp: boolean }) {
   const native = getNativeAuth();
   if (native) return <NativeBoundary native={native}>{children}</NativeBoundary>;
   const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -55,9 +60,9 @@ function WebBoundary({ children, signUp }: { children?: ReactNode; signUp: boole
     if(code){const result=await current.attemptFirstFactorVerification({strategy:"email_code",code});if(result.status!=="complete")throw Error("追加認証が必要です。");await current.getToken({skipCache:true});}
     else {const verification=await current.startVerification({level:"first_factor"});const factor=verification.supportedFirstFactors?.find(f=>f.strategy==="email_code");if(!factor||factor.strategy!=="email_code")throw Error("メールによる再認証を設定してください。");await current.prepareFirstFactorVerification({strategy:"email_code",emailAddressId:factor.emailAddressId});}
   };
-  if (!isLoaded) return <AuthMessage><AuthWaiting/></AuthMessage>;
+  if (!isLoaded) return <AuthWaiting render={content => <AuthMessage>{content}</AuthMessage>} />;
   if (!identity) return <AuthMessage>{signUp ? <SignUp routing="hash" signInUrl="/" forceRedirectUrl="/" /> : <SignIn routing="hash" signUpUrl="/sign-up" forceRedirectUrl="/" />}</AuthMessage>;
-  return <SessionBoundary email={clerk.user?.primaryEmailAddress?.emailAddress} reauthenticate={reauthenticate} key={identity.sessionId} captureScope={captureScope} identity={identity} session={session} signOut={signOut}>{children || <form action="/" method="get"><button>学習へ進む</button></form>}</SessionBoundary>;
+  return <SessionBoundary email={clerk.user?.primaryEmailAddress?.emailAddress} reauthenticate={reauthenticate} key={identity.sessionId} captureScope={captureScope} identity={identity} session={session} signOut={signOut}>{children || <StartupComplete><form action="/" method="get"><button>学習へ進む</button></form></StartupComplete>}</SessionBoundary>;
 }
 
 function NativeBoundary({ native, children }: { native: NativeAuth; children?: ReactNode }) {
@@ -78,7 +83,7 @@ function NativeBoundary({ native, children }: { native: NativeAuth; children?: R
   const session = useMemo<SessionTransport>(() => ({ getToken: () => identity ? native.getToken(identity.sessionId) : Promise.resolve(null) }), [identity, native]);
   const signOut = useCallback(async (id: string, deleting=false) => { await native.signOut(id,deleting); setIdentity(previous => previous?.sessionId === id ? null : previous); }, [native]);
   if (error) return <AuthMessage><p role="alert">{error}</p><button onClick={() => location.reload()}>再試行</button></AuthMessage>;
-  if (!loaded) return <AuthMessage><AuthWaiting/></AuthMessage>;
+  if (!loaded) return <AuthWaiting render={content => <AuthMessage>{content}</AuthMessage>} />;
   if (!identity) return <EmailForm native={native} onSignedIn={setIdentity} />;
   return <SessionBoundary email={identity.email} reauthenticate={native.reauthenticate ? code=>native.reauthenticate!(identity.sessionId,code) : undefined} key={identity.sessionId} captureScope={captureScope} identity={identity} session={session} signOut={signOut}>{children}</SessionBoundary>;
 }
@@ -176,6 +181,6 @@ function SessionBoundary({ identity, session, signOut, captureScope, children, e
 
   if (loggingOut) return <AuthMessage><p role={error ? "alert" : "status"}>{error || "ログアウトしています…"}</p>{error && <button onClick={() => void logout()}>ログアウトを再試行</button>}</AuthMessage>;
   if (error) return <AuthMessage><p role="alert">{error}</p><button onClick={() => { setError(""); setAttempt(n => n + 1); }}>再試行</button><button onClick={() => void logout()}>ログアウト</button></AuthMessage>;
-  if (!scope?.isCurrent() || scope.account.sessionId !== identity.sessionId) return <AuthMessage><p>アカウントを準備しています…</p></AuthMessage>;
+  if (!scope?.isCurrent() || scope.account.sessionId !== identity.sessionId) return <StartupPending fallback={<AuthMessage><p>アカウントを準備しています…</p></AuthMessage>} />;
   return <AccountContext.Provider value={{ scope, logout, email, reauthenticate }}><PrivacyProvider key={scope.account.userId + scope.account.sessionId}><div>{children}</div></PrivacyProvider></AccountContext.Provider>;
 }

@@ -1,6 +1,9 @@
 // Browser-only test adapter. This file is never an application entry or API bypass.
 import React, { StrictMode, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { useStartupReady } from '../../app/startup-splash';
+import '../../app/globals.css';
+import '../../mobile/fonts.css';
 import { AuthBoundary } from '../../app/auth-provider';
 import { usePrivacy } from '../../app/privacy-provider';
 import { AccountDeletion } from '../../app/account-deletion-dialog';
@@ -56,6 +59,7 @@ configureApi(location.origin,async(url,options)=>{
 function PrivateWorkspace(){
  const api=useApiFetch(),privacy=usePrivacy();const [deleting,setDeleting]=useState(false);
  const {scope,logout}=useAccount();const {workspace,workspaceReady,setWorkspace}=useWorkspace();const [result,setResult]=useState('');
+ useStartupReady(workspaceReady);
  return <section data-private={scope.account.subject}><p>{workspaceReady?'workspace ready':'workspace loading'}</p><output id="draft">{workspace.importDraft.text}</output><output id="result">{result}</output>
  <button id="edit" onClick={()=>setWorkspace(w=>({...w,importDraft:{...w.importDraft,text:'draft '+scope.account.subject}}))}>edit</button>
  <button id="request" onClick={async()=>{try{const response=await scope.request('/api/data');const data=await response.json();setResult(data.value);setWorkspace(w=>({...w,importDraft:{...w.importDraft,text:data.value}}));}catch{ /* Expected stale responses are ignored. */ }}}>request</button>

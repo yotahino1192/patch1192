@@ -48,6 +48,7 @@ try {
  ws.onmessage=({data})=>{const m=JSON.parse(data);if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.text);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);if(m.error)reject(new Error(JSON.stringify(m.error)));else resolve(m.result);}};
  const cdp=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}));});
  const evaluate=async expression=>{const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw new Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
+ const watchStartup=()=>evaluate(`window.splashReturns=0;new MutationObserver(records=>{for(const r of records)for(const n of r.addedNodes)if(n.nodeType===1&&(n.matches('.patch-startup')||n.querySelector('.patch-startup')))window.splashReturns++;}).observe(document.getElementById('root'),{childList:true,subtree:true});`);
  const reload=async()=>{const before=await evaluate('performance.timeOrigin');await cdp('Page.reload');await until(()=>evaluate(`performance.timeOrigin!==${before} && document.readyState==="complete"`));};
  const text=()=>evaluate('document.body.textContent');
  const primary=()=>evaluate('document.querySelector("[data-primary]").click()');
@@ -75,12 +76,21 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride',{width:393,height:852,deviceScaleFactor:1,mobile:true});
  };
  await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Emulation.setDeviceMetricsOverride',{width:393,height:852,deviceScaleFactor:1,mobile:true});
- await cdp('Page.navigate',{url:'http://127.0.0.1:5238/tests/fixtures/patch-integration.html'});
+ await cdp('Page.navigate',{url:'http://127.0.0.1:5238/tests/fixtures/patch-integration.html?startup=1'});
+ for(const phase of ['session','account','data']) {
+  await until(()=>evaluate(`window.integrationFixture?.startupPhase===${JSON.stringify(phase)}`));
+  assert.equal(await evaluate('!!document.querySelector(".patch-startup")'),true,phase+' boot wait uses startup splash');
+  assert.equal(await evaluate('!!document.querySelector(".bottom-nav")'),false,'No app navigation before initial data');
+  await evaluate(`integrationFixture.releaseStartup(${JSON.stringify(phase)})`);
+ }
  await home();await until(()=>evaluate(`!!document.querySelector('[data-lesson-id="${lesson.id}"]')`));
+ assert.equal(await evaluate('!!document.querySelector(".patch-startup")'),false,'Ready Home removes splash without a branding delay');
+ await evaluate(`history.replaceState(null,'',location.pathname)`);await watchStartup();
+
  assert.equal(await evaluate(`!!document.querySelector('[data-lesson-id="${abandoned.id}"]')`),false);
  await capture('home');
  // The original CTA continues to select its original card/review destination.
- await click('.patch-current-node');await until(()=>evaluate('!!document.querySelector(".patch-sheet[open]")'));
+ await click('.patch-lesson-start');await until(()=>evaluate('!!document.querySelector(".patch-sheet[open]")'));
  const expectedTitle=selectionBefore.kind==='set'?before.sets.find(s=>s.id===selectionBefore.id).title:'今日の復習';
  assert.equal(await evaluate('document.querySelector(".patch-sheet[open] h2").textContent'),expectedTitle);
  await click('.patch-sheet[open] .patch-sheet-close');
@@ -106,7 +116,7 @@ try {
  await evaluate('for(let i=0;i<8;i++)document.querySelector("[data-primary]").click()');await until(async()=>(await state())==='FEEDBACK');assert.equal((await query('attempts',activities[1].id)).length,1);
  await primary();await ready('CHOICE');await capture('choice');
  await evaluate('document.querySelectorAll("input[type=radio]")[1].click()');await primary();await until(async()=>(await state())==='FEEDBACK');await primary();await choose();await primary();await until(async()=>(await state())==='FEEDBACK');await primary();await ready('EXPLAIN');
- await answer();await reload();await ready('EXPLAIN');assert.equal(await evaluate('document.querySelector("textarea").value'),'My answer');await capture('explain');
+ await answer();assert.equal(await evaluate('window.splashReturns'),0,'Preview, activities and AI never restore splash');await reload();await ready('EXPLAIN');await watchStartup();assert.equal(await evaluate('document.querySelector("textarea").value'),'My answer');await capture('explain');
  await evaluate('integrationFixture.fail=true');await primary();await until(async()=>(await state())==='ERROR');await evaluate('integrationFixture.fail=false');await primary();await until(async()=>(await state())==='FEEDBACK');await primary();await ready('APPLY');
  await answer();await capture('apply');await primary();await until(async()=>(await state())==='FEEDBACK');await primary();await ready('LEARN');
  await evaluate('integrationFixture.failComplete=true');await primary();await until(async()=>(await text()).includes('保存状態を確認できません'));assert.equal((await query('lesson',lesson.id)).status,'ACTIVE');assert.equal(await evaluate('!!document.querySelector(".patch-complete")'),false);
@@ -114,8 +124,9 @@ try {
  assert.equal((await query('lesson',lesson.id)).status,'COMPLETED');
  assert.deepEqual(await evaluate('[...document.querySelectorAll(".patch-results strong")].map(e=>e.textContent)'),['6','1']);
  assert.ok((await text()).includes('完了したアクティビティ'));await capture('complete');
- await reload();await until(()=>evaluate('!!document.querySelector(".patch-complete")'));assert.deepEqual(await evaluate('[...document.querySelectorAll(".patch-results strong")].map(e=>e.textContent)'),['6','1']);
- await click('.completion-actions .patch-primary');await home();await capture('post-home-unqualified');
+ assert.equal(await evaluate('window.splashReturns'),0,'Save and completion never restore splash');
+ await reload();await until(()=>evaluate('!!document.querySelector(".patch-complete")'));await watchStartup();assert.deepEqual(await evaluate('[...document.querySelectorAll(".patch-results strong")].map(e=>e.textContent)'),['6','1']);
+ await click('.completion-actions .patch-primary');await home();await capture('post-home-unqualified');assert.equal(await evaluate('window.splashReturns'),0,'Preview, activities, AI, save and return Home never restore splash');
  const after=await data();for(const key of ['streak','completed','dueCount','dueCardIds'])assert.deepEqual(after.retention[key],before.retention[key],key+' must not change from a U2 lesson');
  assert.deepEqual(continueLearning(after,[]),selectionBefore);assert.equal(after.reviews.length,before.reviews.length);
  assert.equal(await evaluate('!!document.querySelector(".patch-home-completed")'),false);

@@ -66,19 +66,19 @@ try {
  await waitText('最初の学習、完了！');assert.equal((await data()).dailyReview.streak,1);assert.equal((await data()).reviews.length,3);await noOverflow();
  await responsive('complete');
  if(process.env.ONBOARDING_SCREENSHOT){const shot=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(process.env.ONBOARDING_SCREENSHOT,Buffer.from(shot.data,'base64'));}
- await clickText('ホームへ');await waitText('連続学習');assert.equal((await data()).profile.onboardingCompleted,true);
- await reload();await waitText('連続学習');assert.equal(await evaluate("document.body.innerText.includes('なんとお呼びすればいいですか？')"),false);await noOverflow();
+ await clickText('ホームへ');await until(()=>evaluate("!!document.querySelector('.patch-home')"));assert.equal((await data()).profile.onboardingCompleted,true);
+ await reload();await until(()=>evaluate("!!document.querySelector('.patch-home')"));assert.equal(await evaluate("document.body.innerText.includes('なんとお呼びすればいいですか？')"),false);await noOverflow();
  // Same React shell, real authenticated API, native Retention bridge mocked at its boundary.
  const post=async(path,body)=>{const r=await fetch(origin+path,{method:'POST',headers:authHeaders('user_onboarding',identity.userId,{'content-type':'application/json'}),body:JSON.stringify(body)});assert.equal(r.status,200);return r.json();};
  const created=await post('/api/data',{action:'saveSet',material:{title:'Retention browser set',category:'Test',summary:'',keyPoints:[],sourceContent:'Source',cards:Array.from({length:8},(_,i)=>({question:'Retention question '+i,answer:'Retention answer '+i,format:'qa',choices:[],difficulty:2}))}});
  const set=created.data.sets.find(s=>s.id===created.setId);
  // Home preview is read-only against the real authenticated API and dismisses back to Home.
- await reload();await waitText('連続学習');
+ await reload();await until(()=>evaluate("!!document.querySelector('.patch-home')"));
  const previewData=await data();const beforePreview=previewData.retention.session;
  const previewDestination=continueLearning(previewData,[]);
  const previewTitle=previewDestination.kind==='set'?previewData.sets.find(s=>s.id===previewDestination.id).title:'今日の復習';
- await until(()=>evaluate('!!document.querySelector(".patch-home .patch-action-card")'));
- await click('.patch-home .patch-action-card');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
+ await until(()=>evaluate('!!document.querySelector(".patch-current-node .patch-lesson-start")'));
+ await click('.patch-current-node .patch-lesson-start');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
  assert.equal(await evaluate('document.querySelector("#lesson-preview-title").textContent'), previewTitle);
  assert.deepEqual((await data()).retention.session,beforePreview);
  await click('.patch-sheet-close');await until(()=>evaluate('!document.querySelector(".patch-sheet").open'));
@@ -99,14 +99,14 @@ try {
  const plan=await post('/api/retention',{action:'start',id:'browser-retention-session',cardIds:set.cards.map(c=>c.id)});assert(plan.qualifies);
  await link('patch://continue');await waitText('タップで回答を表示');
  for(let i=0;i<plan.cardIds.length;i++){await waitText('タップで回答を表示');await click('.flashcard-tap');await clickText('覚えていた');if(i<plan.cardIds.length-1)await waitText(`残り${plan.cardIds.length-i-1}枚`);}
- await waitText('レッスンが終了しました');
+ await until(()=>evaluate('!!document.querySelector(".patch-complete")'));
  await until(()=>evaluate('window.retentionMock.published.some(p=>p.snapshot.completed)'));
  assert.equal((await data()).retention.streak,1); // Onboarding + official session still only one day.
  assert.equal(await evaluate("window.retentionMock.published.some(p=>'dueCardIds' in p.snapshot || 'session' in p.snapshot)"),false);
- await link('patch://card/deleted-or-foreign');await waitText('連続学習');await noOverflow();
+ await link('patch://card/deleted-or-foreign');await until(()=>evaluate("!!document.querySelector('.patch-home')"));await noOverflow();
  // Starting the preview enters the same real Study flow; opening alone made no session.
- await until(()=>evaluate('!!document.querySelector(".patch-home .patch-action-card")'));
- await click('.patch-home .patch-action-card');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
+ await until(()=>evaluate('!!document.querySelector(".patch-current-node .patch-lesson-start")'));
+ await click('.patch-current-node .patch-lesson-start');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
  await click('.patch-sheet .patch-primary');await waitText('タップで回答を表示');
  assert.ok((await data()).retention.session?.id);
 
