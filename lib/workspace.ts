@@ -1,5 +1,6 @@
 import type { AppData, GeneratedCard, GeneratedMaterial } from "./types";
 import { normalizeBuildDraft, type BuildDraft } from './build-draft.ts';
+import { validPendingMaterialSave, type PendingMaterialSave } from './material-save.ts';
 
 export type DraftCard = GeneratedCard & { draftId: string; selected: boolean };
 export type DraftMaterial = Omit<GeneratedMaterial, "cards"> & { sourceContent: string; cards: DraftCard[] };
@@ -26,6 +27,7 @@ export type StudySession = {
   returnTo?: StudyReturnTarget;
 };
 export type Workspace = {
+  pendingMaterialSave?: PendingMaterialSave;
   version: 1; importDraft: ImportDraft; destination: string; draft: DraftMaterial | null;
   lastGeneration: { text: string; detail: string; style: string } | null;
   session: StudySession | null; pausedSessions: StudySession[];
@@ -67,6 +69,7 @@ export function parseWorkspace(raw: string | null): Workspace {
     const generation = value.lastGeneration;
     return {
       version: 1,
+      ...(validPendingMaterialSave(value.pendingMaterialSave) ? { pendingMaterialSave: value.pendingMaterialSave } : {}),
       importDraft: record(draft) && typeof draft.text === "string" && typeof draft.detail === "string" && typeof draft.style === "string" && Array.isArray(draft.attachments) && draft.attachments.every((a) => record(a) && [a.id, a.name, a.text].every((v) => typeof v === "string")) ? { ...draft as ImportDraft, ...(draft.build ? { build: normalizeBuildDraft(draft.build) } : {}), attachments: (draft as ImportDraft).attachments.map(a => a.status === 'reading' ? { ...a, status: 'failed', error: 'Reading was interrupted. Remove this file and select it again.' } : a) } : EMPTY_IMPORT,
       destination: typeof value.destination === "string" ? value.destination : "root",
       draft: validDraft(value.draft) ? value.draft : null,

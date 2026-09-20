@@ -1,5 +1,9 @@
 # Patch mascot artwork integration
 
+## Add Material Prompt 08 / 10 / 11
+
+Ready uses the approved Downloads `Sparkling Patch.png`, copied unchanged to `public/patch/mascot-sparkling.png` (1192×1319 transparent PNG). Screen references: `prompt8.png`, `prompt10.png`. No new mascot asset request. A separate Prompt 11 screen reference was not found; the dropdown uses the written anchored-menu specification and Review styling. This is a reference-comparison gap, not a missing production asset.
+
 ## Add Material Prompt 01–07
 
 No new asset request is outstanding for this flow. Destination reuses the approved `Hello Patch.png` as `public/patch/mascot-hello.png`; Preparing uses `Finding Patch.png`, copied unchanged from Downloads to `public/patch/mascot-finding.png` (1269×1239 transparent PNG; SHA-256 `173f761a60af8e2f9b9766a989891b846c12b1ce893769aca70fe552be50772c`). The matching screen references are Downloads `prompt1.png`–`prompt7.png`. These are distinct from mascot files named `patch-*`.

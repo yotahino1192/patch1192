@@ -1,5 +1,7 @@
 # Add Material checkpoint
 
+This records the first-half checkpoint `b343bbb`. The subsequent Review/Ready implementation is documented in [add-material-review-checkpoint.md](add-material-review-checkpoint.md).
+
 Branch: `codex/patch-add-material`, based on `d382da8` (current Home reference work).
 Worktree: `/private/tmp/patch-add-material`. The original worktree, Dev, main and production are unchanged. No push or deployment.
 

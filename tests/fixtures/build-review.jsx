@@ -1,0 +1,35 @@
+// Full App with real authenticated APIs and isolated test identity/material only.
+import { createRoot } from 'react-dom/client';
+import Patch from '../../app/page';
+import { configureNativeAuth } from '../../lib/auth-platform';
+import { writeAccountWorkspace, readAccountWorkspace } from '../../lib/account-storage';
+import { EMPTY_WORKSPACE } from '../../lib/workspace';
+import { normalizeBuildDraft } from '../../lib/build-draft';
+import '../../app/globals.css';
+import '../../mobile/fonts.css';
+const config = await (await fetch('/__build_review_identity')).json();
+const originalFetch = window.fetch.bind(window);
+const fixture = window.reviewFixture = { writes: [], aiCalls: 0, failSave: false, loseSave: false, holdSave: false, failStart: false };
+window.fetch = async (path, options) => {
+  const url=String(path), body=typeof options?.body==='string'?JSON.parse(options.body):null;
+  if(options?.method==='POST')fixture.writes.push({url,body});
+  if(url.includes('/api/ai/'))fixture.aiCalls++;
+  if(url==='/api/retention' && body?.action==='start' && fixture.failStart)return Response.json({error:'Test start failure'},{status:503});
+  const saving=url==='/api/data' && ['saveSet','addCardsToSet'].includes(body?.action);
+  if(saving && fixture.holdSave)await new Promise(resolve=>fixture.releaseSave=resolve);
+  if(saving && fixture.failSave)return Response.json({error:'Test validation failure'},{status:400});
+  const result=await originalFetch(path,options);
+  if(saving && fixture.loseSave){fixture.loseSave=false;throw Error('Test lost response after commit');}
+  return result;
+};
+configureNativeAuth({ initialize:async()=>config.identity,getSession:async()=>config.identity,getToken:async()=>(await(await originalFetch('/__build_review_identity')).json()).token,subscribe:()=>()=>{},startEmail:async()=>{},verifyEmail:async()=>config.identity,signOut:async()=>{} });
+const root=createRoot(document.getElementById('root'));
+fixture.workspace=()=>readAccountWorkspace(localStorage,config.identity.userId);
+fixture.stage=(format='qa',focus=false,invalid=false)=>{
+  const source='Interest rates affect borrowing costs. Higher borrowing costs can reduce spending and demand, which can ease inflation.';
+  const cards=[{question:'How can higher interest rates affect inflation?',answer:'By reducing spending and demand',choices:format==='multiple_choice'?['By reducing spending and demand','By increasing spending','By fixing all prices','By removing taxes']:[],format,difficulty:2},{question:'What do higher interest rates increase?',answer:'Borrowing costs',choices:format==='multiple_choice'?['Borrowing costs','Money supply','Tax refunds','Wages']:[],format,difficulty:1}].map((c,i)=>({...c,draftId:'draft-'+i,selected:true}));
+  const style=format==='multiple_choice'?'4択問題':'一問一答';
+  const build={...normalizeBuildDraft(),step:'review',coverage:focus?'focus':'whole',focus:focus?'How interest rates affect inflation':'',generation:{status:'succeeded',key:crypto.randomUUID(),fingerprint:JSON.stringify({text:source,detail:'標準',style,language:'ja',...(focus?{focus:'How interest rates affect inflation'}:{})})}};
+  writeAccountWorkspace(localStorage,config.identity.userId,{...EMPTY_WORKSPACE,importDraft:{text:source,detail:'標準',style,attachments:[],build},draft:{title:'Interest Rates and Inflation',category:'Economics',summary:'Interest rates influence borrowing costs and inflation.',sourceContent:source,keyPoints:invalid?[]:['Understand what interest rates are','Learn how interest rates affect inflation','Explore the relationship with economic growth','Apply key concepts to real-world examples'],cards}});
+};
+root.render(<Patch />);

@@ -1,11 +1,12 @@
 "use client";
 
-type MascotPose = "standing" | "reading" | "celebrate" | "happy" | "hello" | "finding";
+type MascotPose = "standing" | "reading" | "celebrate" | "happy" | "hello" | "finding" | "sparkling";
 type MascotAsset = { src: string; width: number; height: number };
 
 // Canonical public URLs; artwork replacement never changes screen-specific paths.
 // Dimensions describe the stable presentation canvas, not the incoming file size.
 const MASCOT_ASSETS: Record<MascotPose, MascotAsset> = {
+  sparkling: { src: '/patch/mascot-sparkling.png', width: 1208, height: 1340 },
   finding: { src: "/patch/mascot-finding.png", width: 1269, height: 1239 },
   hello: { src: "/patch/mascot-hello.png", width: 1245, height: 1263 },
   happy: { src: "/patch/mascot-happy.png", width: 1125, height: 1398 },

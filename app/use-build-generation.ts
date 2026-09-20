@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { generationInput, normalizeBuildDraft } from '../lib/build-draft';
 import type { Workspace } from '../lib/workspace';
 import type { GeneratedMaterial } from '../lib/types';
+import { reviewContentError } from '../lib/material-save';
 
 type Api = <T>(url: string, options?: RequestInit) => Promise<T>;
 // Lives with the account workspace, so leaving a step never starts another job.
@@ -17,14 +18,15 @@ export function useBuildGeneration(getWorkspace: () => Workspace, setWorkspace: 
   const run = async (force = false) => {
     if (inFlight.current) return;
     const initial = getWorkspace();
+    if (initial.pendingMaterialSave) return;
     const input = generationInput(initial.importDraft, language);
     const fingerprint = JSON.stringify(input);
     const build = normalizeBuildDraft(initial.importDraft.build, initial.destination);
-    if (!force && initial.draft && build.generation.status === 'succeeded' && build.generation.fingerprint === fingerprint) {
+    if (!force && initial.draft && !reviewContentError(initial.draft) && build.generation.status === 'succeeded' && build.generation.fingerprint === fingerprint) {
       setWorkspace(w => ({ ...w, importDraft: { ...w.importDraft, build: { ...build, step: 'review' } } }));
       return;
     }
-    const key = !force && build.generation.fingerprint === fingerprint && build.generation.key ? build.generation.key : crypto.randomUUID();
+    const key = !force && build.generation.status !== 'succeeded' && build.generation.fingerprint === fingerprint && build.generation.key ? build.generation.key : crypto.randomUUID();
     inFlight.current = true;
     setRunning(true);
     setWorkspace(w => ({ ...w, importDraft: { ...w.importDraft, build: { ...build, step: 'preparing', generation: { status: 'running', key, fingerprint } } } }));

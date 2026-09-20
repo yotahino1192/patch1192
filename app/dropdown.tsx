@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { AssetIcon } from "./asset-icon";
 
-export type DropdownOption = { value: string; label: string; flag?: string };
+export type DropdownOption = { value: string; label: string; flag?: string; group?: string; menuLabel?: string };
 export function Dropdown({ label, value, options, onChange, className = "", disabled = false }: {
   label: string; value: string; options: DropdownOption[]; onChange: (value: string) => void; className?: string; disabled?: boolean;
 }) {
@@ -36,8 +36,8 @@ export function Dropdown({ label, value, options, onChange, className = "", disa
       {choice?.flag && <span className="dropdown-flag" aria-hidden="true">{choice.flag}</span>}
       <span id={`${id}-value`}>{choice?.label}</span><span className="dropdown-chevron" aria-hidden="true"><AssetIcon name={open ? "chevron-up" : "chevron-down"} size={16} /></span>
     </button>
-    {open && <ul id={`${id}-list`} className="dropdown-options" role="listbox" aria-labelledby={`${id}-label`}>{options.map((option, index) => <li id={`${id}-${index}`} key={option.value} role="option" aria-selected={value === option.value} className={index === active ? "highlighted" : ""} onPointerMove={() => setActive(index)} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(index)}>
-      {option.flag && <span className="dropdown-flag" aria-hidden="true">{option.flag}</span>}<span>{option.label}</span>{value === option.value && <span className="dropdown-check" aria-hidden="true"><AssetIcon name="check" size={20} /></span>}
-    </li>)}</ul>}
+    {open && <ul id={`${id}-list`} className="dropdown-options" role="listbox" aria-labelledby={`${id}-label`}>{options.map((option, index) => <Fragment key={option.value}>{option.group && option.group !== options[index - 1]?.group && <li role="presentation" className="dropdown-group">{option.group}</li>}<li id={`${id}-${index}`} role="option" aria-selected={value === option.value} className={index === active ? "highlighted" : ""} onPointerMove={() => setActive(index)} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(index)}>
+      {option.flag && <span className="dropdown-flag" aria-hidden="true">{option.flag}</span>}<span>{option.menuLabel || option.label}</span>{value === option.value && <span className="dropdown-check" aria-hidden="true"><AssetIcon name="check" size={20} /></span>}
+    </li></Fragment>)}</ul>}
   </div>;
 }

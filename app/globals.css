@@ -2,6 +2,7 @@
 @import "./mascot.css";
 @import "./palette.css";
 @import "./build-patch.css";
+@import "./build-review.css";
 @import "../public/patch/startup.css";
 
 :root, .dark {

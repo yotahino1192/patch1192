@@ -4,7 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { ImportScreen } from '../../app/build-patch';
 import { useWorkspace } from '../../app/use-workspace';
 import { useBuildGeneration } from '../../app/use-build-generation';
-import { Shell, Generate } from '../../app/page'; // Test-only Vite export.
+import { Shell } from '../../app/page'; // Test-only Vite export.
+import { BuildReview } from '../../app/build-review';
 import { AccountContext } from '../../app/account-context';
 import { LanguageProvider } from '../../app/language';
 import { normalizeBuildDraft } from '../../lib/build-draft';
@@ -39,7 +40,7 @@ function Flow() {
   const setDestination = destination => setWorkspace(w => ({ ...w, destination }));
   if (!workspaceReady) return <p>Loading test workspace</p>;
   const build = normalizeBuildDraft(workspace.importDraft.build, workspace.destination);
-  return <Shell screen={screen} setScreen={setScreen} buildStep={build.step}>{screen === 'import' ? <ImportScreen data={patches} destination={workspace.destination} setDestination={setDestination} importDraft={workspace.importDraft} setImportDraft={setImportDraft} generationRunning={generation.isRunning()} onGenerate={() => generation.run()} patchesLoading={listState === 'loading'} patchesError={listState === 'error' ? 'failed' : ''} onRetryPatches={() => setListState('ready')} review={<Generate data={data} draft={workspace.draft} setDraft={draft => setWorkspace(w => ({ ...w, draft }))} destination={workspace.destination} setDestination={setDestination} onSave={async () => { fixture.saves++; }} onRegenerate={() => generation.run(true)} />} /> : <button onClick={() => setScreen('import')}>Return to draft</button>}</Shell>;
+  return <Shell screen={screen} setScreen={setScreen} buildStep={build.step}>{screen === 'import' ? <ImportScreen data={patches} destination={workspace.destination} setDestination={setDestination} importDraft={workspace.importDraft} setImportDraft={setImportDraft} generationRunning={generation.isRunning()} onGenerate={() => generation.run()} patchesLoading={listState === 'loading'} patchesError={listState === 'error' ? 'failed' : ''} onRetryPatches={() => setListState('ready')} review={<BuildReview data={data} draft={workspace.draft} setDraft={draft => setWorkspace(w => ({ ...w, draft }))} importDraft={workspace.importDraft} destination={workspace.destination} setDestination={setDestination} saving={false} pendingSave={false} error="" onSave={async () => { fixture.saves++; }} />} /> : <button onClick={() => setScreen('import')}>Return to draft</button>}</Shell>;
 }
 function Harness() {
   const [key, setKey] = useState(0);

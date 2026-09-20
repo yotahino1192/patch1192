@@ -4,6 +4,9 @@ import { StartupPending, useStartupReady } from "./startup-splash";
 import { ImportScreen } from './build-patch';
 import { useBuildGeneration } from './use-build-generation';
 import { normalizeBuildDraft } from '../lib/build-draft';
+import { BuildReview, PatchReady } from './build-review';
+import { useMaterialSave } from './use-material-save';
+import type { SavedMaterial } from '../lib/material-save';
 
 import { readApiResponse, ReliabilityError } from '../lib/reliability/errors';
 import { ReliabilityBoundary, ReliabilityRuntime } from './reliability/boundary';
@@ -822,6 +825,8 @@ function App() {
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const { workspace, getWorkspace, setWorkspace, workspaceReady, saveError } = useWorkspace();
+  const [savedMaterial, setSavedMaterial] = useState<SavedMaterial | null>(null);
+  const materialSave = useMaterialSave(getWorkspace, setWorkspace, api, (updated, saved) => { setData(updated); setSavedMaterial(saved); setScreen('import'); });
   const generation = useBuildGeneration(getWorkspace, setWorkspace, api, language);
   const { destination, draft, lastGeneration, importDraft } = workspace;
   useStartupReady(!!loadingError || (!!data && workspaceReady));
@@ -896,34 +901,35 @@ function App() {
 
   const pendingStudyStart=useRef<{signature:string;id:string}|null>(null);
   const studyStarting=useRef(false);
-  const startStudy = async (setId?: string, startCardId?: string, batchSize?: number) => {
-    if (!data) return;
+  const startStudy = async (setId?: string, startCardId?: string, batchSize?: number, materialCardIds?: string[]) => {
+    if (!data) return false;
     const memorySetId = setId?.startsWith("__memory__:") ? setId.slice("__memory__:".length) : undefined;
     const daily = setId?.startsWith("__daily__") || setId === "__due__";
     const dailySetId = setId?.startsWith("__daily__:") ? setId.slice("__daily__:".length) : undefined;
     const dailyPending = new Set(data.retention?.dueCardIds ?? data.dailyReview.cardIds.filter((id) => !data.dailyReview.completedCardIds.includes(id)));
     const target = data.sets.find((set) => set.id === (memorySetId || dailySetId || setId)) || data.sets.find((set) => set.id === selectedSetId) || data.sets[0];
-    if (!target) { setScreen("sets"); return; }
-    const scope = setId || target.id;
+    if (!target) { if (!materialCardIds) setScreen("sets"); return false; }
+    const scope = materialCardIds ? `material:${materialCardIds[0]}` : setId || target.id;
     const previous = [workspace.session, ...workspace.pausedSessions].find((saved) => saved && saved.scope === scope && !saved.done && pendingStudyCount(saved));
-    if (!startCardId && previous) { resumeStudy(batchSize && !previous.batchSize ? startStudyBatch(previous, batchSize) : previous); return; }
+    if (!materialCardIds && !startCardId && previous) { resumeStudy(batchSize && !previous.batchSize ? startStudyBatch(previous, batchSize) : previous); return true; }
     const due = target.cards.filter((card) => isDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
     const scheduledCards = memorySetId ? target.cards.filter((card) => isLongTermDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()) : daily ? data.sets.filter((set) => !dailySetId || set.id === dailySetId).flatMap((set) => set.cards).filter((card) => isActiveCard(card) && dailyPending.has(card.id)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()) : due.length ? due : target.cards.filter(isActiveCard);
     const requestedCard = startCardId ? target.cards.find((card) => card.id === startCardId && isActiveCard(card)) : undefined;
-    const cards = requestedCard ? [requestedCard, ...scheduledCards.filter((card) => card.id !== requestedCard.id)] : scheduledCards;
+    const cards = materialCardIds ? materialCardIds.map(id => target.cards.find(card => card.id === id && isActiveCard(card))).filter((card): card is Card => !!card) : requestedCard ? [requestedCard, ...scheduledCards.filter((card) => card.id !== requestedCard.id)] : scheduledCards;
     setSelectedSetId(target.id);
     const nextSession = { ...EMPTY_SESSION, id: `lesson_${crypto.randomUUID()}`, scope, setId: target.id, queue: cards.map((card) => card.id), total: cards.length, returnTo: studyReturnTarget(screen, target.id, session.returnTo) };
-    if (!cards.length) {setScreen("home");return;}
-    if(studyStarting.current)return;studyStarting.current=true;
+    if (!cards.length) {if (!materialCardIds) setScreen("home");return false;}
+    if(studyStarting.current)return false;studyStarting.current=true;
     const signature=JSON.stringify(nextSession.queue);
     if(pendingStudyStart.current?.signature===signature)nextSession.id=pendingStudyStart.current.id;
     else pendingStudyStart.current={signature,id:nextSession.id};
     try {
       const plan=await api<{id:string;cardIds:string[]}>("/api/retention",{method:"POST",body:JSON.stringify({action:"start",id:nextSession.id,cardIds:nextSession.queue})});
       nextSession.queue=plan.cardIds;nextSession.total=plan.cardIds.length;pendingStudyStart.current=null;
-    } catch {setLoadingError("学習セッションを開始できませんでした。もう一度お試しください。");return;}finally{studyStarting.current=false;}
+    } catch {if (!materialCardIds) setLoadingError("学習セッションを開始できませんでした。もう一度お試しください。");return false;}finally{studyStarting.current=false;}
     setWorkspace((w) => activateSession(w, batchSize ? startStudyBatch(nextSession, batchSize) : nextSession));
     setScreen("study");
+    return true;
   };
 
   const openDestination=(target:Destination,resolved=data)=>{
@@ -1035,14 +1041,14 @@ function App() {
         setScreen("study");
       }
     }} resumeDraft={draft || importDraft.text || importDraft.attachments.length ? () => setScreen(importDraft.build ? 'import' : draft ? "generate" : "import") : undefined} />;
-  else if (screen === "import") content = <ImportScreen importDraft={importDraft} setImportDraft={setImportDraft} onGenerate={() => generation.run()} generationRunning={generation.isRunning()} data={data} destination={destination} setDestination={setDestination} patchesError={loadingError} onRetryPatches={reload} review={<Generate data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={regenerate} />} />;
+  else if (screen === "import") content = savedMaterial ? <PatchReady saved={savedMaterial} onHome={() => { setSavedMaterial(null); setScreen('home'); }} onStart={async () => { if (!await startStudy(savedMaterial.setId, undefined, undefined, savedMaterial.cardIds)) throw new Error('Lesson could not start'); setSavedMaterial(null); }} /> : <ImportScreen importDraft={importDraft} setImportDraft={setImportDraft} onGenerate={() => generation.run()} generationRunning={generation.isRunning()} data={data} destination={destination} setDestination={setDestination} patchesError={loadingError} onRetryPatches={reload} reviewLocked={materialSave.saving || !!workspace.pendingMaterialSave} review={<BuildReview data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} importDraft={importDraft} onSave={() => materialSave.save(data)} saving={materialSave.saving} pendingSave={!!workspace.pendingMaterialSave} error={materialSave.error} />} />;
   else if (screen === "generate") { content = <Generate data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={regenerate} />; title = "カードの確認"; }
   else if (screen === "sets") { content = <SetLibrary data={data} folderId={folderId} openSetId={setDetailOpen ? selectedSetId : null} onFolder={(id) => { setFolderId(id); setSetDetailOpen(false); }} onSet={(id, cardId) => { setSelectedSetId(id); setFocusedCardId(cardId || null); setSetDetailOpen(true); }} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} onAdd={() => { setDestination(folderId ? `folder:${folderId}` : "root"); setScreen("import"); }}>
       <SetDetail key={selectedSetId} focusedCardId={focusedCardId} data={data} selectedSetId={selectedSetId} selectSet={setSelectedSetId} startStudy={startStudy} now={now} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} />
     </SetLibrary>; title = "カードセット"; }
   else if (screen === "study") content = studyContent;
   else content = <Records data={data} now={now} startStudy={(id) => { if (id) setSelectedSetId(id); setSetDetailOpen(true); setScreen("sets"); }} />;
-  return <LessonEntry onHome={() => setScreen("home")} renderComplete={(lesson, actualSeconds, onHome) => <DomainLessonCompletion lesson={lesson} actualSeconds={actualSeconds} data={data} now={now} onHome={onHome} />}><Shell screen={screen} setScreen={navigate} title={title} buildStep={normalizeBuildDraft(importDraft.build, destination).step}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell></LessonEntry>;
+  return <LessonEntry onHome={() => setScreen("home")} renderComplete={(lesson, actualSeconds, onHome) => <DomainLessonCompletion lesson={lesson} actualSeconds={actualSeconds} data={data} now={now} onHome={onHome} />}><Shell screen={screen} setScreen={navigate} title={title} buildStep={savedMaterial ? 'ready' : normalizeBuildDraft(importDraft.build, destination).step}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell></LessonEntry>;
 }
 
 export default function LocalizedApp() {

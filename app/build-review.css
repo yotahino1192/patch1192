@@ -1,0 +1,48 @@
+.build-review { padding-top: 32px; display: flex; flex-direction: column; gap: 20px; flex: 1; }
+.build-review .build-review-intro h1 { font-size: 27px; letter-spacing: -.8px; margin-bottom: 6px; }
+.build-review-intro > p { color: var(--build-muted); font-size: 14px; line-height: 1.5; }
+.build-review h2, .build-review-name > label, .build-review .dropdown-label { display: block; font-size: 15px; line-height: 1.4; font-weight: 650; color: var(--build-ink); margin: 0 0 8px; }
+.build-review-name > div { display: flex; align-items: center; border: 1px solid var(--build-line); border-radius: 7px; overflow: hidden; }
+.build-review-name input { width: 100%; min-width: 0; border: 0; background: #fff; color: var(--build-ink); font: inherit; font-size: 15px; padding: 11px 12px; min-height: 46px; }
+.build-review-name button { flex-shrink: 0; display: grid; place-items: center; width: 44px; height: 46px; border: 0; background: #fff; color: var(--build-ink); }
+.build-review-name > .build-existing-name { border: 1px solid var(--build-line); border-radius: 7px; padding: 12px; min-height: 46px; font-size: 15px; overflow-wrap: anywhere; }
+.build-review .build-review-destination { position: relative; margin: 0; }
+.build-review-destination .dropdown-trigger { min-height: 46px; border: 1px solid var(--build-line); border-radius: 7px; background: #fff; color: var(--build-ink); font-size: 15px; padding: 11px 12px; width: 100%; }
+.build-review-destination .dropdown-options { position: absolute; top: 100%; left: 0; right: 0; z-index: 10; margin: 6px 0 0; padding: 5px; max-height: 280px; overflow-y: auto; background: #fff; color: var(--build-ink); border: 1px solid var(--build-line); border-radius: 9px; box-shadow: 0 8px 24px #10264c22; }
+.build-review-destination .dropdown-options li[role=option] { min-height: 44px; padding: 10px; font-size: 14px; overflow-wrap: anywhere; }
+.build-review-destination .dropdown-options .dropdown-group { display: block; padding: 10px; margin-top: 5px; border-top: 1px solid var(--build-line); font-size: 12px; color: var(--build-muted); }
+.build-review-destination li.highlighted { background: #edf8f3; }
+.build-outcomes ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.build-outcomes li { display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 6px 10px 6px 6px; border: 1px solid var(--build-line); border-radius: 8px; }
+.build-outcomes li > span { width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; background: #e4f4ed; border-radius: 50%; }
+.build-outcomes li > p { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.build-preview-card { border: 1px solid var(--build-line); border-radius: 12px; padding: 16px; background: #fcfefd; }
+.build-preview-kind { display: inline-block; padding: 4px 9px; background: #e4f4ed; border-radius: 20px; color: var(--patch-evergreen); font-size: 12px; }
+.build-preview-card > .build-preview-question { font-size: 17px; line-height: 1.5; font-weight: 600; margin: 16px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.build-reveal { width: 100%; min-height: 44px; color: var(--patch-evergreen); border: 1px solid #9ecbbb; background: #fff; border-radius: 7px; padding: 10px; font-size: 14px !important; }
+.build-preview-card > .build-preview-answer { margin-top: 12px; border-top: 1px solid var(--build-line); padding: 12px 0 0; font-size: 15px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.build-preview-options { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 7px; }
+.build-preview-options li { display: flex; gap: 9px; align-items: start; padding: 9px; border: 1px solid var(--build-line); border-radius: 6px; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.build-preview-options li > span { color: var(--build-muted); }
+.build-preview-navigation { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 10px; color: var(--build-muted); font-size: 12px; }
+.build-preview-navigation button { display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; color: var(--patch-evergreen); }
+.build-preview-navigation button:disabled { color: #b5c8c0; }
+.build-preview-navigation button:first-child svg { transform: rotate(180deg); }
+.build-review-preferences ul { display: flex; flex-wrap: wrap; gap: 7px; padding: 0; margin: 0; list-style: none; }
+.build-review-preferences li { display: flex; align-items: center; gap: 6px; min-height: 34px; border-radius: 24px; padding: 7px 10px; background: #e4f4ed; font-size: 11px; }
+.build-review-preferences li svg { width: 17px; height: 17px; }
+.build-review-focus { font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 12px !important; }
+.build-review-focus strong { margin-bottom: 4px; }
+.build-review > .build-actions { padding-top: 16px; }
+.build-review :disabled, .build-header button:disabled { cursor: default; opacity: .6; }
+.build-ready { padding-top: max(58px, env(safe-area-inset-top)); text-align: center; justify-content: flex-start; }
+.build-ready > .patch-mascot { width: 284px; max-width: 86%; margin: 0 auto 20px; }
+.build-flow.build-ready h1 { font-size: 28px; letter-spacing: -.9px; margin-bottom: 14px; }
+.build-ready > p { color: var(--build-muted); font-size: 15px; line-height: 1.5; margin: 0 auto 24px; max-width: 315px; overflow-wrap: anywhere; }
+.build-ready > p strong { display: inline; color: inherit; font-size: inherit; font-weight: 500; }
+.build-ready-home { width: 100%; min-height: 48px; border: 1px solid var(--patch-evergreen); border-radius: 8px; background: #fff; color: var(--patch-evergreen); margin-top: 8px; padding: 12px; font-weight: 650 !important; }
+.build-ready-quote { margin-top: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: #e8faf3; border-radius: 14px; text-align: left; }
+.build-ready-quote > span { color: #77ceb0; font-size: 64px; line-height: .8; font-weight: 700; }
+.build-ready-quote p { flex: 1; font-size: 14px; line-height: 1.4; }
+@media (max-height: 650px) { .build-ready { padding-top: 30px; } .build-ready > .patch-mascot { width: 200px; margin-bottom: 14px; } }
+@media (max-width: 360px) { .build-review { gap: 18px; } .build-step-review .build-wordmark { font-size: 16px; } }

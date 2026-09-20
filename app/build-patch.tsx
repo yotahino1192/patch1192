@@ -13,11 +13,12 @@ type Props = {
   data: Pick<AppData, 'sets'>; destination: string; setDestination: (value: string) => void;
   importDraft: ImportDraft; setImportDraft: Dispatch<SetStateAction<ImportDraft>>;
   onGenerate: () => Promise<void>; generationRunning?: boolean; review?: ReactNode;
+  reviewLocked?: boolean;
   patchesLoading?: boolean; patchesError?: string; onRetryPatches?: () => void;
 };
 function Radio({ selected }: { selected: boolean }) { return <span className={`build-radio ${selected ? 'selected' : ''}`} aria-hidden="true" />; }
 
-export function ImportScreen({ data, destination, setDestination, importDraft, setImportDraft, onGenerate, generationRunning = false, review, patchesLoading, patchesError, onRetryPatches }: Props) {
+export function ImportScreen({ data, destination, setDestination, importDraft, setImportDraft, onGenerate, generationRunning = false, review, reviewLocked = false, patchesLoading, patchesError, onRetryPatches }: Props) {
   const build = normalizeBuildDraft(importDraft.build, destination);
   const { step } = build;
   const heading = useRef<HTMLHeadingElement>(null);
@@ -56,8 +57,8 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
   };
   return <div className={`build-flow import-page build-step-${step}`} lang="en">
     <header className="build-header">
-      {step !== 1 && step !== 'preparing' ? <button type="button" className="build-back" aria-label="Back" onClick={() => update({ step: step === 'review' ? 3 : step === 3 ? 2 : 1 })}><PatchIcon name="chevron" /></button> : <span />}
-      <span className="build-wordmark">Build Patch</span>
+      {step !== 1 && step !== 'preparing' ? <button type="button" className="build-back" aria-label="Back" disabled={step === 'review' && reviewLocked} onClick={() => update({ step: step === 'review' ? 3 : step === 3 ? 2 : 1 })}><PatchIcon name="chevron" /></button> : <span />}
+      <span className="build-wordmark">{step === 'review' ? 'Review your Patch' : 'Build Patch'}</span>
       <button type="button" className="build-profile" aria-label="Profile and settings" aria-haspopup="dialog" onClick={() => settings.current?.showModal()}><svg viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><circle cx="16" cy="16" r="14" stroke="#cad8e7" /><circle cx="16" cy="11" r="4" /><path d="M9 24v-2a7 7 0 0 1 14 0v2" /></svg></button>
     </header>
     <SettingsDialog dialogRef={settings} />

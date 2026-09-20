@@ -92,7 +92,7 @@ try {
   await shot('generation-error-390');
   await click('.build-primary'); await until(() => evaluate('buildFixture.requests.length===2'));
   assert.equal(await evaluate('buildFixture.requests[0].body.operationId===buildFixture.requests[1].body.operationId'), true, 'Uncertain retry keeps key');
-  await evaluate('buildFixture.pending.shift().resolve()'); await until(() => evaluate('!!document.querySelector(".generation-page")'));
+  await evaluate('buildFixture.pending.shift().resolve()'); await until(() => evaluate('!!document.querySelector(".build-review")'));
   assert.equal(await evaluate('buildFixture.saves'), 0, 'Generating does not save');
   assert.equal(await evaluate('buildFixture.getWorkspace().draft.sourceContent'), source.trim());
   await click('.build-back'); await click('.build-primary');
@@ -106,7 +106,7 @@ try {
   await until(() => evaluate('buildFixture.requests.length===4'));
   await evaluate('buildFixture.pending.shift().resolve()'); await delay(100);
   assert.equal(await evaluate('buildFixture.getWorkspace().importDraft.build.step'), 'preparing', 'Late result from abandoned component is ignored');
-  await evaluate('buildFixture.pending.shift().resolve()'); await until(() => evaluate('!!document.querySelector(".generation-page")'));
+  await evaluate('buildFixture.pending.shift().resolve()'); await until(() => evaluate('!!document.querySelector(".build-review")'));
   // Responsive, scrolling, focused input and text scaling checks for all seven states.
   for (const width of [320, 390, 430, 768]) {
     await viewport(width, width === 320 ? 568 : 844);
@@ -140,6 +140,14 @@ try {
   await evaluate('buildFixture.update(w=>({...w,importDraft:{...w.importDraft,text:w.importDraft.text+" Changed while waiting."}}));buildFixture.pending.shift().resolve()');
   await until(() => evaluate('!!document.querySelector(".build-return")'));
   assert.equal(await evaluate('buildFixture.getWorkspace().importDraft.build.step'), 'preparing', 'Changed input invalidates a late result without leaving a stuck spinner');
+  await click('.build-primary');await until(()=>evaluate('!!document.querySelector(".build-dots")'));await evaluate('buildFixture.pending.shift().resolve()');await until(()=>evaluate('!!document.querySelector(".build-review")'));
+  const completedKey=await evaluate('buildFixture.getWorkspace().importDraft.build.generation.key');
+  await evaluate('buildFixture.update(w=>({...w,draft:{...w.draft,keyPoints:[]}}))');
+  await until(disabled);
+  assert.equal(await disabled(),true,'Empty outcomes block save');
+  await click('.build-back');await click('.build-primary');await until(()=>evaluate('!!document.querySelector(".build-dots")'));
+  assert.notEqual(await evaluate('buildFixture.requests.at(-1).body.operationId'),completedKey,'Explicit recovery from empty content does not reuse the invalid cached result');
+  await evaluate('buildFixture.pending.shift().resolve()');await until(()=>evaluate('!!document.querySelector(".build-review")'));
   assert.deepEqual(errors, []);
   console.log('PASS: Prompt 01–07; real parser; selection/validation; draft and file retention; format/focus payload; single generation; retry identity; remount/stale fences; Review handoff; 320/390/430/768 widths; reduced viewport and motion.');
   console.log('Screenshots: ' + output);
