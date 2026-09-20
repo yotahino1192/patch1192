@@ -1,0 +1,3 @@
+// Shared by App and PatchWidget, Debug and Release. Increment build for each upload.
+MARKETING_VERSION = 1.0
+CURRENT_PROJECT_VERSION = 1

@@ -38,6 +38,7 @@
     "check:schema": "node scripts/check-schema-manifest.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "check:release": "node scripts/check-release.mjs",
+    "check:ios-release": "node scripts/check-ios-release.mjs",
     "postmobile:build": "node scripts/seal-mobile-artifact.mjs",
     "test:infra": "node --test tests/infra-*.test.mjs",
     "ai:control": "node scripts/ai-control.mjs",
