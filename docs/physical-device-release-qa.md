@@ -1,5 +1,7 @@
 # Physical-device release QA
 
+Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+
 Free v1 gate: Topic/Text/PDF, Flashcards/Multiple Choice, History/Review, Streak/Retention. Fill in the Blank is future work, with no required implementation, preparation or QA for this release, and is not a TestFlight or App Store blocker. Advanced Lesson / Pro / Creator / Video remain outside the initial release scope. All results below remain NOT RUN until tested on the signed uploaded candidate. Close the app after requesting deletion and verify scheduler-driven completion independently; never treat the request receipt as completed deletion.
 
 **All items NOT RUN.** No physical device was used in this preparation. A compiled Simulator app does not count as a pass. Use a signed Internal TestFlight build, real production email OTP, two disposable accounts A/B and non-sensitive rights-cleared sample text/file. Keep deletion testing separate from the primary review account.

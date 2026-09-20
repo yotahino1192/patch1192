@@ -1,5 +1,7 @@
 # Store asset inventory — 2026-09-20
 
+Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+
 No final screenshots or artwork generated. Inventory reconciled with Dev cb2a0f2; Home/startup assets on separate UI branches are not implicitly included. UI is actively changing in a separate worktree.
 
 | Asset | Existing evidence | Remaining action / owner |
