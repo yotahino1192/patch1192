@@ -1,4 +1,5 @@
 export const english: Record<string, string> = {
+"別のPatchを選ぶ": "Choose another Patch",
 "今回取り組んだこと": "What you practised",
 "この端末での学習時間：{0}分{1}秒": "Study time on this device: {0}m {1}s",
 "完了したアクティビティ": "Activities completed",
@@ -459,6 +460,9 @@ export const english: Record<string, string> = {
   "学習を続ける": "Keep learning",
   "中断した学習": "Paused lessons",
   "記憶を確かめる": "Strengthen your memory",
+  "{0}日連続": "{0}-day streak",
+  "今日のレッスン": "TODAY’S LESSON",
+  "レッスンを始める": "Start lesson",
   "今日のマイレッスン": "Today’s My Lesson",
   "マイレッスンを始める": "Start My Lesson",
   "もう一度の回数": "Recall retries",

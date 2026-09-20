@@ -21,8 +21,8 @@ export function StreakCard({ data, now, onToday, expanded = false }: { data: App
     return { date, achieved: !stale && (snapshot ? (snapshot.achievedDays?.includes(snapshot.day - (6 - index)) ?? (index === 6 && snapshot.completed)) : data.dailyReview.achievedDays.includes(studyDay(date))) };
   });
   return <div className={`patch-streak patch-ui patch-streak-${state}`} data-streak={state}>
-    <div className="patch-streak-heading"><span className="patch-streak-icon"><PatchIcon name={hot ? "flame" : "calendar"} size={28} /></span><h2>{t(hot ? "ホットストリーク" : "連続学習")}</h2><strong className="patch-streak-count">{stale ? "—" : t("{0}日", streak)}</strong></div>
-    {!hot && <p className="patch-streak-message">{t(stale ? "学習記録を更新しています…" : state === "broken" ? "また今日から、一緒に始めよう。" : "毎日の小さな学びを積み重ねよう。")}</p>}
+    <div className="patch-streak-heading"><h2 className="patch-streak-count">{stale ? t("連続学習") : t("{0}日連続", streak)}</h2>{hot && <span className="patch-streak-icon" aria-label={t("ホットストリーク")}><PatchIcon name="flame" size={25} /></span>}</div>
+    {(stale || state === "broken") && <p className="patch-streak-message">{t(stale ? "学習記録を更新しています…" : "また今日から、一緒に始めよう。")}</p>}
     <div className="patch-streak-week">{days.map(({ date, achieved }, index) => {
       const today = index === 6;
       const label = today ? t("今日") : new Intl.DateTimeFormat(locale, { timeZone: snapshot?.timezone || "Asia/Tokyo", weekday: "short" }).format(date);

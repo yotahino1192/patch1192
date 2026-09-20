@@ -15,12 +15,12 @@ import { Mascot } from "./mascot";
 import { PatchIcon } from "./patch-ui";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
-export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resumableSessions, onResume, onSample, onContinue, onOpenLesson }: {
+export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resumableSessions, onResume, onSample, onContinue, onChoosePatch, onOpenLesson }: {
   data: AppData; now: Date;
   startStudy: (setId?: string, startCardId?: string, batchSize?: number) => void;
   setScreen: (screen: Screen) => void; selectSet: (id: string) => void;
   resumeDraft?: () => void; resumableSessions: StudySession[];
-  onResume: (session: StudySession) => void; onSample: () => Promise<void>; onContinue: () => void; onOpenLesson?: (id: string) => void;
+  onResume: (session: StudySession) => void; onSample: () => Promise<void>; onContinue: () => void; onChoosePatch: () => void; onOpenLesson?: (id: string) => void;
 }) {
   const { t } = useLanguage();
   const [preview, setPreview] = useState<string | null>(null);
@@ -46,6 +46,12 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
   const openNext = () => { if (learnable) setPreview("continue"); else onContinue(); };
   const startPreview = () => { setPreview(null); if (selectedSession) onResume(selectedSession); else onContinue(); };
   return <div className={`page home-page patch-home patch-ui ${early ? "patch-home-early" : completed ? "patch-home-completed" : ""}`}>
+    <svg width="0" height="0" aria-hidden="true" className="patch-book-filter"><defs>
+      <filter id="patch-book-crisp" colorInterpolationFilters="sRGB">
+        <feComponentTransfer><feFuncA type="linear" slope="12" intercept="-10" /></feComponentTransfer>
+        <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0" />
+      </filter>
+    </defs></svg>
     <section className="patch-greeting" aria-label={t("キャラクターからのあいさつ")}>
       <Mascot pose={early ? "standing" : "reading"} />
       <div className="patch-bubble"><h1>{heading}</h1><p>{t(completed ? "今日はもうばっちり。もう少し続けてみる？" : learnable ? "次のレッスンを始めよう。" : "さあ、一緒に学ぼう。")}</p></div>
@@ -57,16 +63,27 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
     </section> : <>
       <DailyReviewRail data={data} now={now} onStudy={startStudy} />
       <section className="patch-learning" aria-label={t("今日の学習")}>
-        {recentSets.length > 0 && <><h2 className="patch-section-label">{t("最近学んだ教材")}</h2><div className="patch-recent-path">{recentSets.map(set => <button key={set.id} className="patch-path-stop" title={set.title} onClick={() => { selectSet(set.id); setScreen("sets"); }}><span><PatchIcon name="book" size={25} /></span><small>{set.title}</small></button>)}</div></>}
+        {recentSets.length > 0 && <><h2 className="patch-section-label">{t("最近学んだ教材")}</h2><div className="patch-recent-path">
+          <svg className="patch-path-curve" viewBox={`0 0 100 ${recentSets.length * 68 + 20}`} preserveAspectRatio="none" aria-hidden="true"><path d={[
+            "M53 0 C53 28 40 10 40 34",
+            recentSets.length > 1 ? "C40 83 58 54 58 102" : "C40 66 50 58 50 88",
+            recentSets.length > 2 ? "C58 148 45 122 45 170 C45 200 50 190 50 224" : recentSets.length > 1 ? "C58 136 50 126 50 156" : "",
+          ].join(" ")} /></svg>
+          {recentSets.map((set, index) => <button key={set.id} className={`patch-path-stop patch-path-stop-${index + 1}`} title={set.title} onClick={() => { selectSet(set.id); setScreen("sets"); }}><span><PatchIcon name="lesson-book" size={25} /></span><small>{set.title}</small></button>)}
+        </div></>}
+
         <div className={`patch-current-node${completed ? " is-completed" : ""}`} role={completed ? "status" : undefined}>
-          <PatchIcon name={completed ? "check" : learnable ? "book" : "plus"} size={42} />
+          <span className="patch-current-book">{learnable && !completed ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src="/patch/lesson-book-white.png" className="patch-lesson-book-image" alt="" aria-hidden="true" />
+          ) : <PatchIcon name={completed ? "check" : "plus"} size={42} />}</span>
           {completed ? <><strong>{t("今日は完了！")}</strong><small>{t("今日の学習目標を達成しました。")}</small></> : <>
-            <span className="patch-current-label">{t("今日のマイレッスン")}</span>
-            <h2>{learnable ? title : t("新しい教材を追加")}</h2>
+            <span className="patch-current-label">{t("今日のレッスン")}</span>
+            <h2 title={learnable ? title : undefined}>{learnable ? title : t("新しい教材を追加")}</h2>
             {learnable && <p className="patch-current-context">{selectedSession || remoteSession ? t("続きから学習") : destination.kind === "review" ? t("今日の復習") : t("学習")}
               {remaining !== undefined ? <> · {t("残り{0}枚", remaining)}</> : destination.kind === "review" && !stale && data.retention ? <> · {t("{0}枚", data.retention.dueCount)}</> : null}
             </p>}
-            <button className="patch-lesson-start" onClick={openNext}>{t(learnable ? "続きから学習" : "教材を追加")}<PatchIcon name="arrow" size={21} /></button>
+            <button className="patch-lesson-start" onClick={openNext}>{t(learnable ? selectedSession || remoteSession ? "続きから学習" : "レッスンを始める" : "教材を追加")}<PatchIcon name="arrow" size={21} /></button>
           </>}
         </div>
       </section>
@@ -78,6 +95,6 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
     </>}
     {onOpenLesson && <AvailableLessons onStart={onOpenLesson} />}
     {resumeDraft && <button className="patch-action-card" onClick={resumeDraft}><span>{t("下書きの続きから")}</span><PatchIcon name="arrow" size={20} /></button>}
-    <LessonPreview open={preview !== null} onClose={() => setPreview(null)} onStart={startPreview} title={title} summary={currentSet?.summary} sessionId={selectedSession?.id ?? remoteSession?.id} remaining={remaining} dueCount={!currentSet && destination.kind === "review" && !stale ? data.retention?.dueCount : undefined} />
+    <LessonPreview open={preview !== null} onClose={() => setPreview(null)} onStart={startPreview} onChoosePatch={() => { setPreview(null); onChoosePatch(); }} title={title} summary={currentSet?.summary} sessionId={selectedSession?.id ?? remoteSession?.id} remaining={remaining} dueCount={!currentSet && destination.kind === "review" && !stale ? data.retention?.dueCount : undefined} />
   </div>;
 }

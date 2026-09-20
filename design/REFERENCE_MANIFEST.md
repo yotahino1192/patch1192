@@ -1,5 +1,7 @@
 # Patch UI phase 1 references
 
+Current global color authority: [COLOR_PALETTE.md](COLOR_PALETTE.md). The 2026-09-17 user palette and green historical achievement checks supersede older reference colors.
+
 Technical authority: Dev `50ef68714c295fd484a5d1375c99c35dacd81919`, existing AppData/Continue Learning/Retention/Domain APIs. Designer input checkpoint: `66aeaee`. Original `source/Prompt Lists.docx` is preserved unchanged. Duplicate `.png.png` extensions were normalized on the UI branch only.
 
 | Reference | Screen/state and visual influence | Product mapping |

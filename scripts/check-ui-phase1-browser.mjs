@@ -39,6 +39,17 @@ try{
  const viewport=(width,height=852)=>cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:true});
  const navigate=async query=>{await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?${query}`});await until(()=>evaluate('!!document.querySelector(".patch-greeting,.patch-complete")'));await evaluate('document.fonts.ready');await until(()=>evaluate('[...document.images].every(i=>i.complete&&i.naturalWidth>0)'));};
  await cdp('Runtime.enable');await cdp('Page.enable');
+ for(const [width,lang,label] of [[320,'ja','別のPatchを選ぶ'],[393,'en','Choose another Patch']]) {
+  await viewport(width,width===320?568:852);await navigate(`screen=home&lang=${lang}`);
+  await click('.patch-lesson-start');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
+  assert.equal(await evaluate('document.querySelector(".patch-choose-patch").textContent'),label);
+  assert.equal(await evaluate('(()=>{const start=document.querySelector(".patch-sheet .patch-primary").getBoundingClientRect(),choose=document.querySelector(".patch-choose-patch").getBoundingClientRect();return choose.top>start.bottom&&choose.left>=0&&choose.right<=innerWidth;})()'),true,'Choose another Patch stays below Start inside the mobile sheet');
+  await screenshot(`choose-patch-preview-${width}`);
+  await click('.patch-choose-patch');await until(()=>evaluate('!!document.querySelector(".library-page")'));
+  assert.equal(await evaluate('document.querySelector(".bottom-nav button:nth-child(2)").getAttribute("aria-current")'),'page');
+  assert.equal(await evaluate('window.uiFixture.starts'),0,'Choosing Patches never starts a lesson');
+  assert.equal(await evaluate('document.body.style.overflow'),'','Closing preview restores page scrolling');
+ }
  // Main navigation visual consistency and the existing Sets actions.
  for(const screen of ['sets','records','import','generate']) {
   for(const width of [320,393,430,768]) {
@@ -86,6 +97,7 @@ try{
  assert.equal(await evaluate('document.querySelector(".import-page > .primary").disabled'),true,'Empty material must still disable generation');
  await click('.bottom-nav button:nth-child(1)');
  assert.equal(await evaluate('!!document.querySelector(".patch-home")'),true);
+ for(const width of [320,393,430]) { await viewport(width,width===320?568:852);await navigate('reference=1');await screenshot('reference-'+width); }
  for(const state of ['empty','normal','hot','broken','completed','complete','stale']){
   await viewport(393);await navigate('state='+state);await screenshot(state+'-393');
   for(const width of [320,430,768]){await viewport(width,width===320?568:852);assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,`${state}: ${width}px overflow`);if(width!==768)await screenshot(state+'-'+width);}
@@ -96,6 +108,7 @@ try{
    await viewport(width,width===320?568:852);await navigate(query);
    assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,query+' Home overflow');
    await screenshot('home-'+query.replaceAll('&','-').replaceAll('=','-')+'-'+width);
+   assert.equal(await evaluate(`(()=>{const n=document.querySelector('.patch-current-node').getBoundingClientRect(),b=document.querySelector('.patch-lesson-start').getBoundingClientRect();return [b.left,b.right].every(x=>[b.top,b.bottom].every(y=>((x-n.left-n.width/2)/(n.width/2))**2+((y-n.top-n.height/2)/(n.height/2))**2<=1));})()`),true,'Entire learning button stays within the evergreen ellipse');
    await evaluate('document.querySelector(".patch-lesson-start").scrollIntoView({block:"center"})');
    assert.equal(await evaluate('document.querySelector(".patch-lesson-start").getBoundingClientRect().bottom < document.querySelector(".bottom-nav").getBoundingClientRect().top'),true,'Home CTA stays reachable above navigation');
    await click('.patch-lesson-start');await click('.patch-sheet .patch-primary');
@@ -139,10 +152,11 @@ try{
  assert.equal(await evaluate('document.querySelector(".patch-current-node").tagName'),'DIV','Today completion is a status, not another start button');
  await navigate('state=normal');await evaluate('window.uiFixture.updateSnapshot({streak:9,hot:true,completed:true,achievedDays:[18,19,20]})');
  await until(()=>evaluate('!!document.querySelector(".patch-streak-hot")'));
- assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'9 days','Streak uses refreshed authoritative value');
+ assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'9-day streak','Streak uses refreshed authoritative value');
  assert.equal(await evaluate('!!document.querySelector(".patch-home-completed")'),true);
  await evaluate('window.uiFixture.updateSnapshot({streak:0,hot:false,completed:false,broken:true})');await until(()=>evaluate('!!document.querySelector(".patch-streak-broken")'));
- assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'0 days');
+ assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'0-day streak');
+ assert.equal(await evaluate('getComputedStyle(document.querySelector(".patch-streak-broken .is-achieved .patch-day-check")).backgroundColor'),'rgb(40, 132, 91)','Past achievements remain green after a gap');
  await viewport(393);await navigate('state=resume');
  await click('.patch-lesson-start');await until(()=>evaluate('window.uiFixture.pending.length===1'));
  assert.equal(await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).method"),'GET');

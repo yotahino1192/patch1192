@@ -1,5 +1,7 @@
 "use client";
 
+import { StartupPending, useStartupReady } from "./startup-splash";
+
 import { readApiResponse, ReliabilityError } from '../lib/reliability/errors';
 import { ReliabilityBoundary, ReliabilityRuntime } from './reliability/boundary';
 import { useAccount, useApiFetch } from "./account-context";
@@ -42,7 +44,7 @@ type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
 
 const navItems: { id: Screen; label: string }[] = [
   { id: "home", label: "ホーム" },
-  { id: "sets", label: "セット" },
+  { id: "sets", label: "Patches" },
   { id: "import", label: "教材追加" },
   { id: "records", label: "記録" },
 ];
@@ -156,11 +158,10 @@ function Shell({ screen, setScreen, children, title }: {
   return (
     <div className={`app-shell ${screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
       {screen !== "study" && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
-        {screen === "home" && !title && <span className="patch-wordmark">Patch</span>}
         {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
         {title && <h1 className="screen-title">{t(title)}</h1>}
         <button type="button" className="settings-button" aria-label={t("設定")} aria-haspopup="dialog" onClick={() => settingsRef.current?.showModal()}>
-          <AssetIcon name="settings" size={24} />
+          {screen === "home" ? <PatchIcon name="profile" size={27} /> : <AssetIcon name="settings" size={24} />}
         </button>
       </header>}
       {screen !== "study" && <SettingsDialog dialogRef={settingsRef} />}
@@ -175,7 +176,7 @@ function Shell({ screen, setScreen, children, title }: {
             aria-current={active ? "page" : undefined}
             onClick={() => { if (!active) setScreen(item.id); }}
           >
-            <span className="nav-icon nav-image" aria-hidden="true"><PatchIcon name={({home:"home",sets:"document",import:"plus",records:"bars"} as Record<string, PatchIconName>)[item.id]} size={30} /></span>
+            <span className="nav-icon nav-image" aria-hidden="true"><PatchIcon name={({home:"home",sets:"nav-document",import:"nav-add",records:"nav-progress"} as Record<string, PatchIconName>)[item.id]} size={30} /></span>
             <span>{t(item.label)}</span>
           </button>
           );
@@ -883,6 +884,7 @@ function App() {
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const { workspace, getWorkspace, setWorkspace, workspaceReady, saveError } = useWorkspace();
   const { destination, draft, lastGeneration, importDraft } = workspace;
+  useStartupReady(!!loadingError || (!!data && workspaceReady));
   const session = workspace.session || EMPTY_SESSION;
   const { queue, flipped, done: sessionDone, setId: sessionSetId, id: sessionId, total: sessionTotal, mistakes: sessionMistakes } = session;
   function updateField<K extends keyof Workspace>(key: K, value: React.SetStateAction<Workspace[K]>) {
@@ -1043,7 +1045,7 @@ function App() {
     setScreen(next);
   };
 
-  if (!data || !workspaceReady) return <Shell screen={screen} setScreen={navigate}><div className="page loading-state" aria-live="polite">{loadingError ? <><h1>{t("読み込めませんでした")}</h1><p>{t(loadingError)}</p><button className="primary" onClick={reload}>{t("再読み込み")}</button></> : <><span><AssetIcon name="sparkles" /></span><p>{t("学習データを準備しています…")}</p></>}</div></Shell>;
+  if (!data || !workspaceReady) return <StartupPending pending={!loadingError} fallback={<Shell screen={screen} setScreen={navigate}><div className="page loading-state" aria-live="polite">{loadingError ? <><h1>{t("読み込めませんでした")}</h1><p>{t(loadingError)}</p><button className="primary" onClick={reload}>{t("再読み込み")}</button></> : <><span><AssetIcon name="sparkles" /></span><p>{t("学習データを準備しています…")}</p></>}</div></Shell>} />;
 
   const saveDraft = async () => {
     if (!draft) return;
@@ -1087,7 +1089,7 @@ function App() {
   if (screen === "home") content = <Home onOpenLesson={id => {
     const url = new URL(window.location.href); url.searchParams.set("lesson", id);
     history.pushState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate"));
-  }} onContinue={()=>{const target=continueLearning(data,[session,...workspace.pausedSessions]);if(target.kind==="set")void startStudy(target.id);else openDestination(target);}} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
+  }} onChoosePatch={()=>{ setFolderId(null); setSetDetailOpen(false); setScreen("sets"); }} onContinue={()=>{const target=continueLearning(data,[session,...workspace.pausedSessions]);if(target.kind==="set")void startStudy(target.id);else openDestination(target);}} data={data} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={(id) => { setSelectedSetId(id); setSetDetailOpen(true); }} resumableSessions={[session, ...workspace.pausedSessions].filter((s) => s.id && !s.done && pendingStudyCount(s))} onResume={resumeStudy} onSample={async () => {
       const result = await api<{ data: AppData }>("/api/data", { method: "POST", body: JSON.stringify({ action: "sample", language }) });
       const sample = result.data.sets[0];
       setData(result.data);
