@@ -12,12 +12,14 @@ No final screenshots or artwork generated. Inventory reconciled with Dev cb2a0f2
 
 ## Capture plan after UI freeze
 
+Free v1 study screenshots cover **Flashcards and Multiple Choice only**. Fill in the Blank is future work: no screenshot, metadata or asset preparation is required for this release, and its absence is **not a TestFlight or App Store blocker**.
+
 | Screen | Required state/data | Release prerequisite |
 | --- | --- | --- |
 | Home / Continue Learning | One saved study material, clear in-progress activity, accurate day's progress; no private account data | Home and continuation regressions pass |
 | Add Material | Rights-cleared short study text or supported document, filled valid state | Other session's final workflow integrated; no unsupported import claims |
 | Generated Review / destination/save | Coherent generated cards matching source, correct destination and final save action | Review/Ready final UI and durable save pass; no fabricated AI results presented as a real screenshot |
-| Lesson | Readable question/answer and final study controls using sample cards | Lesson QA passes without domain changes |
+| Free v1 study | Readable Flashcards and Multiple Choice questions/answers and final study controls using sample cards | QA for these two formats passes without domain changes |
 | Completion / progress | Legitimately completed Study Set with expected Streak/progress | Actual completion state; do not falsify history |
 | Optional Widget | Small/Medium Widget showing valid signed-device snapshot | App Group and Widget device QA pass |
 | Consent / privacy (review evidence) | First-use AI consent and settings/deletion path, no credentials | Match published policy; these need not all be marketing screenshots |

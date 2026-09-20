@@ -30,6 +30,8 @@ Current comparison baseline: latest fetched Dev `cb2a0f2`, isolated branch `code
 
 ## Release matrix
 
+Current Free v1 scope correction: Topic/Text/PDF input; **Flashcards and Multiple Choice only**; History/Review; Streak/Retention. Fill in the Blank is future work and **not a TestFlight or App Store blocker**. No implementation, preparation, required QA, metadata or assets for that format are part of this release task. Advanced Lesson / Pro / Creator / Video remain outside initial scope. Apply this scope to R06 and R12–R14; historical technical observations above do not expand launch requirements.
+
 Status describes the remaining dependency, not a claim of store approval. **DONE** means code/local preparation only. **READY BEFORE APPLE ENROLLMENT** means work is possible now; it may still need owner-supplied configuration. Multiple dependencies are shown explicitly.
 
 | ID / status | Blocker and why | Codex now / Yota action | Dependency | Exact acceptance condition |

@@ -5,7 +5,7 @@ export function observeRoute(handler:(request:Request)=>Promise<Response>) {
   let response:Response;
   try{response=await handler(request);}catch{response=Response.json({code:'SERVICE_UNAVAILABLE',error:'サービスに接続できません。'},{status:503});}
   const headers=new Headers(response.headers);headers.set('X-Request-ID',id);headers.set('Cache-Control','no-store');
-  if(response.status>=500){
+  if(response.status>=500 || response.status===401 || response.status===403){
    const record=reportDiagnostic({event:'request_failed',status:response.status,requestId:id,durationMs:Date.now()-start});
    // Only the allowlisted record is written; no URL, error, request or response content.
    try{console.info(JSON.stringify(record));}catch{/* logging cannot change response */}
