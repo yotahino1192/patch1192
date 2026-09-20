@@ -6,4 +6,4 @@ await command(async () => { const { client } = target(); try {
 }
 finally {
     client.close();
-} });
+} }, 'database_check');

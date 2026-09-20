@@ -13,6 +13,18 @@ const {writeAccountWorkspace,workspaceKey,readAccountWorkspace,clearAccountWorks
 const {EMPTY_WORKSPACE}=await import('../lib/workspace.ts');
 const owner={userId:'10000000-0000-4000-8000-000000000001',subject:'user_A',sessionId:'sess_A'};
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
+test('server auth failures are observable without request content and retain their response', async () => {
+ const previous=console.info,lines=[];
+ console.info=line=>lines.push(JSON.parse(line));
+ try {
+  for(const status of [401,403]) {
+   const response=await observeRoute(async()=>new Response('denied',{status}))(new Request('https://fixture.invalid/private?email=secret',{headers:{authorization:'Bearer secret'}}));
+   assert.equal(response.status,status);assert.equal(await response.text(),'denied');
+  }
+  assert.deepEqual(lines.map(r=>r.status),[401,403]);
+  assert.ok(!JSON.stringify(lines).includes('secret'));
+ } finally {console.info=previous;}
+});
 const memory=()=>{const m=new Map();return {getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)};};
 
 test('complete API outage and body stall terminate without retries or raw error disclosure',async()=>{

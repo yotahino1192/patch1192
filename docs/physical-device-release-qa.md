@@ -1,5 +1,7 @@
 # Physical-device release QA
 
+Free v1 gate: Topic/Text/PDF, Flashcards/MCQ/Fill in the Blank, History/Review, Streak/Retention. Advanced Lesson / Pro / Creator / Video are not blockers. All results below remain NOT RUN until tested on the signed uploaded candidate. Close the app after requesting deletion and verify scheduler-driven completion independently; never treat the request receipt as completed deletion.
+
 **All items NOT RUN.** No physical device was used in this preparation. A compiled Simulator app does not count as a pass. Use a signed Internal TestFlight build, real production email OTP, two disposable accounts A/B and non-sensitive rights-cleared sample text/file. Keep deletion testing separate from the primary review account.
 
 Record tester/date, build/version/commit, device model, OS, locale, timezone, network, install type (fresh/update/reinstall), result and issue/evidence link. Run on iPhone and iPad while both are supported; include minimum iOS 17 and current supported iOS where hardware is available, small/large screens and advertised orientations. Never attach OTPs, tokens or personal learning content to evidence.
@@ -11,11 +13,11 @@ Record tester/date, build/version/commit, device model, OS, locale, timezone, ne
 | Email signup/login | Ordinary sign-up/sign-in, actual inbox delivery, wrong/expired code, resend and network interruption recover safely | NOT RUN |
 | Session persistence | Background/foreground, force quit, device reboot and token refresh preserve only valid current session; revoked/expired session prompts login | NOT RUN |
 | Logout / A→B switch | A's drafts/results/history/queued writes, notifications and Widget snapshot never leak into B; delayed A response cannot repopulate B | NOT RUN |
-| Add Material | Final integrated supported inputs, keyboard/file selection, long content, cancel/resume and invalid files behave correctly; no unsupported permission prompt | NOT RUN |
+| Add Material | Topic, Text and PDF inputs: keyboard/file selection, extraction limits, long content, cancel/resume and invalid/encrypted files behave correctly; no unsupported permission prompt | NOT RUN |
 | Generation | Unset/declined consent prevents dispatch; allow then generate works; double tap, quota, timeout and uncertain result do not silently duplicate AI work | NOT RUN |
 | Review / save | Generated content can be checked and saved in intended destination; retry/duplicate tap produces one durable result; reload finds saved material | NOT RUN |
-| Lesson start | Correct material/cards; resume versus new session is correct; rotate, keyboard and accessibility text do not block controls | NOT RUN |
-| Lesson complete | Completion saves once; retry/resume/Undo works according to current domain rules; AI summary only under existing consent | NOT RUN |
+| Free v1 study | Flashcards, MCQ and Fill in the Blank start with correct material; resume/new session, answer/feedback and accessibility match integrated behavior | NOT RUN |
+| History / Review | Completion saves once; saved history/review survives reload; retry/resume/Undo match current domain rules; no duplicate completion | NOT RUN |
 | Streak | Formal Study Set completion yields expected day state; same-day repeats, Undo, day boundary and timezone change match existing rules; no test-only changes | NOT RUN |
 | Continue Learning | Correct unfinished activity resumes after background/kill; deleted/stale material falls back safely | NOT RUN |
 | Local Notifications | No prompt on first launch alone; allow/deny/settings toggle work; schedule then close app and lock device; tap opens intended route; same-day update does not duplicate; completion/logout/delete cancel; test OS permission revocation | NOT RUN |
