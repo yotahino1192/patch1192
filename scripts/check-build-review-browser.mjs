@@ -47,6 +47,7 @@ try{
  const progress=async()=>{const d=await data();const retention={...d.retention};delete retention.generatedAt;delete retention.expiresAt;return {reviews:d.reviews,retention,counts:(await db.execute("SELECT (SELECT count(*) FROM attempts) AS attempts,(SELECT count(*) FROM review_logs) AS reviews")).rows[0]};};
  await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
  await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/build-review.html`});await until(()=>evaluate('!!document.querySelector(".patch-home")'));
+ if(process.env.PATCH_CORE_ONLY !== '1') {
  await openReview();const before=await progress();
  await shot('prompt08-flashcard-390');
  assert.equal(await evaluate('!!document.querySelector(".build-preview-answer")'),false);
@@ -164,6 +165,60 @@ try{
   assert.equal(await evaluate('!!document.querySelector(".ai-history-disclosure,.record-stat-memory")'),false);await shot('free-'+format+'-history-393');
  }
  assert.equal(await evaluate('reviewFixture.aiCalls'),0,'Free v1 study/completion never auto-calls AI');
+
+ }
+ // Topic, pasted source and uploaded PDF all use the integrated generation flow.
+ // Only the provider transport is deterministic; persistence/assignment/grading are real.
+ await grantAi(db,identity.userId);
+ const sourceText='Plants use sunlight to convert water and carbon dioxide into sugars. Chlorophyll absorbs light and oxygen is released during photosynthesis.';
+ const stream=`BT /F1 11 Tf 40 700 Td (${sourceText}) Tj ET`;
+ const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 900 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];
+ let pdf='%PDF-1.4\n';const offsets=[0];
+ for(let i=0;i<objects.length;i++){offsets.push(Buffer.byteLength(pdf));pdf+=`${i+1} 0 obj\n${objects[i]}\nendobj\n`;}
+ const xref=Buffer.byteLength(pdf);pdf+=`xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n ').join('\n')}\ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+ const pdfFile=join(dir,'Photosynthesis.pdf');await writeFile(pdfFile,pdf);
+ for(const input of ['topic','text','pdf'])for(const format of ['qa','multiple_choice']) {
+  await evaluate('reviewFixture.reset()');await cdp('Page.reload');await until(()=>evaluate('!!document.querySelector(".patch-home")'));
+  await evaluate('reviewFixture.mockGeneration=true');
+  await click('.bottom-nav button:nth-child(3)');await until(()=>evaluate('!!document.querySelector(".build-destinations")'));await click('.build-primary');
+  if(input==='topic')await evaluate(`(()=>{const e=document.querySelector('[aria-label="Input type"]');e.value='topic';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  if(input==='pdf') {
+   const dom=await cdp('DOM.getDocument');const {nodeId}=await cdp('DOM.querySelector',{nodeId:dom.root.nodeId,selector:'input[type=file]'});await cdp('DOM.setFileInputFiles',{nodeId,files:[pdfFile]});
+   await until(()=>evaluate('!!document.querySelector(".build-files") && !document.querySelector(".build-files").textContent.includes("Checking file")'));
+   assert.equal(await evaluate('reviewFixture.workspace().importDraft.attachments[0]?.status'),'accepted',await evaluate('JSON.stringify(reviewFixture.workspace().importDraft.attachments[0])'));
+  } else await evaluate(`(()=>{const e=document.querySelector('.build-text textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,${JSON.stringify(input==='topic'?'Photosynthesis':sourceText)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await delay(80);assert.equal(await evaluate('document.querySelector(".build-primary").disabled'),false);
+  await shot('core-input-'+input+'-'+format);await click('.build-primary');await click(format==='qa'?'.build-format label:first-child':'.build-format label:last-child');await click('.build-primary');
+  await until(()=>evaluate('!!document.querySelector(".build-review")'));
+  assert.equal(await evaluate('reviewFixture.aiCalls'),1);
+  const generated=await evaluate('reviewFixture.writes.find(w=>w.url==="/api/ai/cards").body');assert.equal(generated.inputKind==='topic',input==='topic');
+  if(input==='pdf')assert.match(generated.text,/Plants use sunlight/);
+  await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready")'));await click('.build-ready .build-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));
+  const activeId=await evaluate('reviewFixture.workspace().session.id');
+  for(let i=0;i<2;i++) {
+   if(format==='qa'){await click('.flashcard-tap');await click('.swipe-actions .incorrect');}
+   else {await click('.study-choice-grid button:nth-child(2)');await click('.record-choice');}
+   await until(async()=>Number((await db.execute({sql:'SELECT count(*) n FROM review_logs WHERE session_id=? AND undone_at IS NULL',args:[activeId]})).rows[0].n)===i+1);
+   if(i===0) {
+    await until(()=>evaluate('reviewFixture.workspace().session.queue.length===1'));
+    await cdp('Page.reload');await until(()=>evaluate('!!document.querySelector(".patch-home")'));
+    assert.equal(await evaluate('reviewFixture.workspace().session.queue.length'),1);
+    await click('.home-resume-list button');await click('dialog .patch-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));
+    assert.equal(await evaluate('reviewFixture.workspace().session.id'),activeId);
+   }
+  }
+  await until(()=>evaluate('!!document.querySelector(".session-complete")'));
+  const saved=await data(),history=saved.studyHistory.find(h=>h.id===activeId);
+  assert.equal(history.processed,2);assert.equal(history.status,'COMPLETED');assert.equal(saved.retention.streak,1);assert.ok(saved.retention.dueCount>=2);
+  assert.equal(history.results.every(r=>r.rating==='again'),true,'All incorrect still completes');
+  if(format==='multiple_choice')assert.equal(history.results.every(r=>r.response.selectedChoice==='Wind'&&!r.response.correct),true);
+  assert.equal(await evaluate('reviewFixture.aiCalls'),0,'Reloaded Study makes no generation or grading AI call');
+  await click('.completion-actions .patch-primary');await click('.bottom-nav button:last-child');await until(()=>evaluate('!!document.querySelector(".study-history")'));
+  await click('.study-history details:first-child summary');await shot('core-history-'+input+'-'+format);
+  await click('.study-history details:first-child button');await until(()=>evaluate('!document.querySelector(".records-page")'));
+  assert.equal((await data()).studyHistory.find(h=>h.id===activeId).results.length,2);
+ }
+ console.log('PASS: topic/text/PDF x Flashcards/MCQ -> Generate (fixture provider) -> Review/Save/Ready -> wrong answers -> reload/resume -> Complete -> History/Review; short +1/day and Due preserved.');
  if(liveAi) {
   assert.equal((await db.execute('SELECT count(*) n FROM ai_requests')).rows[0].n,0);
   await grantAi(db,identity.userId);

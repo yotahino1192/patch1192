@@ -21,15 +21,19 @@ async function handlePOST(request: Request): Promise<Response> {
     const body = await readJsonObject(request, 128 * 1024);
     let send: ReturnType<typeof prepareMaterial>;
     const material = await runAi(database(), userId, 'cards', request.headers.get('Idempotency-Key'), body, () => send(), undefined, async () => {
-      const text = String(body.text || '').trim();
+      if (typeof body.text !== 'string' || (body.inputKind !== undefined && !['source','topic'].includes(String(body.inputKind)))) throw new InputError('入力の種類と文章を確認してください。');
+      const text = body.text.trim();
+      const topic = body.inputKind === 'topic';
+      if (topic && (body.mode === 'lesson_summary' || body.focus !== undefined || text.length > 200)) throw new InputError('トピックは1〜200文字で入力してください。');
       const mode = body.mode === 'lesson_summary' ? 'lesson_summary' : 'source';
-      const minimumLength = mode === 'lesson_summary' ? 20 : MIN_SOURCE_LENGTH;
+      const minimumLength = topic ? 1 : mode === 'lesson_summary' ? 20 : MIN_SOURCE_LENGTH;
       if (text.length < minimumLength) throw new InputError(mode === 'lesson_summary' ? '要約するAI解説が不足しています。' : 'カードを作るには、80文字以上の文章を入力してください。');
       if (text.length > MAX_SOURCE_LENGTH) throw new InputError('一度に解析できる文章は30,000文字までです。');
       if (body.focus !== undefined && (typeof body.focus !== 'string' || !body.focus.trim() || body.focus.length > MAX_FOCUS_LENGTH)) throw new InputError('学習の焦点を1〜1,000文字で入力してください。');
       send = prepareMaterial({
       language: body.language === "en" ? "en" : "ja",
       text,
+      inputKind: topic ? 'topic' : 'source',
       detail: String(body.detail || "標準"),
       style: String(body.style || "一問一答"),
       category: String(body.category || ""),

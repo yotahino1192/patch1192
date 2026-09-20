@@ -37,5 +37,10 @@ export function useWorkspace() {
     catch { setSaveError(true); }
   }, [scope]);
   const getWorkspace = useCallback(() => latest.current, []);
-  return { getWorkspace, workspace, setWorkspace: update, workspaceReady: ready, saveError:saveError||recoveryWarning };
+  const ensureDurable = useCallback(() => {
+    if (!scope?.isCurrent()) throw new Error('アカウントが変更されました。');
+    try { writeAccountWorkspace(localStorage, scope.account.userId, latest.current); setSaveError(false); }
+    catch { setSaveError(true); throw new Error('途中の状態を保存できません。端末の空き容量を確認して再試行してください。'); }
+  }, [scope]);
+  return { ensureDurable, getWorkspace, workspace, setWorkspace: update, workspaceReady: ready, saveError:saveError||recoveryWarning };
 }

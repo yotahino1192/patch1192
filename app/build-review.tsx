@@ -43,7 +43,7 @@ export function BuildReview({ draft, importDraft, data, destination, setDestinat
   const locked = saving || pendingSave;
   const icons: PatchIconName[] = ['book', 'bars', 'arrow', 'document'];
   return <section className="build-review">
-    <div className="build-review-intro"><h1>Looks good!</h1><p>Here&apos;s a summary of your Patch.</p></div>
+    <div className="build-review-intro">{draft?.sourceKind === 'topic' && <p>Generated from your topic using general knowledge.</p>}<h1>Looks good!</h1><p>Here&apos;s a summary of your Patch.</p></div>
     {draft && <>
       <div className="build-review-name"><label htmlFor="build-patch-name">Patch name</label>{existing ? <p className="build-existing-name">{set?.title || 'Unavailable Patch'}</p> : <div><input ref={name} id="build-patch-name" value={draft.title} maxLength={120} disabled={locked} onChange={e => setDraft({ ...draft, title: e.target.value })} aria-invalid={!draft.title.trim()} /><button type="button" aria-label="Edit Patch name" disabled={locked} onClick={() => name.current?.focus()}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 15 11-11 5 5L9 20l-6 1 1-6Zm10-10 5 5M16 3l2-2 5 5-2 2" /></svg></button></div>}</div>
       <Dropdown label="Destination" value={existing ? destination : 'root'} disabled={locked} onChange={setDestination} className="build-review-destination" options={[

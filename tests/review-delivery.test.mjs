@@ -87,7 +87,9 @@ const headers = (extra = {}) => authHeaders('user_delivery', owner, extra);
 const request = (body) => new Request('http://localhost/api/data', {method:'POST',headers:headers({'content-type':'application/json'}),body:JSON.stringify(body)});
 test('API response failure after commit can be retried without another write', async () => {
   const { session, pendingReview } = await setup(owner);
-  const payload = {action:'reviewCard',sessionId:session.id,...pendingReview};
+  const card=(await loadAppData(owner)).sets[0].cards[0];
+  const {startStudySession}=await import('../db/retention.ts');await startStudySession(owner,session.id,[card.id]);
+  const payload = {contentRevision:card.contentRevision,action:'reviewCard',sessionId:session.id,...pendingReview};
   let failRead = false;
   globalThis.__deliveryDatabase = {
     ...db,

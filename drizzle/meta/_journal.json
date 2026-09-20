@@ -85,6 +85,13 @@
       "when": 1789284080190,
       "tag": "0011_patch_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790000000000,
+      "tag": "0012_free_v1_learning",
+      "breakpoints": true
     }
   ]
 }

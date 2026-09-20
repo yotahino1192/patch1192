@@ -5,7 +5,7 @@ import { validPendingMaterialSave, type PendingMaterialSave } from './material-s
 export type DraftCard = GeneratedCard & { draftId: string; selected: boolean };
 export type DraftMaterial = Omit<GeneratedMaterial, "cards"> & { sourceContent: string; cards: DraftCard[] };
 export type ImportDraft = {
-  text: string; detail: string; style: string;
+  text: string; detail: string; style: string; inputKind?: "source" | "topic";
   attachments: { id: string; name: string; text: string; size?: number; status?: 'reading' | 'accepted' | 'failed'; error?: string }[];
   build?: BuildDraft;
 };
@@ -16,9 +16,11 @@ export type StudyUndo = {
 };
 export type StudyEdit = { cardId: string; question: string; answer: string; choices: string[] };
 export type StudyReturnTarget = { screen: "home" } | { screen: "sets"; setId: string };
-export type PendingReview = { operationId: string; cardId: string; rating: "again" | "good"; responseMs: number; expectedReviewCount: number };
+export type PendingReview = { selectedChoice?: string; contentRevision?: string; operationId: string; cardId: string; rating: "again" | "good"; responseMs: number; expectedReviewCount: number };
 export type StudySession = {
   pendingReview?: PendingReview | null;
+  itemRevision?: string;
+  unavailable?: boolean;
   id: string; scope: string; setId: string | null; queue: string[]; total: number; mistakes: number;
   flipped: boolean; done: boolean; selectedChoice: string | null;
   aiInput: string; aiOpen: boolean; aiCompose: boolean;
@@ -27,6 +29,7 @@ export type StudySession = {
   returnTo?: StudyReturnTarget;
 };
 export type Workspace = {
+  pendingStudyStart?: StudySession;
   pendingMaterialSave?: PendingMaterialSave;
   version: 1; importDraft: ImportDraft; destination: string; draft: DraftMaterial | null;
   lastGeneration: { text: string; detail: string; style: string } | null;
@@ -69,6 +72,7 @@ export function parseWorkspace(raw: string | null): Workspace {
     const generation = value.lastGeneration;
     return {
       version: 1,
+      ...(validSession(value.pendingStudyStart) ? { pendingStudyStart: normalizeSession(value.pendingStudyStart) } : {}),
       ...(validPendingMaterialSave(value.pendingMaterialSave) ? { pendingMaterialSave: value.pendingMaterialSave } : {}),
       importDraft: record(draft) && typeof draft.text === "string" && typeof draft.detail === "string" && typeof draft.style === "string" && Array.isArray(draft.attachments) && draft.attachments.every((a) => record(a) && [a.id, a.name, a.text].every((v) => typeof v === "string")) ? { ...draft as ImportDraft, ...(draft.build ? { build: normalizeBuildDraft(draft.build) } : {}), attachments: (draft as ImportDraft).attachments.map(a => a.status === 'reading' ? { ...a, status: 'failed', error: 'Reading was interrupted. Remove this file and select it again.' } : a) } : EMPTY_IMPORT,
       destination: typeof value.destination === "string" ? value.destination : "root",
@@ -85,6 +89,23 @@ export function parseWorkspace(raw: string | null): Workspace {
 export function reconcileSession(session: StudySession, data: AppData): StudySession {
   if (session.undo && data.undoneReviewIds?.includes(session.undo.reviewId)) session = restoreStudyUndo(session);
   if (session.pendingReview && data.undoneOperationIds?.includes(session.pendingReview.operationId)) session = { ...session, pendingReview: null };
+  const authoritative = data.studySessions?.find(view => view.id === session.id);
+  if (authoritative) {
+    const delivered = authoritative.results.find(r => r.operationId === session.pendingReview?.operationId);
+    const card = data.sets.flatMap(s=>s.cards).find(c=>c.id===authoritative.currentItemId);
+    const same = authoritative.currentItemId === session.queue[0] && (!session.itemRevision || session.itemRevision === card?.contentRevision);
+    const pending = session.pendingReview;
+    const stale = pending && (pending.cardId !== authoritative.currentItemId || pending.contentRevision !== card?.contentRevision || pending.expectedReviewCount !== card?.reviewCount);
+    const inBatch = session.batchSize ? session.queue.filter(id=>authoritative.remainingIds.includes(id)) : authoritative.remainingIds;
+    return { ...session, total:authoritative.total, queue:inBatch, remaining:session.batchSize?authoritative.remainingIds.filter(id=>!inBatch.includes(id)):[],
+      done:authoritative.status==='COMPLETED', unavailable:authoritative.status==='UNAVAILABLE', itemRevision:card?.contentRevision,
+      batchDone:!!session.batchSize && !inBatch.length && authoritative.remainingIds.length>0,
+      mistakes:authoritative.results.filter(r=>['again','hard'].includes(r.rating)).length,
+      pendingReview:delivered || stale ? null : session.pendingReview,
+      undo:delivered ? studyUndoCheckpoint(session,delivered.id) : session.undo,
+      flipped:same && session.flipped, selectedChoice:same?session.selectedChoice:null,
+      editDraft:same?session.editDraft:null };
+  }
   const reviews = (data.sessionReviews ?? data.reviews).filter((review) => review.sessionId === session.id);
   const introductory = data.profile?.initialSessionId === session.id && !data.profile.onboardingCompleted;
   const pending = session.pendingReview;
@@ -116,6 +137,9 @@ export function reconcileSession(session: StudySession, data: AppData): StudySes
   };
 }
 export function reconcileWorkspace(workspace: Workspace, data: AppData): Workspace {
+  if (workspace.pendingStudyStart && data.studySessions?.some(s=>s.id===workspace.pendingStudyStart!.id)) {
+    workspace = {...activateSession(workspace,reconcileSession(workspace.pendingStudyStart,data)),pendingStudyStart:undefined};
+  }
   const destination = workspace.destination;
   const validDestination = destination === "root" || (destination.startsWith("folder:") && data.folders.some((f) => f.id === destination.slice(7))) || (destination.startsWith("set:") && data.sets.some((s) => s.id === destination.slice(4)));
   return { ...workspace, destination: validDestination ? destination : "root", session: workspace.session ? reconcileSession(workspace.session, data) : null, pausedSessions: workspace.pausedSessions.map((s) => reconcileSession(s, data)).filter((s) => !s.done) };
@@ -156,5 +180,5 @@ export function restoreStudyUndo(session: StudySession): StudySession {
 }
 
 export function workspaceSessionIds(workspace: Workspace): string[] {
-  return [...new Set([workspace.session, ...workspace.pausedSessions].filter((session): session is StudySession => Boolean(session?.id)).map((session) => session.id))];
+  return [...new Set([workspace.session, workspace.pendingStudyStart, ...workspace.pausedSessions].filter((session): session is StudySession => Boolean(session?.id)).map((session) => session.id))];
 }

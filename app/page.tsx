@@ -43,7 +43,7 @@ import type {
   ChatMessage,
   GeneratedMaterial,
 } from "../lib/types";
-import { advanceLessonQueue, type LessonVerdict } from "../lib/review";
+import { type LessonVerdict } from "../lib/review";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
 // Free v1 presentation only. Existing learning engines remain available to core tests.
@@ -339,21 +339,19 @@ function SetDetail({ data, selectedSetId, selectSet, startStudy, now, onData, fo
   );
 }
 
-function Study({ session, updateSession, data, queue, flipped, setFlipped, setQueue, sessionDone, setSessionDone, sessionSetId, sessionId, sessionTotal, sessionMistakes, setSessionMistakes, startStudy, setData, backToSets, goHome, onPause, now }: {
+function Study({ ensureDurable, session, updateSession, data, queue, flipped, setFlipped, sessionDone, sessionSetId, sessionId, sessionTotal, sessionMistakes, startStudy, setData, backToSets, goHome, onPause, now }: {
+  ensureDurable: () => void;
   session: StudySession;
   updateSession: React.Dispatch<React.SetStateAction<StudySession>>;
   data: AppData;
   queue: string[];
   flipped: boolean;
   setFlipped: (value: boolean) => void;
-  setQueue: (value: string[]) => void;
   sessionDone: boolean;
-  setSessionDone: (value: boolean) => void;
   sessionSetId: string | null;
   sessionId: string;
   sessionTotal: number;
   sessionMistakes: number;
-  setSessionMistakes: React.Dispatch<React.SetStateAction<number>>;
   startStudy: (setId?: string, startCardId?: string, batchSize?: number) => void;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
   backToSets: () => void;
@@ -492,7 +490,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
     let resolvedVerdict: LessonVerdict = card.format === "multiple_choice" && selectedChoice
       ? selectedChoice === card.answer ? "correct" : "incorrect"
       : verdict;
-    const attempt = session.pendingReview || { operationId: crypto.randomUUID(), cardId: card.id, rating: resolvedVerdict === "correct" ? "good" as const : "again" as const, responseMs: Math.max(0, currentTimeMs() - shownAt.current), expectedReviewCount: card.reviewCount };
+    const attempt = session.pendingReview || { operationId: crypto.randomUUID(), cardId: card.id, rating: resolvedVerdict === "correct" ? "good" as const : "again" as const, responseMs: Math.max(0, currentTimeMs() - shownAt.current), expectedReviewCount: card.reviewCount, contentRevision: card.contentRevision, ...(card.format === "multiple_choice" ? { selectedChoice: selectedChoice! } : {}) };
     if (attempt.cardId !== card.id) return;
     resolvedVerdict = attempt.rating === "good" ? "correct" : "incorrect";
     // Persist the operation before any network request; all retries reuse it.
@@ -501,6 +499,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
     setBusy(true);
     setError("");
     try {
+      ensureDurable();
       const result = await api<{ data: AppData; reviewId: string }>("/api/data", {
         method: "POST",
         body: JSON.stringify({
@@ -509,11 +508,15 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
           ...attempt,
         }),
       });
+      if (!mounted.current) return;
       if (result.data.undoneReviewIds?.includes(result.reviewId)) {
         setData(result.data);
         updateSession((current) => reconcileSession(current, result.data));
         return;
       }
+      const savedResult = result.data.sessionReviews?.find(r=>r.id===result.reviewId);
+      if (!savedResult) throw new Error('保存された回答を確認できません。再試行してください。');
+      resolvedVerdict = savedResult.rating === 'good' ? 'correct' : 'incorrect';
       updateSession((current) => ({ ...current, undo: studyUndoCheckpoint(session, result.reviewId) }));
       setData(result.data);
       if (!mounted.current) return;
@@ -527,25 +530,12 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
       if (!introductory && !data.retention?.completed && result.data.retention?.completed) {
         setDailyCelebration(true);
       }
-      const nextQueue = introductory ? queue.slice(1) : advanceLessonQueue(queue, resolvedVerdict);
-      updateSession((current) => ({ ...current, queue: nextQueue, pendingReview: null }));
-      if (resolvedVerdict === "incorrect") {
-        setSessionMistakes((count) => count + 1);
-        setGestureMessage("もう一度学ぶカードとして、列の後ろへ戻しました。");
-      } else {
-        setGestureMessage(nextQueue.length ? t("このカードは完了。残り{0}枚です。", nextQueue.length) : "すべてのカードが完了しました。");
-      }
-      setFlipped(false);
-      setSelectedChoice(null);
-      setAiOpen(false);
-      setAiInput("");
+      updateSession((current) => reconcileSession(current, result.data));
+      setGestureMessage(resolvedVerdict === 'incorrect' ? '回答を保存しました。復習でまた確認しましょう。' : '回答を保存しました。');
       shownAt.current = currentTimeMs();
-      if ((introductory || resolvedVerdict === "correct") && nextQueue.length === 0) {
-        if (session.remaining?.length) updateSession((current) => ({ ...current, batchDone: true }));
-        else { setSessionDone(true); void summarizeAiHistory(sessionAiMessages); }
-      }
+      if (result.data.studySessions?.find(s=>s.id===sessionId)?.status === 'COMPLETED') void summarizeAiHistory(sessionAiMessages);
     } catch (e) {
-      if (e instanceof ReliabilityError && ["REVIEW_STATE_CONFLICT", "REVIEW_OPERATION_CONFLICT"].includes(e.code || "")) {
+      if (e instanceof ReliabilityError && e.status === 409) {
         try {
           const fresh = await api<AppData>(`/api/data?sessionId=${encodeURIComponent(sessionId)}`);
           setData(fresh);
@@ -648,7 +638,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
     try {
       const result = await api<{ data: AppData }>("/api/data", { method: "POST", body: JSON.stringify({ action: "undoReview", sessionId, reviewId: session.undo.reviewId }) });
       setData(result.data);
-      updateSession((current) => restoreStudyUndo(current));
+      updateSession((current) => reconcileSession(restoreStudyUndo(current), result.data));
       setCorrectFeedback(false); setDailyCelebration(false); setGestureMessage(t("一つ前のカードに戻りました。"));
       shownAt.current = currentTimeMs();
     } catch (e) { setError(e instanceof Error ? e.message : "評価を取り消せませんでした。"); }
@@ -691,10 +681,11 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
       </div>
     );
   }
+  if (session.unavailable) return <div className="page empty-panel"><h1>教材が変更されています</h1><p>保存済みの回答は残っています。新しいセッションで続けてください。</p><button className="primary" onClick={() => startStudy(sessionSetId || undefined)}>学習を始める</button><button onClick={goHome}>ホームへ</button></div>;
   if (!queue.length || !card || !set) return <div className="page empty-panel"><h1>{t("学習するカードがありません")}</h1><p>{t("カードセットを作るか、セット画面から学習を開始してください。")}</p><button className="primary" onClick={goHome}>{t("ホームで確認")}</button></div>;
   if (!advancedStudyEnabled && card.format !== 'qa' && card.format !== 'multiple_choice') return <div className="page empty-panel"><h1>{t("このカードは現在のバージョンでは学習できません")}</h1><p>{t("FlashcardsまたはMultiple ChoiceのPatchを選んでください。")}</p><button className="primary" onClick={backToSets}>{t("Patchesに戻る")}</button></div>;
   const progressTotal = session.batchSize ? session.batchTotal || sessionTotal : sessionTotal;
-  const completed = Math.max(0, progressTotal - queue.length);
+  const completed = session.batchSize ? Math.max(0, progressTotal - queue.length) : data.studySessions?.find(s=>s.id===sessionId)?.processed ?? Math.max(0, progressTotal - queue.length);
   const progress = progressTotal ? Math.round((completed / progressTotal) * 100) : 0;
   return (
     <div className="page study-page">
@@ -751,7 +742,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         </section>
       )}
       {(!introductory || flipped) && (card.format === "multiple_choice" && selectedChoice ? (
-        <button className="primary wide record-choice" disabled={busy || aiBusy} onClick={() => submitVerdict(selectedChoice === card.answer ? "correct" : "incorrect")}>{selectedChoice === card.answer ? <IconLabel name="check">{t("選択結果を記録して次へ")}</IconLabel> : <IconLabel name="refresh">{t("選択結果を記録して後でもう一度")}</IconLabel>}</button>
+        <button className="primary wide record-choice" disabled={busy || aiBusy} onClick={() => submitVerdict(selectedChoice === card.answer ? "correct" : "incorrect")}>{selectedChoice === card.answer ? <IconLabel name="check">{t("選択結果を記録して次へ")}</IconLabel> : <IconLabel name="refresh">{t("選択結果を記録して次へ")}</IconLabel>}</button>
       ) : (
         <div className="swipe-actions compact" aria-label={t("スワイプ操作の代替ボタン")}>
           <button className="incorrect" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("incorrect")}><AssetIcon name="chevron-left" size={20} /><span><strong>{t("まだ覚えていない")}</strong></span></button>
@@ -759,7 +750,7 @@ function Study({ session, updateSession, data, queue, flipped, setFlipped, setQu
         </div>
       ))}
 
-      {flipped && !introductory && <details key={`source:${card.id}`} className="source-details"><summary><IconLabel name="document">{t("元の文章を確認")}</IconLabel></summary><p>{set.sourceContent}</p></details>}
+      {flipped && !introductory && <details key={`source:${card.id}`} className="source-details"><summary><IconLabel name="document">{t("元の文章を確認")}</IconLabel></summary><p>{set.sourceKind === "topic" ? "Topic (generated using general knowledge): " : set.sourceKind === "mixed" ? "Source material and topic inputs: " : ""}{set.sourceContent}</p></details>}
       {error && <p className="inline-error" role="alert">{t(error)}</p>}
     </div>
   );
@@ -810,6 +801,7 @@ function Records({ data, now, startStudy }: { data: AppData; now: Date; startStu
       </div>
       <section><div className="section-row"><h2>{t("復習リマインド")}</h2></div><div className="reminder-list">{data.sets.slice(0, 5).map((set) => { const due = set.cards.filter((card) => isDue(card, now)).length; return <button key={set.id} onClick={() => startStudy(set.id)}><AssetIcon name="clock" size={26} /><div><strong>{due ? t("{0}枚のカードが復習待ち", due) : t("{0}の次回復習", set.title)}</strong><small>{set.title}</small></div><em>{relativeDate(set.nextReviewAt, now, language)} <AssetIcon name="chevron-right" size={16} /></em></button>; })}</div></section>
       {!data.sets.length && <p className="list-empty">{t("Patchを作って学習すると、ここに記録が表示されます。")}</p>}
+      {!!data.studyHistory?.length && <section className="study-history"><div className="section-row"><h2>学習履歴</h2></div><div className="ai-history-list">{data.studyHistory.map(history => <details key={history.id}><summary><strong>{history.title}</strong><small>{history.processed} / {history.total} · {history.completedAt && formatDate(new Date(history.completedAt),locale,'review')}</small></summary>{history.results.map(result => <div key={result.id}><p>{result.response?.question || data.sets.flatMap(s=>s.cards).find(c=>c.id===result.cardId)?.question || 'Card'}</p><p>{result.response?.format === 'multiple_choice' ? `${result.response.selectedChoice} · ${result.response.correct ? '正解' : '不正解'}` : result.rating === 'good' || result.rating === 'easy' ? '覚えていた' : 'まだ覚えていない'}</p>{!result.response && <small>過去の回答内容は未記録です。</small>}</div>)}<button type="button" className="secondary" onClick={()=>startStudy(history.setId)}>復習する</button></details>)}</div></section>}
       {advancedStudyEnabled && <details className="ai-history-disclosure"><summary>{t("AI解説の学習履歴")}</summary><div className="ai-history-list">{aiHistory.length ? aiHistory.map(({ message, question, card: historyCard, setTitle }) => <details key={message.id}><summary><span><span><AssetIcon name="sparkles" /></span><small>{setTitle}{t("・")}{relativeDate(message.createdAt, now, language)}</small></span><strong>{historyCard?.question || question}</strong></summary><p className="history-question">{t("あなた：")}{question}</p><p>{message.content}</p></details>) : <p className="list-empty">{t("学習中にAIへ質問すると、解説がここへ保存されます。")}</p>}</div></details>}
       <section><div className="section-row"><h2>{t("苦手カード")}</h2><span className="muted">{weak.length}{t("枚")}</span></div><div className="weak-list">{weak.length ? weak.slice(0, 8).map(({ card, set }) => <button key={card.id} onClick={() => startStudy(set.id, card.id)}><i>{set.category}</i><strong>{card.question}</strong><span>{t("復習")}{card.reviewCount}{t("回")} <AssetIcon name="chevron-right" size={16} /></span></button>) : <p className="list-empty">{t("苦手カードはまだありません。")}</p>}</div></section>
     </div>
@@ -829,7 +821,7 @@ function App() {
   const [setDetailOpen, setSetDetailOpen] = useState(false);
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
-  const { workspace, getWorkspace, setWorkspace, workspaceReady, saveError } = useWorkspace();
+  const { ensureDurable, workspace, getWorkspace, setWorkspace, workspaceReady, saveError } = useWorkspace();
   const [savedMaterial, setSavedMaterial] = useState<SavedMaterial | null>(null);
   const materialSave = useMaterialSave(getWorkspace, setWorkspace, api, (updated, saved) => { setData(updated); setSavedMaterial(saved); setScreen('import'); });
   const generation = useBuildGeneration(getWorkspace, setWorkspace, api, language);
@@ -847,16 +839,15 @@ function App() {
     if (!w.session || w.session.id !== sessionId) return w;
     return { ...w, session: typeof value === "function" ? value(w.session) : value };
   });
-  const setQueue = (queue: string[]) => updateSession((s) => ({ ...s, queue }));
   const setFlipped = (flipped: boolean) => updateSession((s) => ({ ...s, flipped }));
-  const setSessionDone = (done: boolean) => updateSession((s) => ({ ...s, done }));
-  const setSessionMistakes: React.Dispatch<React.SetStateAction<number>> = (value) => updateSession((s) => ({ ...s, mistakes: typeof value === "function" ? value(s.mistakes) : value }));
-  const resumeStudy = (saved: StudySession) => {
-    if (!data) return;
-    const restored = { ...reconcileSession(saved, data), returnTo: studyReturnTarget(screen, saved.setId, saved.returnTo) };
-    setWorkspace((w) => activateSession(w, restored));
-    setSelectedSetId(restored.setId);
-    setScreen("study");
+  const resumeStudy = async (saved: StudySession) => {
+    try {
+      await api('/api/retention',{method:'POST',body:JSON.stringify({action:'resume',id:saved.id})});
+      const loaded = await api<AppData>(`/api/data?sessionId=${encodeURIComponent(saved.id)}`);
+      const restored = { ...reconcileSession(saved, loaded), returnTo: studyReturnTarget(screen, saved.setId, saved.returnTo) };
+      setWorkspace((w) => activateSession(w, restored)); setData(loaded);
+      setSelectedSetId(restored.setId); setScreen('study');
+    } catch { setLoadingError('学習の続きを復元できませんでした。再試行してください。'); }
   };
   const pauseStudy = () => {
     if (!data) return;
@@ -904,7 +895,6 @@ function App() {
     setDraft({ ...material, sourceContent: lastGeneration.text, cards: material.cards.map(card => ({ ...card, draftId: crypto.randomUUID(), selected: true })) });
   };
 
-  const pendingStudyStart=useRef<{signature:string;id:string}|null>(null);
   const studyStarting=useRef(false);
   const startStudy = async (setId?: string, startCardId?: string, batchSize?: number, materialCardIds?: string[]) => {
     if (!data) return false;
@@ -915,7 +905,7 @@ function App() {
     const target = data.sets.find((set) => set.id === (memorySetId || dailySetId || setId)) || data.sets.find((set) => set.id === selectedSetId) || data.sets[0];
     if (!target) { if (!materialCardIds) setScreen("sets"); return false; }
     const scope = materialCardIds ? `material:${materialCardIds[0]}` : setId || target.id;
-    const previous = [workspace.session, ...workspace.pausedSessions].find((saved) => saved && saved.scope === scope && !saved.done && pendingStudyCount(saved));
+    const previous = [workspace.session, ...workspace.pausedSessions].find((saved) => saved && saved.scope === scope && !saved.done && !saved.unavailable && pendingStudyCount(saved));
     if (!materialCardIds && !startCardId && previous) { resumeStudy(batchSize && !previous.batchSize ? startStudyBatch(previous, batchSize) : previous); return true; }
     const due = target.cards.filter((card) => isDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
     const scheduledCards = memorySetId ? target.cards.filter((card) => isLongTermDue(card, now)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()) : daily ? data.sets.filter((set) => !dailySetId || set.id === dailySetId).flatMap((set) => set.cards).filter((card) => isActiveCard(card) && dailyPending.has(card.id)).sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()) : due.length ? due : target.cards.filter(isActiveCard);
@@ -925,14 +915,18 @@ function App() {
     const nextSession = { ...EMPTY_SESSION, id: `lesson_${crypto.randomUUID()}`, scope, setId: target.id, queue: cards.map((card) => card.id), total: cards.length, returnTo: studyReturnTarget(screen, target.id, session.returnTo) };
     if (!cards.length) {if (!materialCardIds) setScreen("home");return false;}
     if(studyStarting.current)return false;studyStarting.current=true;
-    const signature=JSON.stringify(nextSession.queue);
-    if(pendingStudyStart.current?.signature===signature)nextSession.id=pendingStudyStart.current.id;
-    else pendingStudyStart.current={signature,id:nextSession.id};
+    const pending = getWorkspace().pendingStudyStart;
+    if (pending && JSON.stringify(pending.queue) === JSON.stringify(nextSession.queue)) nextSession.id = pending.id;
     try {
-      const plan=await api<{id:string;cardIds:string[]}>("/api/retention",{method:"POST",body:JSON.stringify({action:"start",id:nextSession.id,cardIds:nextSession.queue})});
-      nextSession.queue=plan.cardIds;nextSession.total=plan.cardIds.length;pendingStudyStart.current=null;
+      setWorkspace(w=>({...w,pendingStudyStart:nextSession}));
+      ensureDurable();
+      const plan=await api<{id:string;cardIds:string[];session:import('../lib/study/types').StudySessionView}>("/api/retention",{method:"POST",body:JSON.stringify({action:"start",id:nextSession.id,cardIds:nextSession.queue})});
+      nextSession.queue=plan.cardIds;nextSession.total=plan.cardIds.length;
+      const loaded = await api<AppData>(`/api/data?sessionId=${encodeURIComponent(nextSession.id)}`);
+      setData(loaded);
+      Object.assign(nextSession,reconcileSession(nextSession,loaded));
     } catch {if (!materialCardIds) setLoadingError("学習セッションを開始できませんでした。もう一度お試しください。");return false;}finally{studyStarting.current=false;}
-    setWorkspace((w) => activateSession(w, batchSize ? startStudyBatch(nextSession, batchSize) : nextSession));
+    setWorkspace((w) => ({...activateSession(w, batchSize ? startStudyBatch(nextSession, batchSize) : nextSession),pendingStudyStart:undefined}));
     setScreen("study");
     return true;
   };
@@ -943,10 +937,8 @@ function App() {
       const saved=[workspace.session,...workspace.pausedSessions].find(s=>s?.id===target.id);
       const remote=resolved.retention?.session;
       const candidate=saved ?? (remote&&remote.id===target.id?{...EMPTY_SESSION,id:remote.id,scope:remote.setId,setId:remote.setId,queue:remote.cardIds,total:remote.cardIds.length,returnTo:{screen:"home" as const}}:null);
-      if(candidate){void api<AppData>(`/api/data?sessionId=${encodeURIComponent(candidate.id)}`).then(loaded=>{
-        const restored=reconcileSession(candidate,loaded);
-        setData(loaded);setWorkspace(w=>activateSession(w,restored));setSelectedSetId(restored.setId);setScreen(restored.done?"home":"study");
-      }).catch(()=>setLoadingError("学習の続きを復元できませんでした。再試行してください。"));return;}
+      if(candidate){void resumeStudy(candidate);return;}
+
     }
     if(target.kind==="onboarding"){setScreen("home");return;}
     if(target.kind==="review"){void startStudy("__daily__");return;}
@@ -1022,7 +1014,7 @@ function App() {
     });
   };
 
-  const studyContent = <Study key={sessionId} session={session} updateSession={updateSession} data={data} queue={queue} flipped={flipped} setFlipped={setFlipped} setQueue={setQueue} sessionDone={sessionDone} setSessionDone={setSessionDone} sessionSetId={sessionSetId} sessionId={sessionId} sessionTotal={sessionTotal} sessionMistakes={sessionMistakes} setSessionMistakes={setSessionMistakes} startStudy={startStudy} setData={updateData} backToSets={() => { setSetDetailOpen(true); setScreen("sets"); }} goHome={() => setScreen("home")} onPause={pauseStudy} now={now} />;
+  const studyContent = <Study ensureDurable={ensureDurable} key={sessionId} session={session} updateSession={updateSession} data={data} queue={queue} flipped={flipped} setFlipped={setFlipped} sessionDone={sessionDone} sessionSetId={sessionSetId} sessionId={sessionId} sessionTotal={sessionTotal} sessionMistakes={sessionMistakes} startStudy={startStudy} setData={updateData} backToSets={() => { setSetDetailOpen(true); setScreen("sets"); }} goHome={() => setScreen("home")} onPause={pauseStudy} now={now} />;
   if (data.profile && !data.profile.onboardingCompleted) return <Onboarding data={data} onData={setData} study={screen === "study" && sessionId === data.profile.initialSessionId ? studyContent : null} onStart={() => {
     const profile = data.profile!;
     const initial = session.id === profile.initialSessionId ? session : { ...EMPTY_SESSION, id: profile.initialSessionId!, scope: profile.initialSetId!, setId: profile.initialSetId, queue: profile.initialCardIds, total: 3, returnTo: { screen: "home" as const } };

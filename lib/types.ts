@@ -4,6 +4,7 @@ export type BinaryReviewRating = Extract<ReviewRating, "again" | "good">;
 export type CardFormat = "qa" | "multiple_choice" | "self_explain";
 
 export type Card = {
+  contentRevision?: string;
   id: string;
   setId: string;
   question: string;
@@ -27,6 +28,7 @@ export type Folder = {
 };
 
 export type CardSet = {
+  sourceKind?: "source" | "topic" | "mixed";
   folderId: string | null;
   id: string;
   title: string;
@@ -42,6 +44,7 @@ export type CardSet = {
 };
 
 export type ReviewLog = {
+  response?: import("./study/types").StudyResponse | null;
   id: string;
   cardId: string;
   sessionId: string | null;
@@ -71,6 +74,8 @@ export type DailyReview = {
 };
 
 export type AppData = {
+  studySessions?: import("./study/types").StudySessionView[];
+  studyHistory?: import("./study/types").StudySessionView[];
   retention?: import("./retention").RetentionSnapshot;
   profile?: UserProfile;
   sessionReviews?: ReviewLog[];
@@ -93,6 +98,7 @@ export type GeneratedCard = {
 };
 
 export type GeneratedMaterial = {
+  sourceKind?: "source" | "topic";
   title: string;
   category: string;
   summary: string;

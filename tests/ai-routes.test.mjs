@@ -26,7 +26,7 @@ test('authenticated cards route enforces key and returns stored result on replay
  });
 });
 test('chat response, usage and exactly one pair commit together; replay uses owner-scoped result',async()=>{
- const a=await account('user_chat');await store.saveGeneratedSet(a.userId,{title:'T',category:'C',summary:'',keyPoints:[],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]});
+ const a=await account('user_chat');await store.saveGeneratedSet(a.userId,{title:'T',category:'C',summary:'',keyPoints:['K'],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]});
  const set=(await store.loadAppData(a.userId)).sets[0];const body={setId:set.id,cardId:set.cards[0].id,sessionId:'lesson',question:'why?'},k=randomUUID();
  await mock('A concise answer',async calls=>{for(let i=0;i<2;i++){const r=await chat(request(a,'/api/ai/chat',body,k));assert.equal(r.status,200);assert.deepEqual(await r.json(),{answer:'A concise answer'});}assert.equal(calls(),1);
  assert.equal((await c.execute({sql:'SELECT count(*) n FROM chat_messages WHERE user_id=?',args:[a.userId]})).rows[0].n,2);
@@ -49,7 +49,7 @@ test('deletion during provider flight scrubs AI content, rejects result and reta
  const {runDeletionJob}=await import('../lib/deletion-worker.ts');
  const a=await account('user_delete_ai'),b=await account('user_delete_control');
  const payload={text:'source '.repeat(30)},prev=globalThis.fetch,old=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='mock-only';
- const result={title:'sensitive result',category:'C',summary:'',keyPoints:[],cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]};
+ const result={title:'sensitive result',category:'C',summary:'',keyPoints:['K'],cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]};
  const providerResult=()=>Response.json({status:'completed',usage:{input_tokens:100,output_tokens:100},output:[{content:[{type:'output_text',text:JSON.stringify(result)}]}]});
  try {
  globalThis.fetch=async()=>providerResult();assert.equal((await cards(request(a,'/api/ai/cards',payload,randomUUID()))).status,200);
@@ -70,7 +70,7 @@ test('deletion during provider flight scrubs AI content, rejects result and reta
 });
 
 test('disconnected chat never persists a late provider result and retains conservative cost evidence',async()=>{
- const a=await account('user_disconnect');await store.saveGeneratedSet(a.userId,{title:'T',category:'C',summary:'',keyPoints:[],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]});
+ const a=await account('user_disconnect');await store.saveGeneratedSet(a.userId,{title:'T',category:'C',summary:'',keyPoints:['K'],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]});
  const set=(await store.loadAppData(a.userId)).sets[0],controller=new AbortController();
  const body={setId:set.id,cardId:set.cards[0].id,sessionId:'disconnect-session',question:'why?'};
  const oldFetch=globalThis.fetch,oldKey=process.env.OPENAI_API_KEY;let calls=0;process.env.OPENAI_API_KEY='mock-only';
@@ -92,7 +92,7 @@ test('cancel API requires auth, works without AI consent, and cannot cancel anot
  await c.execute({sql:"UPDATE user_consents SET state='revoked' WHERE user_id=?",args:[a.userId]});
  assert.equal((await cancel(request(a,'/api/ai/cancel',{operationKey:k}))).status,200);
  assert.equal((await cancel(request(a,'/api/ai/cancel',{operationKey:'bad'}))).status,400);
- const result={title:'T',category:'C',summary:'',keyPoints:[],cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]};
+ const result={title:'T',category:'C',summary:'',keyPoints:['K'],cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]};
  await mock(JSON.stringify(result),async calls=>{
   const body={text:'source '.repeat(30)};
   assert.equal((await cards(request(b,'/api/ai/cards',body,k))).status,200);assert.equal(calls(),1);

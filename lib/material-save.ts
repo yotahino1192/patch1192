@@ -3,7 +3,7 @@ import type { DraftMaterial } from './workspace';
 
 export type MaterialSaveInput =
   | { action: 'saveSet'; material: GeneratedMaterial & { sourceContent: string; folderId: string | null } }
-  | { action: 'addCardsToSet'; setId: string; cards: GeneratedCard[]; sourceContent: string; sourceTitle: string };
+  | { action: 'addCardsToSet'; setId: string; cards: GeneratedCard[]; sourceContent: string; sourceTitle: string; sourceKind?: 'source' | 'topic' };
 export type PendingMaterialSave = { operationId: string; payload: MaterialSaveInput };
 export type SavedMaterial = { setId: string; cardIds: string[]; title: string; appended: boolean };
 
@@ -25,8 +25,8 @@ export function reviewError(draft: DraftMaterial | null, destination: string, se
 export function materialSaveInput(draft: DraftMaterial, destination: string): MaterialSaveInput {
   const cards = draft.cards.filter(c => c.selected).map(({ question, answer, difficulty, format, choices }) => ({ question, answer, difficulty, format, choices }));
   return destination.startsWith('set:')
-    ? { action: 'addCardsToSet', setId: destination.slice(4), cards, sourceContent: draft.sourceContent, sourceTitle: draft.title || 'Additional material' }
-    : { action: 'saveSet', material: { title: draft.title.trim(), category: draft.category, summary: draft.summary, keyPoints: draft.keyPoints, sourceContent: draft.sourceContent, cards, folderId: destination.startsWith('folder:') ? destination.slice(7) : null } };
+    ? { action: 'addCardsToSet', setId: destination.slice(4), cards, sourceContent: draft.sourceContent, sourceTitle: draft.title || 'Additional material', ...(draft.sourceKind ? { sourceKind: draft.sourceKind } : {}) }
+    : { action: 'saveSet', material: { ...(draft.sourceKind ? { sourceKind: draft.sourceKind } : {}), title: draft.title.trim(), category: draft.category, summary: draft.summary, keyPoints: draft.keyPoints, sourceContent: draft.sourceContent, cards, folderId: destination.startsWith('folder:') ? destination.slice(7) : null } };
 }
 
 export function validPendingMaterialSave(value: unknown): value is PendingMaterialSave {
