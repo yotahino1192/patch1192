@@ -94,7 +94,8 @@ try{
  await click('.settings-button');await screenshot('settings-393');await click('.settings-close');
  await click('.bottom-nav button:nth-child(3)');
  assert.equal(await evaluate('!!document.querySelector(".import-page")'),true);
- assert.equal(await evaluate('document.querySelector(".import-page > .primary").disabled'),true,'Empty material must still disable generation');
+ await click('.build-primary');
+ assert.equal(await evaluate('document.querySelector(".build-primary").disabled'),true,'Empty material must still disable Continue');
  await click('.bottom-nav button:nth-child(1)');
  assert.equal(await evaluate('!!document.querySelector(".patch-home")'),true);
  for(const width of [320,393,430]) { await viewport(width,width===320?568:852);await navigate('reference=1');await screenshot('reference-'+width); }

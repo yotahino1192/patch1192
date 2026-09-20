@@ -1,6 +1,9 @@
 "use client";
 
 import { StartupPending, useStartupReady } from "./startup-splash";
+import { ImportScreen } from './build-patch';
+import { useBuildGeneration } from './use-build-generation';
+import { normalizeBuildDraft } from '../lib/build-draft';
 
 import { readApiResponse, ReliabilityError } from '../lib/reliability/errors';
 import { ReliabilityBoundary, ReliabilityRuntime } from './reliability/boundary';
@@ -20,7 +23,6 @@ import { Onboarding } from "./onboarding";
 import { useWorkspace } from "./use-workspace";
 import { EMPTY_IMPORT, EMPTY_SESSION, workspaceSessionIds, activateSession, reconcileWorkspace, reconcileSession, pendingStudyCount, startStudyBatch, nextStudyBatch, studyUndoCheckpoint, restoreStudyUndo, studyReturnTarget, resolveStudyReturn, type DraftCard, type DraftMaterial, type ImportDraft, type StudySession, type Workspace } from "../lib/workspace";
 import { SetLibrary, folderPath } from "./set-library";
-import { DocumentAttachments, type Attachment } from "./document-attachments";
 import { Dropdown } from "./dropdown";
 import { isLongTermDue, memoryMilestones } from "../lib/long-term-review";
 import { setEmoji } from "../lib/set-presentation";
@@ -143,11 +145,12 @@ function IconButton({ children, label, onClick }: { children: React.ReactNode; l
   return <button className="icon-button" aria-label={t(label)} onClick={onClick}>{children}</button>;
 }
 
-function Shell({ screen, setScreen, children, title }: {
+function Shell({ screen, setScreen, children, title, buildStep = 1 }: {
   screen: Screen;
   setScreen: (screen: Screen) => void;
   children: React.ReactNode;
   title?: string;
+  buildStep?: number | string;
 }) {
   const { t } = useLanguage();
   const mainRef = useRef<HTMLElement>(null);
@@ -156,8 +159,8 @@ function Shell({ screen, setScreen, children, title }: {
     mainRef.current?.focus();
   }, [screen]);
   return (
-    <div className={`app-shell ${screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
-      {screen !== "study" && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
+    <div className={`app-shell ${screen === 'import' ? 'build-shell' : screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
+      {screen !== "study" && screen !== 'import' && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
         {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
         {title && <h1 className="screen-title">{t(title)}</h1>}
         <button type="button" className="settings-button" aria-label={t("設定")} aria-haspopup="dialog" onClick={() => settingsRef.current?.showModal()}>
@@ -166,7 +169,7 @@ function Shell({ screen, setScreen, children, title }: {
       </header>}
       {screen !== "study" && <SettingsDialog dialogRef={settingsRef} />}
       <main ref={mainRef} tabIndex={-1}>{children}</main>
-      {screen !== "study" && <nav className="bottom-nav" aria-label={t("メインナビゲーション")}>
+      {screen !== "study" && (screen !== 'import' || buildStep === 1) && <nav className="bottom-nav" aria-label={t("メインナビゲーション")}>
         {navItems.map((item) => {
           const active = item.id === screen || (item.id === "import" && screen === "generate");
           return (
@@ -195,71 +198,6 @@ function DestinationPicker({ data, value, onChange, disabled = false }: { data: 
   ]} /><p className="attachment-hint">{t(value.startsWith("set:") ? "選んだセットにカードを追加します。" : "選んだ場所に新しいセットを作成します。")}</p></div>;
 }
 
-function ImportScreen({ onGenerate, data, destination, setDestination, importDraft, setImportDraft }: { onGenerate: (text: string, detail: string, style: string) => Promise<void>; data: AppData; destination: string; setDestination: (value: string) => void; importDraft: ImportDraft; setImportDraft: React.Dispatch<React.SetStateAction<ImportDraft>> }) {
-  const { t } = useLanguage();
-  const [showImportHelp, setShowImportHelp] = useState(false);
-  const { detail, style, text, attachments } = importDraft;
-  const setDetail = (detail: string) => setImportDraft((draft) => ({ ...draft, detail }));
-  const setStyle = (style: string) => setImportDraft((draft) => ({ ...draft, style }));
-  const setText = (text: string) => setImportDraft((draft) => ({ ...draft, text }));
-  const setAttachments = (attachments: Attachment[]) => setImportDraft((draft) => ({ ...draft, attachments }));
-  const [reading, setReading] = useState(false);
-  const source = [text.trim(), ...attachments.map((file) => file.text)].filter(Boolean).join("\n\n");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const submit = async () => {
-    if (source.length < 80 || source.length > 30000) {
-      setError("文章と添付資料の合計を80〜30,000文字にしてください。");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try { await onGenerate(source, detail, style); }
-    catch (e) { setError(e instanceof Error ? e.message : "解析できませんでした。"); }
-    finally { setBusy(false); }
-  };
-  return (
-    <div className="page import-page">
-      <div className="page-heading import-heading"><h1>{t("教材を追加")}</h1><button type="button" className="help info-button" aria-label={t("教材追加の説明")} aria-expanded={showImportHelp} aria-controls="import-help" onClick={() => setShowImportHelp(!showImportHelp)}><AssetIcon name="info" size={22} /></button></div>
-      {showImportHelp && <div className="inline-help" id="import-help"><p>{t("文章を貼り付けると、AIが学びやすいカードへ整理します。")}</p><p>{t("文章の貼り付けと資料の添付を組み合わせて使えます。画像だけのPDFや旧形式の.doc・.pptには対応していません。URLの自動取り込みはできません。")}</p></div>}
-      <textarea aria-label={t("教材にする文章")} disabled={busy || reading} id="source-text" value={text} onChange={(e) => setText(e.target.value)} placeholder={t("ここに文章を貼り付けてください…\n例）ChatGPTとの会話、記事の本文、授業ノートなど")} maxLength={30000} />
-      <DocumentAttachments files={attachments} onChange={setAttachments} onBusy={setReading} disabled={busy} />
-      <p className={`counter ${source.length > 30000 ? "over-limit" : ""}`}>{source.length.toLocaleString()} / 30,000 {attachments.length > 0 && t("（添付資料を含む）")}</p>
-      {source.length > 30000 && <p className="inline-error" role="alert">{t("文章と添付資料の合計を80〜30,000文字にしてください。")}</p>}
-      <OptionGroup label={t("情報の粒度")} values={["要点のみ", "標準", "詳しく"]} value={detail} setValue={setDetail} help={t("要点のみ：重要なポイントに絞ります。標準：要点と関連知識をバランスよく。詳しく：細かな内容までカードにします。")} />
-      <fieldset className="format-group">
-        <legend>{t("学習形式")}</legend>
-        <div className="format-grid">
-          {[
-            ["一問一答", "💬", "質問を見て、答えを思い出す"],
-            ["4択問題", "🔢", "4つの選択肢から正解を選ぶ"],
-          ].map(([name, icon, description]) => (
-            <button
-              type="button"
-              key={t(name)}
-              aria-pressed={style === name}
-              className={`format-option ${style === name ? "selected" : ""}`}
-              onClick={() => setStyle(name)}
-            >
-              <span aria-hidden="true">{icon}</span>
-              <strong>{t(name)}</strong>
-              <small>{t(description)}</small>
-            </button>
-          ))}
-        </div>
-      </fieldset>
-      <DestinationPicker data={data} value={destination} onChange={setDestination} disabled={busy || reading} />
-      {error && <p className="inline-error" role="alert">{t(error)}</p>}
-      <button className="primary wide" onClick={submit} disabled={busy || reading || source.length < 80 || source.length > 30000} aria-busy={busy}>{busy ? t("教材を分析して、カード枚数を決めています…") : <IconLabel name="sparkles">{t("AIでカードを作る")}</IconLabel>}</button>
-    </div>
-  );
-}
-
-function OptionGroup({ label, values, value, setValue, help }: { label: string; values: string[]; value: string; setValue: (value: string) => void; help?: string }) {
-  const { t } = useLanguage();
-  const [open, setOpen] = useState(false);
-  return <fieldset className="option-group"><legend>{t(label)} {help && <button type="button" className="info-button" aria-label={t("情報の粒度の説明")} aria-expanded={open} aria-controls="detail-help" onClick={() => setOpen(!open)}><AssetIcon name="info" size={22} /></button>}</legend>{open && <p className="inline-help" id="detail-help">{help}</p>}<div>{values.map((v) => <button type="button" key={v} aria-pressed={v === value} className={v === value ? "selected" : ""} onClick={() => setValue(v)}>{t(v)}</button>)}</div></fieldset>;
-}
 
 function Generate({ draft, setDraft, onSave, onRegenerate, data, destination, setDestination }: {
   data: AppData; destination: string; setDestination: (value: string) => void;
@@ -311,7 +249,8 @@ function Generate({ draft, setDraft, onSave, onRegenerate, data, destination, se
     <div className="page generation-page">
       <div className="success-banner"><AssetIcon name="check" size={40} /><div><h2>{t("解析完了")}</h2><p>{t("要点とカード候補を生成しました。保存前に編集できます。")}</p></div></div>
       <section className="panel">
-        <label className="field-label" htmlFor="draft-title">{t("セット名")}</label>
+        {destination.startsWith('set:') && <p>Adding to: {data.sets.find(s => s.id === destination.slice(4))?.title}</p>}
+        <label className="field-label" htmlFor="draft-title">{destination.startsWith('set:') ? 'New material title' : t("セット名")}</label>
         <input id="draft-title" className="title-input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
         <h2>{t("抽出された要点")}</h2>
         <ul>{draft.keyPoints.map((point, index) => <li key={`${point}-${index}`}>{point}</li>)}</ul>
@@ -883,6 +822,7 @@ function App() {
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const { workspace, getWorkspace, setWorkspace, workspaceReady, saveError } = useWorkspace();
+  const generation = useBuildGeneration(getWorkspace, setWorkspace, api, language);
   const { destination, draft, lastGeneration, importDraft } = workspace;
   useStartupReady(!!loadingError || (!!data && workspaceReady));
   const session = workspace.session || EMPTY_SESSION;
@@ -890,7 +830,7 @@ function App() {
   function updateField<K extends keyof Workspace>(key: K, value: React.SetStateAction<Workspace[K]>) {
     setWorkspace((w) => ({ ...w, [key]: typeof value === "function" ? (value as (current: Workspace[K]) => Workspace[K])(w[key]) : value }));
   }
-  const setDestination = (value: string) => updateField("destination", value);
+  const setDestination = (value: string) => setWorkspace(w => ({ ...w, destination: value, importDraft: { ...w.importDraft, ...(w.importDraft.build ? { build: { ...w.importDraft.build, destinationMode: value.startsWith('set:') ? 'existing' as const : 'new' as const, existingPatchId: value.startsWith('set:') ? value.slice(4) : w.importDraft.build.existingPatchId } } : {}) } }));
   const setDraft = (value: DraftMaterial | null) => updateField("draft", value);
   const setImportDraft: React.Dispatch<React.SetStateAction<ImportDraft>> = (value) => updateField("importDraft", value);
   const updateSession: React.Dispatch<React.SetStateAction<StudySession>> = (value) => setWorkspace((w) => {
@@ -947,18 +887,11 @@ function App() {
     return () => { active = false; };
   }, [activeDay, workspaceReady, setWorkspace, getWorkspace, api]);
 
-  const generate = async (text: string, detail: string, style: string) => {
-    const material = await api<GeneratedMaterial>("/api/ai/cards", {
-      method: "POST",
-      body: JSON.stringify({ text, detail, style, language }),
-    });
-    setDraft({
-      ...material,
-      sourceContent: text,
-      cards: material.cards.map((card) => ({ ...card, draftId: crypto.randomUUID(), selected: true })),
-    });
-    updateField("lastGeneration", { text, detail, style });
-    setScreen("generate");
+  const regenerate = async () => {
+    if (importDraft.build) { setScreen('import'); await generation.run(true); return; }
+    if (!lastGeneration) return;
+    const material = await api<GeneratedMaterial>('/api/ai/cards', { method: 'POST', body: JSON.stringify({ ...lastGeneration, language }) });
+    setDraft({ ...material, sourceContent: lastGeneration.text, cards: material.cards.map(card => ({ ...card, draftId: crypto.randomUUID(), selected: true })) });
   };
 
   const pendingStudyStart=useRef<{signature:string;id:string}|null>(null);
@@ -1049,6 +982,8 @@ function App() {
 
   const saveDraft = async () => {
     if (!draft) return;
+    if (!draft.title.trim()) throw new Error('Enter a title before saving.');
+    if (destination.startsWith('set:') && !data.sets.some(s => s.id === destination.slice(4))) throw new Error('Choose an available Patch before saving.');
     const selectedCards = draft.cards.filter((card) => card.selected).map(({ question, answer, difficulty, format, choices }) => ({ question, answer, difficulty, format, choices }));
     const targetSetId = destination.startsWith("set:") ? destination.slice(4) : null;
     const targetFolderId = destination.startsWith("folder:") ? destination.slice(7) : null;
@@ -1066,7 +1001,7 @@ function App() {
     setSelectedSetId(savedSetId);
     setFolderId(result.data.sets.find((set) => set.id === savedSetId)?.folderId || null);
     setSetDetailOpen(true);
-    setWorkspace((w) => ({ ...w, draft: null, importDraft: EMPTY_IMPORT, lastGeneration: null }));
+    setWorkspace((w) => ({ ...w, destination: 'root', draft: null, importDraft: EMPTY_IMPORT, lastGeneration: null }));
     setScreen("sets");
   };
   const updateData: React.Dispatch<React.SetStateAction<AppData>> = (value) => {
@@ -1099,15 +1034,15 @@ function App() {
         setWorkspace((w) => activateSession(w, { ...EMPTY_SESSION, id: `lesson_${crypto.randomUUID()}`, scope: sample.id, setId: sample.id, queue: cards.map((c) => c.id), total: cards.length, returnTo: { screen: "home" } }));
         setScreen("study");
       }
-    }} resumeDraft={draft || importDraft.text || importDraft.attachments.length ? () => setScreen(draft ? "generate" : "import") : undefined} />;
-  else if (screen === "import") content = <ImportScreen importDraft={importDraft} setImportDraft={setImportDraft} onGenerate={generate} data={data} destination={destination} setDestination={setDestination} />;
-  else if (screen === "generate") { content = <Generate data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={async () => { if (lastGeneration) await generate(lastGeneration.text, lastGeneration.detail, lastGeneration.style); }} />; title = "カードの確認"; }
+    }} resumeDraft={draft || importDraft.text || importDraft.attachments.length ? () => setScreen(importDraft.build ? 'import' : draft ? "generate" : "import") : undefined} />;
+  else if (screen === "import") content = <ImportScreen importDraft={importDraft} setImportDraft={setImportDraft} onGenerate={() => generation.run()} generationRunning={generation.isRunning()} data={data} destination={destination} setDestination={setDestination} patchesError={loadingError} onRetryPatches={reload} review={<Generate data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={regenerate} />} />;
+  else if (screen === "generate") { content = <Generate data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={regenerate} />; title = "カードの確認"; }
   else if (screen === "sets") { content = <SetLibrary data={data} folderId={folderId} openSetId={setDetailOpen ? selectedSetId : null} onFolder={(id) => { setFolderId(id); setSetDetailOpen(false); }} onSet={(id, cardId) => { setSelectedSetId(id); setFocusedCardId(cardId || null); setSetDetailOpen(true); }} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} onAdd={() => { setDestination(folderId ? `folder:${folderId}` : "root"); setScreen("import"); }}>
       <SetDetail key={selectedSetId} focusedCardId={focusedCardId} data={data} selectedSetId={selectedSetId} selectSet={setSelectedSetId} startStudy={startStudy} now={now} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} />
     </SetLibrary>; title = "カードセット"; }
   else if (screen === "study") content = studyContent;
   else content = <Records data={data} now={now} startStudy={(id) => { if (id) setSelectedSetId(id); setSetDetailOpen(true); setScreen("sets"); }} />;
-  return <LessonEntry onHome={() => setScreen("home")} renderComplete={(lesson, actualSeconds, onHome) => <DomainLessonCompletion lesson={lesson} actualSeconds={actualSeconds} data={data} now={now} onHome={onHome} />}><Shell screen={screen} setScreen={navigate} title={title}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell></LessonEntry>;
+  return <LessonEntry onHome={() => setScreen("home")} renderComplete={(lesson, actualSeconds, onHome) => <DomainLessonCompletion lesson={lesson} actualSeconds={actualSeconds} data={data} now={now} onHome={onHome} />}><Shell screen={screen} setScreen={navigate} title={title} buildStep={normalizeBuildDraft(importDraft.build, destination).step}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell></LessonEntry>;
 }
 
 export default function LocalizedApp() {

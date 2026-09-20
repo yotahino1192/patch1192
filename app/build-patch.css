@@ -1,0 +1,102 @@
+/* Scoped to the Add Material flow; shared brand colors remain in palette.css. */
+.app-shell.build-shell { max-width: 520px; background: #fff; box-shadow: none; }
+.build-shell > main { padding: 0; }
+.build-flow { --build-ink: #10264c; --build-muted: #647c9d; --build-line: #cbd9e9; color: var(--build-ink); background: #fff; font-family: var(--font-body); min-height: 100svh; min-height: 100dvh; display: flex; flex-direction: column; padding: max(22px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); }
+.build-flow *, .build-shell .bottom-nav * { box-sizing: border-box; }
+.build-flow :is(h1, h2, p, fieldset, legend) { margin: 0; }
+.build-flow :is(h1, strong, legend) { font-family: var(--font-body); color: var(--build-ink); }
+.build-flow h1 { font-size: 28px; font-weight: 750; line-height: 1.12; letter-spacing: -1px; }
+.build-flow h1:focus { outline: none; }
+.build-flow fieldset { border: 0; padding: 0; min-width: 0; }
+.build-flow legend { font-size: 18px; line-height: 1.4; font-weight: 700; padding: 0 0 12px; }
+.build-flow button { cursor: pointer; font: inherit; box-shadow: none; }
+.build-flow button:disabled { cursor: default; opacity: 1; }
+.build-flow :is(button, textarea):focus-visible, .build-flow label:has(input:focus-visible) { outline: 3px solid #487fba; outline-offset: 3px; }
+.build-flow input[type=radio] { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+.build-header { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; min-height: 44px; }
+.build-wordmark { text-align: center; font-size: 18px; font-weight: 700; }
+.build-header button { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; background: transparent; color: var(--build-ink); border: 0; }
+.build-back svg { transform: rotate(180deg); width: 24px; }
+.build-progress { display: grid; justify-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--build-muted); }
+.build-progress > div { display: flex; align-items: center; }
+.build-progress span { width: 14px; height: 14px; border-radius: 50%; background: #d9e2ed; position: relative; border: 1px solid #fff; }
+.build-progress span + span { margin-left: 27px; }
+.build-progress span + span::before { content: ''; position: absolute; right: 14px; top: 5px; width: 24px; height: 2px; background: #d9e2ed; }
+.build-progress span.done, .build-progress span.done::before { background: var(--patch-evergreen); }
+.build-content { padding-top: 50px; }
+.build-destination { padding-top: 24px; }
+.build-destination-heading { display: flex; gap: 16px; align-items: center; margin-bottom: 16px; }
+.build-destination-heading .patch-mascot { width: 72px; height: 82px; }
+.build-destination-heading h1 { font-size: 25px; letter-spacing: -.8px; }
+.build-destinations { display: grid; gap: 12px; }
+.build-destination-option { position: relative; display: grid; grid-template-columns: 42px 1fr 24px; align-items: center; gap: 16px; padding: 18px 15px; min-height: 86px; border: 1px solid var(--build-line); border-radius: 8px; cursor: pointer; }
+.build-flow strong { font-size: 14px; line-height: 1.35; font-weight: 650; display: block; }
+.build-flow.build-flow small { display: block; font-size: 12px; line-height: 1.4; color: var(--build-muted); margin-top: 4px; }
+.build-flow .selected { background: var(--patch-mint-base); border-color: var(--patch-evergreen); }
+.build-plus { display: grid; place-items: center; border-radius: 50%; width: 38px; height: 38px; background: #e8eef5; }
+.selected > .build-plus { color: #fff; background: var(--patch-evergreen); }
+.build-radio { width: 23px; height: 23px; border: 1.5px solid #8298b9; border-radius: 50%; display: inline-grid; place-items: center; flex-shrink: 0; background: #fff; }
+.build-radio.selected { background: #fff; border-color: var(--patch-evergreen); }
+.build-radio.selected::after { content: ''; width: 13px; height: 13px; border-radius: 50%; background: var(--patch-evergreen); }
+.build-patch-list { margin-top: 22px !important; }
+.build-patch-list legend { font-size: 16px; }
+.build-patch-list label { display: grid; grid-template-columns: 28px 1fr 24px; gap: 16px; align-items: center; padding: 13px 16px; min-height: 54px; border: 1px solid var(--build-line); border-bottom-width: 0; font-size: 14px; cursor: pointer; }
+.build-patch-list label:first-of-type { border-radius: 7px 7px 0 0; }
+.build-patch-list label:last-of-type { border-bottom-width: 1px; border-radius: 0 0 7px 7px; }
+.build-patch-list label > span { overflow-wrap: anywhere; }
+.build-material h1 { max-width: 330px; margin-bottom: 22px; }
+.build-text { position: relative; border: 1px solid var(--build-line); border-radius: 8px; }
+.build-text textarea { display: block; width: 100%; min-height: 196px; padding: 16px 14px 38px; border: 0; border-radius: inherit; resize: vertical; background: #fff; color: var(--build-ink); font: inherit; font-size: 16px; line-height: 1.4; }
+.build-text textarea::placeholder { color: #7b8fab; opacity: 1; }
+.build-text > span { position: absolute; bottom: 12px; right: 12px; font-size: 12px; color: var(--build-muted); pointer-events: none; }
+.build-upload { min-height: 50px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 14px; border: 1px solid var(--build-line); border-radius: 8px; background: #fff; color: var(--build-ink); font-weight: 700 !important; }
+.build-upload:disabled { color: var(--build-muted); background: #f5f7f9; }
+.build-formats { text-align: center; font-size: 12px; line-height: 1.5; color: var(--build-muted); margin-top: 7px !important; }
+.build-files { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 8px; }
+.build-files li { display: grid; grid-template-columns: 28px minmax(0, 1fr) 18px 44px; gap: 8px; align-items: center; padding: 9px 6px 9px 12px; border: 1px solid var(--build-line); border-radius: 7px; }
+.build-files strong { font-size: 13px; overflow-wrap: anywhere; }
+.build-files button { width: 44px; height: 44px; display: grid; place-items: center; border: 0; padding: 0; background: transparent; color: var(--build-muted); }
+.build-file-status { color: var(--patch-leaf-green); }
+.build-file-error { grid-column: 1 / -1; font-size: 13px; color: #9c342c; }
+.build-flow .build-helper { color: var(--build-muted); font-size: 12px; line-height: 1.5; margin-top: 12px; }
+.build-flow .build-error { font-size: 13px; line-height: 1.45; color: #9c342c; margin-top: 10px; }
+.build-customize > h1 { margin-bottom: 28px; }
+.build-choice { position: relative; display: flex; align-items: center; gap: 14px; padding: 12px; min-height: 52px; border: 1px solid var(--build-line); border-radius: 6px; cursor: pointer; }
+.build-choice strong { font-size: 14px; }
+.build-choice > span:not(.build-radio) { min-width: 0; overflow-wrap: anywhere; }
+.build-coverage > .build-choice { margin-bottom: 10px; }
+.build-focus { border: 1px solid var(--build-line); border-radius: 6px; }
+.build-focus > .build-choice { border: 0; }
+.build-focus-field { padding: 0 15px 14px; position: relative; }
+.build-focus-field > label { display: block; padding: 8px 12px 0; font-size: 12px; color: var(--build-muted); background: #fff; border: 1px solid var(--build-line); border-bottom: 0; border-radius: 6px 6px 0 0; }
+.build-focus-field textarea { width: 100%; display: block; height: 48px; min-height: 48px; padding: 5px 12px 9px; font: inherit; font-size: 16px; line-height: 1.35; resize: vertical; background: #fff; border: 1px solid var(--build-line); border-top: 0; border-radius: 0 0 6px 6px; color: var(--build-ink); scroll-margin-block: 90px; }
+.build-customize :is(.build-detail, .build-format) { margin-top: 28px; }
+.build-detail > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.build-format > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.build-detail .build-choice { gap: 8px; padding: 12px 8px; }
+.build-flow .build-detail strong { font-size: 12px; }
+.build-flow .build-detail small { font-size: 11px; }
+.build-format .build-choice { gap: 12px; }
+.build-flow .build-format small { font-size: 11px; }
+.build-actions { position: sticky; bottom: 0; margin-top: auto; padding-top: 24px; background: #fff; padding-bottom: max(4px, env(safe-area-inset-bottom)); z-index: 2; }
+.build-primary { display: block; width: 100%; min-height: 50px; padding: 12px 16px; color: #fff; background: var(--patch-evergreen); border: 1px solid var(--patch-evergreen); border-radius: 8px; font-weight: 700 !important; }
+.build-flow .build-primary:disabled { background: var(--patch-blue-gray); border-color: var(--patch-blue-gray); color: #fff; opacity: 1; }
+.build-step-1 { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+.build-step-1 .build-actions { bottom: calc(78px + env(safe-area-inset-bottom)); }
+.build-shell .bottom-nav { width: min(100%, 520px); height: calc(76px + env(safe-area-inset-bottom)); padding: 6px 10px max(6px, env(safe-area-inset-bottom)); grid-template-columns: repeat(4, 1fr); border: 1px solid #dce4ef; background: #fff; color: #647c9d; box-shadow: none; }
+.build-shell .bottom-nav button { min-height: 56px; border-radius: 8px; font-size: 11px; color: #647c9d; gap: 3px; }
+.build-shell .bottom-nav button.active { background: var(--patch-mint-base); color: var(--patch-evergreen); }
+.build-preparing { text-align: center; padding: 90px 8px 28px; }
+.build-preparing > .patch-mascot { width: 245px; max-width: 85%; margin: 0 auto 32px; }
+.build-preparing h1 { font-size: 25px; letter-spacing: -.5px; margin-bottom: 16px; }
+.build-preparing p { font-size: 15px; line-height: 1.6; color: #445d7f; }
+.build-dots { display: flex; gap: 14px; justify-content: center; margin-top: 30px; }
+.build-dots i { width: 15px; height: 15px; border-radius: 50%; background: #6ebda4; animation: build-dot 1.5s ease-in-out infinite alternate; }
+.build-dots i:nth-child(2) { animation-delay: .25s; }
+.build-dots i:nth-child(3) { animation-delay: .5s; }
+.build-preparing .build-primary { margin-top: 28px; }
+.build-return { background: transparent; border: 0; text-decoration: underline; color: var(--patch-evergreen); min-height: 48px; padding: 12px; margin-top: 8px; }
+@keyframes build-dot { from { opacity: .35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .build-dots i { animation: none; } }
+@media (max-width: 360px) { .build-flow { padding-left: 16px; padding-right: 16px; } .build-flow h1 { font-size: 25px; } .build-destination-heading { gap: 10px; } .build-destination-heading h1 { font-size: 22px; } .build-destination-heading .patch-mascot { width: 61px; } .build-destination-option { gap: 10px; padding: 14px 12px; } .build-detail > div { gap: 7px; } .build-detail .build-choice { gap: 6px; padding: 10px 6px; } .build-radio { width: 21px; height: 21px; } .build-format .build-choice { gap: 8px; padding: 10px 8px; } .build-format strong { font-size: 12px; } }
+@media (max-height: 650px) { .build-content { padding-top: 26px; } .build-destination { padding-top: 12px; } .build-preparing { padding-top: 35px; } }

@@ -5,6 +5,7 @@ import { logEvent } from '../../../../lib/safe-log';
 import { requireAuth, authErrorResponse } from "../../../../lib/auth-server";
 import { InputError, readJsonObject } from "../../../../lib/api-input";
 import { prepareMaterial } from "../../../../lib/openai";
+import { MIN_SOURCE_LENGTH, MAX_SOURCE_LENGTH, MAX_FOCUS_LENGTH } from '../../../../lib/material-limits';
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,9 +23,10 @@ async function handlePOST(request: Request): Promise<Response> {
     const material = await runAi(database(), userId, 'cards', request.headers.get('Idempotency-Key'), body, () => send(), undefined, async () => {
       const text = String(body.text || '').trim();
       const mode = body.mode === 'lesson_summary' ? 'lesson_summary' : 'source';
-      const minimumLength = mode === 'lesson_summary' ? 20 : 80;
+      const minimumLength = mode === 'lesson_summary' ? 20 : MIN_SOURCE_LENGTH;
       if (text.length < minimumLength) throw new InputError(mode === 'lesson_summary' ? '要約するAI解説が不足しています。' : 'カードを作るには、80文字以上の文章を入力してください。');
-      if (text.length > 30000) throw new InputError('一度に解析できる文章は30,000文字までです。');
+      if (text.length > MAX_SOURCE_LENGTH) throw new InputError('一度に解析できる文章は30,000文字までです。');
+      if (body.focus !== undefined && (typeof body.focus !== 'string' || !body.focus.trim() || body.focus.length > MAX_FOCUS_LENGTH)) throw new InputError('学習の焦点を1〜1,000文字で入力してください。');
       send = prepareMaterial({
       language: body.language === "en" ? "en" : "ja",
       text,
@@ -32,6 +34,7 @@ async function handlePOST(request: Request): Promise<Response> {
       style: String(body.style || "一問一答"),
       category: String(body.category || ""),
       mode,
+      focus: typeof body.focus === 'string' ? body.focus.trim() : undefined,
       });
     }, request.signal);
     return json(material);

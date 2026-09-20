@@ -1,5 +1,9 @@
 # Patch mascot artwork integration
 
+## Add Material Prompt 01–07
+
+No new asset request is outstanding for this flow. Destination reuses the approved `Hello Patch.png` as `public/patch/mascot-hello.png`; Preparing uses `Finding Patch.png`, copied unchanged from Downloads to `public/patch/mascot-finding.png` (1269×1239 transparent PNG; SHA-256 `173f761a60af8e2f9b9766a989891b846c12b1ce893769aca70fe552be50772c`). The matching screen references are Downloads `prompt1.png`–`prompt7.png`. These are distinct from mascot files named `patch-*`.
+
 Original artwork integration baseline: `ac0f6d1` (final reading artwork), branch `codex/ui-phase1`. Original Downloads files and all designer source/reference files are preserved.
 
 | Target | Status | Source in `~/Downloads` (2026-09-14 JST) | Format / use |
