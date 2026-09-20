@@ -7,9 +7,11 @@ export class AiError extends Error {
 }
 export class ProviderError extends Error {
   uncertain: boolean;
-  constructor(uncertain: boolean) { super('AI_PROVIDER_FAILED'); this.uncertain = uncertain; }
+  diagnostic: ProviderDiagnostic;
+  constructor(uncertain: boolean, diagnostic: ProviderDiagnostic = { category: 'provider' }) { super('AI_PROVIDER_FAILED'); this.uncertain = uncertain; this.diagnostic = diagnostic; }
 }
-export type Execution = { endpoint: Endpoint; dispatch: () => Promise<void>; usage?: { input: number; output: number } };
+export type ProviderDiagnostic = { category?: 'timeout' | 'network' | 'provider' | 'parse' | 'validation' | 'persistence' | 'pre_dispatch'; providerStatus?: number; providerRequestId?: string; providerCode?: string };
+export type Execution = { endpoint: Endpoint; dispatch: () => Promise<void>; usage?: { input: number; output: number }; provider?: ProviderDiagnostic };
 export const execution = new AsyncLocalStorage<Execution>();
 // UTF-8 bytes plus protocol allowance is deliberately conservative: no token-count network request.
 // Includes instructions, schema and all history, not only user input.

@@ -148,6 +148,29 @@ try {
   await click('.build-back');await click('.build-primary');await until(()=>evaluate('!!document.querySelector(".build-dots")'));
   assert.notEqual(await evaluate('buildFixture.requests.at(-1).body.operationId'),completedKey,'Explicit recovery from empty content does not reuse the invalid cached result');
   await evaluate('buildFixture.pending.shift().resolve()');await until(()=>evaluate('!!document.querySelector(".build-review")'));
+  // Recovery messages and operation identity through repeated explicit clicks.
+  await evaluate('void buildFixture.run(true)'); await until(() => evaluate('buildFixture.pending.length===1'));
+  const unresolvedKey = await evaluate('buildFixture.requests.at(-1).body.operationId');
+  for (const code of ['AI_UNKNOWN', 'AI_PREVIOUS_UNRESOLVED']) {
+    await evaluate(`buildFixture.pending.shift().reject(${JSON.stringify(code)})`);
+    await until(() => evaluate('!!document.querySelector(".build-return")'));
+    assert.match(await evaluate('document.body.textContent'), /administrator must resolve/);
+    assert.doesNotMatch(await evaluate('document.body.textContent'), /Check your connection and AI consent/);
+    await shot('recovery-unresolved-390');
+    await click('.build-primary'); await until(() => evaluate('buildFixture.pending.length===1'));
+    assert.equal(await evaluate('buildFixture.requests.at(-1).body.operationId'), unresolvedKey);
+  }
+  await evaluate('buildFixture.pending.shift().reject("AI_REQUEST_FINAL")');
+  await until(() => evaluate('document.body.textContent.includes("has been resolved")'));
+  const countBefore = await evaluate('buildFixture.requests.length'); await delay(120);
+  assert.equal(await evaluate('buildFixture.requests.length'), countBefore, 'Resolution never automatically generates');
+  await click('.build-primary'); await until(() => evaluate('buildFixture.pending.length===1'));
+  assert.notEqual(await evaluate('buildFixture.requests.at(-1).body.operationId'), unresolvedKey);
+  await evaluate('buildFixture.pending.shift().reject("AI_CONSENT_REQUIRED")');
+  await until(() => evaluate('document.body.textContent.includes("AI consent is required")'));
+  await click('.build-primary'); await until(() => evaluate('buildFixture.pending.length===1'));
+  await evaluate('buildFixture.pending.shift().reject("AI_PROVIDER_FAILED")');
+  await until(() => evaluate('document.body.textContent.includes("AI service could not")'));
   assert.deepEqual(errors, []);
   console.log('PASS: Prompt 01–07; real parser; selection/validation; draft and file retention; format/focus payload; single generation; retry identity; remount/stale fences; Review handoff; 320/390/430/768 widths; reduced viewport and motion.');
   console.log('Screenshots: ' + output);

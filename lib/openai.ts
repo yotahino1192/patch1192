@@ -30,10 +30,10 @@ function outputText(response: OpenAIResponse): string {
   for (const item of response.output || []) {
     for (const content of item.content || []) {
       if (content.type === "output_text" && content.text) return content.text;
-      if (content.type === "refusal" && content.refusal) throw new ProviderError(false);
+      if (content.type === "refusal" && content.refusal) throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'refusal' });
     }
   }
-  throw new Error("AI_EMPTY_RESPONSE");
+  throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'empty_output' });
 }
 
 async function createResponse(body: Record<string, unknown>): Promise<OpenAIResponse> {
@@ -51,13 +51,18 @@ async function createResponse(body: Record<string, unknown>): Promise<OpenAIResp
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ store: false, ...body }),
     });
-    if (!response.ok) { await response.body?.cancel(); throw new ProviderError(response.status >= 500 || response.status === 408); }
-    const json = await response.json() as OpenAIResponse;
+    context.provider = { providerStatus: response.status, providerRequestId: response.headers.get('x-request-id') || undefined };
+    if (!response.ok) {
+      // Extract only the code; neither the provider body nor its message is logged.
+      const error = await response.json().catch(() => null) as { error?: { code?: unknown } } | null;
+      throw new ProviderError(response.status >= 500 || response.status === 408, { ...context.provider, category: 'provider', providerCode: typeof error?.error?.code === 'string' ? error.error.code : undefined });
+    }
+    const json = await response.json().catch(() => { throw new ProviderError(true, { ...context.provider, category: 'parse', providerCode: 'invalid_json' }); }) as OpenAIResponse;
     const input = json.usage?.input_tokens, output = json.usage?.output_tokens;
     if (Number.isSafeInteger(input) && Number.isSafeInteger(output) && input! >= 0 && output! >= 0) context.usage = { input: input!, output: output! };
-    if (json.status !== 'completed') throw new ProviderError(false);
+    if (json.status !== 'completed') throw new ProviderError(false, { ...context.provider, category: 'provider', providerCode: 'incomplete' });
     return json;
-  } catch (error) { throw error instanceof ProviderError ? error : new ProviderError(true); }
+  } catch (error) { throw error instanceof ProviderError ? error : new ProviderError(true, { ...context.provider, category: error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'network' }); }
 }
 
 export function prepareMaterial(input: {
@@ -145,10 +150,13 @@ ${isLessonSummary ? "AIとの学習対話を要約し、新しく学んだ内容
   validateProvider(body, 'cards');
   return async () => {
   const response = await createResponse(body);
-  const parsed = JSON.parse(outputText(response)) as GeneratedMaterial;
-  if (!Array.isArray(parsed.cards) || parsed.cards.length === 0) throw new Error("AI_INVALID_CARDS");
-  if (format === "multiple_choice" && parsed.cards.some((card) => card.choices.length !== 4 || !card.choices.includes(card.answer))) {
-    throw new Error("AI_INVALID_CHOICES");
+  const output = outputText(response);
+  let parsed: GeneratedMaterial;
+  try { parsed = JSON.parse(output) as GeneratedMaterial; }
+  catch { throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'parse', providerCode: 'invalid_json' }); }
+  if (!parsed || !Array.isArray(parsed.cards) || parsed.cards.length === 0) throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_cards' });
+  if (format === "multiple_choice" && parsed.cards.some((card) => !card || !Array.isArray(card.choices) || card.choices.length !== 4 || !card.choices.includes(card.answer))) {
+    throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_choices' });
   }
   return parsed;
   };

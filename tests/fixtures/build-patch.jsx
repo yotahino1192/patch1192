@@ -19,7 +19,7 @@ const account = { scope: { account: { userId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaa
 const result = { title: 'Recall and practice', category: 'Learning', summary: 'A generated summary.', keyPoints: ['Recall strengthens memory.'], cards: [{ question: 'What supports memory?', answer: 'Recall', choices: [], format: 'qa', difficulty: 1 }] };
 const api = async (url, options) => {
   fixture.requests.push({ url, headers: options.headers, body: JSON.parse(options.body) });
-  return new Promise((resolve, reject) => fixture.pending.push({ resolve: () => resolve(result), reject: () => reject(Object.assign(new Error('Connection interrupted'), { code: 'AI_UNKNOWN' })) }));
+  return new Promise((resolve, reject) => fixture.pending.push({ resolve: () => resolve(result), reject: (code = 'AI_UNKNOWN') => reject(Object.assign(new Error('Fixture failure'), { code })) }));
 };
 function Flow() {
   const { workspace, getWorkspace, setWorkspace, workspaceReady } = useWorkspace();

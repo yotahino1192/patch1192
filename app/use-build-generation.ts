@@ -1,4 +1,5 @@
 "use client";
+import { buildGenerationError } from '../lib/build-generation-error';
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { generationInput, normalizeBuildDraft } from '../lib/build-draft';
@@ -47,10 +48,11 @@ export function useBuildGeneration(getWorkspace: () => Workspace, setWorkspace: 
     } catch (error) {
       if (!current()) return;
       const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      const kind = error && typeof error === 'object' && 'kind' in error ? String(error.kind) : error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : error instanceof TypeError ? 'network' : '';
       const terminal = ['AI_REQUEST_CANCELLED', 'AI_REQUEST_FINAL', 'AI_RESULT_EXPIRED', 'AI_PROVIDER_FAILED', 'AI_NOT_CONFIGURED', 'AI_PRE_DISPATCH_FAILED'].includes(code);
       setWorkspace(w => ({ ...w, importDraft: { ...w.importDraft, build: { ...normalizeBuildDraft(w.importDraft.build), step: 'preparing', generation: {
         status: 'failed', key: terminal ? undefined : key, fingerprint,
-        error: code === 'AI_INPUT_TOO_LARGE' ? 'This material exceeds the AI processing limit. Go back and use a shorter excerpt.' : code === 'AI_IN_PROGRESS' || code === 'AI_UNKNOWN' ? 'Your request may still be processing. Retry to check it without starting a duplicate.' : 'We could not prepare your Patch. Your material is still here. Check your connection and AI consent, then retry.',
+        error: buildGenerationError(code, kind),
       } } } }));
     } finally { inFlight.current = false; if (active.current) setRunning(false); }
   };

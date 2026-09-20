@@ -27,6 +27,25 @@ test('aggregate input cap includes instructions, schema, multibyte text and hist
  await mocked(async()=>assert.rejects(execution.run({endpoint,dispatch:async()=>assert.fail('dispatch')},invoke),e=>e.code==='AI_INPUT_TOO_LARGE'),async()=>assert.fail('fetch'));
  }assert.ok(inputUpperBound({input:'日'})>3);
 });
+test('provider diagnostics distinguish timeout, network, HTTP and parsing without raw messages', async () => {
+ for (const [fetcher, category, status, code] of [
+  [async()=>{throw new DOMException('private','TimeoutError');}, 'timeout'],
+  [async()=>{throw new Error('private');}, 'network'],
+  [async()=>Response.json({error:{code:'server_error',message:'private'}},{status:503,headers:{'x-request-id':'req_test123'}}), 'provider',503,'server_error'],
+  [async()=>new Response('private',{headers:{'x-request-id':'req_test123'}}), 'parse',200,'invalid_json'],
+ ]) await mocked(async()=>{
+  await assert.rejects(execution.run({endpoint:'chat',dispatch:async()=>{}},()=>answerQuestion({question:'Q',depth:'short'})), e=>{
+   assert.equal(e.diagnostic.category,category);assert.equal(e.diagnostic.providerStatus,status);assert.equal(e.diagnostic.providerCode,code);
+   if(status)assert.equal(e.diagnostic.providerRequestId,'req_test123');
+   assert.doesNotMatch(JSON.stringify(e),/private/);return true;
+  });
+ },fetcher);
+});
+test('completed malformed material is a known terminal validation failure, not an unknown dispatch', async () => {
+ for (const [text,category] of [['{','parse'],['{"cards":[]}','validation'],['{"cards":[{"choices":[]}]}','validation']]) {
+  await mocked(async()=>assert.rejects(execution.run({endpoint:'cards',dispatch:async()=>{}},()=>generateMaterial({text:'source',detail:'normal',style:'4択問題'})), e=>e instanceof ProviderError && !e.uncertain && e.diagnostic.category===category),async()=>Response.json({...response(),output:[{content:[{type:'output_text',text}]}]}));
+ }
+});
 test('allowlisted logging never serializes tokens, secrets, body, content, email, raw IP or errors',()=>{
  const lines=[];logEvent('ai_complete',{endpoint:'chat',status:200,costMicros:45,token:'sensitive',secret:'sensitive',body:'sensitive',email:'a@private.tld',ip:'192.0.2.1',error:new Error('sensitive'),durationMs:'sensitive',inputTokens:Infinity},s=>lines.push(s));
  assert.deepEqual(JSON.parse(lines[0]),{event:'ai_complete',endpoint:'chat',status:200,costMicros:45});

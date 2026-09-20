@@ -6,6 +6,7 @@ import type { Transaction } from '@libsql/client';
 import type { createDatabase } from '../../db/client.ts';
 import { AiError, ProviderError, execution, limits, costMicros, type Endpoint, type Execution } from './execution.ts';
 import { logEvent } from '../safe-log.ts';
+import { logAiDiagnostic } from './diagnostics.ts';
 type Db = ReturnType<typeof createDatabase>;
 const sha = (value: string) => createHash('sha256').update(value).digest('hex');
 function canonical(value: unknown): string {
@@ -26,6 +27,9 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
   await validate?.();
   if (!key || !/^[a-zA-Z0-9_-]{16,128}$/.test(key)) throw new AiError('IDEMPOTENCY_KEY_REQUIRED', 400);
   const keyHash = sha(key), fingerprint = sha(canonical({ endpoint, payload })), id = randomUUID();
+  const attemptId = randomUUID();
+  let blockerId: string | undefined;
+  const diagnostic = (fields: Record<string, unknown>) => logAiDiagnostic({ endpoint, attemptId, keyHash, ...fields });
   const reserveCost = costMicros(limits[endpoint].input, limits[endpoint].output);
   const assertNotCancelled = async (tx: Transaction) => {
     if ((await tx.execute({ sql: 'SELECT 1 FROM ai_operations WHERE user_id=? AND operation_id=?', args: [userId, 'cancel:' + keyHash] })).rows.length) throw new AiError('AI_REQUEST_CANCELLED', 409);
@@ -50,7 +54,12 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
       if (legacy) throw new AiError('AI_OPERATION_ALREADY_STARTED', 409);
       if (process.env.AI_ENABLED === 'false' || (await tx.execute('SELECT enabled FROM ai_control WHERE id=1')).rows[0]?.enabled !== 1) throw new AiError('AI_STOPPED');
       const running = (await tx.execute({ sql: `SELECT count(*) total,coalesce(sum(user_id=?),0) own FROM ai_requests WHERE ${active}`, args: [userId] })).rows[0];
-      if (Number(running.own) >= 1 || Number(running.total) >= 10) throw new AiError('AI_CONCURRENCY_LIMIT', 429);
+      if (Number(running.own) >= 1) {
+        const blocker = (await tx.execute({ sql: `SELECT id,state FROM ai_requests WHERE user_id=? AND ${active} LIMIT 1`, args: [userId] })).rows[0];
+        blockerId = String(blocker.id);
+        throw new AiError(blocker.state === 'unknown' ? 'AI_PREVIOUS_UNRESOLVED' : 'AI_CONCURRENCY_LIMIT', 429);
+      }
+      if (Number(running.total) >= 10) throw new AiError('AI_CONCURRENCY_LIMIT', 429);
       // One database write transaction serializes admission across every process/user/endpoint.
       for (let i = 0; i < windows.length; i++) {
         const r = (await tx.execute({ sql: `SELECT count(*) total,coalesce(sum(endpoint=?),0) kind,coalesce(sum(user_id=? AND endpoint=?),0) own,coalesce(sum(cost_micros),0) cost,coalesce(sum(CASE WHEN user_id=? THEN cost_micros ELSE 0 END),0) own_cost FROM ai_requests WHERE created_at>? OR ${active}`, args: [endpoint, userId, endpoint, userId, now - windows[i]] })).rows[0];
@@ -62,13 +71,15 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
       await tx.execute({ sql: 'INSERT INTO ai_operations VALUES(?,?,?,?,?,?,?,?)', args: [userId, operation, endpoint, fingerprint, permit.generation, permit.revision, 'started', new Date(now).toISOString()] });
       return undefined;
     });
-  } catch (e) { logEvent('ai_denied', { endpoint, status: e instanceof AiError ? e.status : 503 }); throw e instanceof AiError || e instanceof PrivacyError ? e : new AiError('AI_DATABASE_UNAVAILABLE'); }
+  } catch (e) { diagnostic({ reason: 'denied', blockerId, status: e instanceof AiError ? e.status : 503 }); logEvent('ai_denied', { endpoint, status: e instanceof AiError ? e.status : 503 }); throw e instanceof AiError || e instanceof PrivacyError ? e : new AiError('AI_DATABASE_UNAVAILABLE'); }
   if (prior) {
+    diagnostic({ reason: 'replay', requestId: prior.id });
     assertConnected();
     if (prior.payload_hash !== fingerprint) throw new AiError('IDEMPOTENCY_CONFLICT', 409);
     if (prior.state === 'succeeded') return JSON.parse(String(prior.result_json)) as T;
     throw new AiError(prior.state === 'expired' ? 'AI_RESULT_EXPIRED' : prior.state === 'unknown' ? 'AI_UNKNOWN' : ['reserved', 'dispatching'].includes(String(prior.state)) ? 'AI_IN_PROGRESS' : 'AI_REQUEST_FINAL', prior.state === 'expired' ? 410 : 409);
   }
+  diagnostic({ reason: 'admitted', requestId: id, costMicros: reserveCost });
   let dispatched = false;
   const start = Date.now();
   const context: Execution = { endpoint, dispatch: async () => {
@@ -84,6 +95,7 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
       if (changed.rowsAffected !== 1) throw new AiError('AI_RESERVATION_LOST');
     });
     dispatched = true;
+    diagnostic({ reason: 'dispatching', requestId: id });
   } };
   try {
     assertConnected();
@@ -105,6 +117,7 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
       if (charged > reserveCost) await tx.execute('UPDATE ai_control SET enabled=0 WHERE id=1');
     });
     logEvent('ai_complete', { endpoint, durationMs: Date.now() - start, costMicros: charged, inputTokens: usage?.input, outputTokens: usage?.output });
+    diagnostic({ ...context.provider, reason: 'succeeded', requestId: id, costMicros: charged, durationMs: Date.now() - start });
     return result;
   } catch (e) {
     const state = !dispatched ? 'failed_pre_dispatch' : e instanceof PrivacyError || e instanceof AiError && e.code === 'AI_REQUEST_CANCELLED' || e instanceof ProviderError && !e.uncertain ? 'failed_final' : 'unknown';
@@ -113,6 +126,7 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
       await tx.execute({ sql: "UPDATE ai_requests SET state=?,cost_micros=CASE WHEN ?='failed_pre_dispatch' THEN 0 ELSE cost_micros END WHERE id=? AND state IN ('reserved','dispatching','unknown')", args: [state, state, id] });
     }); } catch { /* Durable dispatch marker retains the maximum reservation; never resend. */ }
     logEvent(state === 'unknown' ? 'ai_unknown' : 'ai_denied', { endpoint, status: 503 });
+    diagnostic({ ...context.provider, category: dispatched ? 'persistence' : 'pre_dispatch', ...(e instanceof ProviderError ? e.diagnostic : {}), reason: state, requestId: id, status: 503, durationMs: Date.now() - start });
     if (e instanceof PrivacyError) throw e;
     if (state === 'unknown') throw new AiError('AI_UNKNOWN');
     if (!dispatched && e instanceof InputError) throw e;
