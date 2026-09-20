@@ -194,5 +194,15 @@ try{
  assert.equal(await evaluate('document.querySelector(".patch-mascot-standing").getBoundingClientRect().height'),264,'Missing artwork still reserves its canvas');
  mascotMode='current';
  assert.deepEqual(errors,[]);
- console.log('PASS: main tabs (Sets/search/folders/detail/editor, Records, Import/Generate, Settings), preserved set/card study targets, seven Home states, 320/393/430/768 widths, assets, read-only preview, focus containment/restore, backdrop/Escape/close/start, completion to Home, authoritative streak refresh, long Japanese name and scrollable preview, read-only saved estimate and stale response rejection, canonical mascot replacement with stable layout and no temporary fallback. Screenshots: '+output);
+ for (const state of ['normal','resume','completed']) {
+  await viewport(393);await navigate('state='+state);
+  if(state==='completed')await evaluate('window.uiFixture.updateSnapshot({completed:true})');
+  await until(()=>evaluate('!!document.querySelector(".patch-current-node .patch-lesson-start")'));
+  assert.equal(await evaluate('(()=>{const a=document.querySelector(".patch-current-node .patch-lesson-start").getBoundingClientRect(),b=document.querySelector(".patch-current-node").getBoundingClientRect();return a.height>=44&&a.left>=b.left&&a.right<=b.right&&a.top>=b.top&&a.bottom<=b.bottom;})()'),true,'Today CTA stays inside its component');
+ }
+ await navigate('state=normal');
+ await evaluate('[...document.querySelectorAll(".patch-home h1,.patch-home h2,.patch-home p,.patch-home small,.patch-home strong,.patch-home button,.patch-current-label")].map(e=>[e,parseFloat(getComputedStyle(e).fontSize)]).forEach(([e,size])=>e.style.fontSize=size*1.5+"px")');
+ assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Home supports 150% text');
+ await screenshot('home-larger-text-393');
+ console.log('PASS: main tabs; Home states and real destinations; 320/393/430/768 widths; 150% text; Start/Continue inside Today component with 44px targets; preview focus/recovery; completion; authoritative Streak; stable approved assets. Screenshots: '+output);
 }finally{ws?.close();if(chrome&&chrome.exitCode===null){const closed=new Promise(r=>chrome.once('exit',r));chrome.kill('SIGTERM');await closed;}await server?.close();await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

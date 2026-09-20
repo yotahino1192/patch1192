@@ -963,7 +963,7 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-current-label { font-size: 16px; font-weight: 700; line-height: 1.25; }
 .patch-current-node h2 { font: 400 18px / 1.2 var(--font-body); margin: 0; width: 100%; overflow-wrap: anywhere; letter-spacing: -.025em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .patch-current-context { margin: 0; color: var(--patch-mint); font-size: 13px; line-height: 1.25; }
-.patch-lesson-start { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; max-width: min(100%, 150px); flex-shrink: 0; overflow-wrap: anywhere; padding: 7px 9px; margin-top: 2px; border: 0; border-radius: 999px; color: var(--patch-ink); background: var(--patch-peach); font-size: 12px; font-weight: 700; line-height: 1.2; }
+.patch-lesson-start { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; max-width: min(100%, 150px); flex-shrink: 0; overflow-wrap: anywhere; padding: 9px; margin-top: 2px; border: 0; border-radius: 999px; color: var(--patch-ink); background: var(--patch-peach); font-size: 14px; font-weight: 700; line-height: 1.2; }
 .patch-lesson-start svg { width: 17px; height: 17px; }
 .patch-lesson-start svg { flex-shrink: 0; }
 .patch-lesson-start:hover { filter: brightness(1.04); }
