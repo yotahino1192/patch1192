@@ -15,11 +15,12 @@ function StudyPreview({ draft }: { draft: DraftMaterial }) {
   const index = Math.min(position, Math.max(0, cards.length - 1));
   const card = cards[index];
   if (!card) return null;
+  if (card.format !== 'qa' && card.format !== 'multiple_choice') return <p className="build-error" role="alert">This saved draft uses a format that is not available in this version. Go back and choose Flashcards or Multiple choice.</p>;
   const move = (delta: number) => { setPosition(index + delta); setRevealed(false); };
   return <section className="build-study-preview" aria-labelledby="study-preview-title">
     <h2 id="study-preview-title">Preview</h2>
     <div className="build-preview-card">
-      <span className="build-preview-kind">{card.format === 'multiple_choice' ? 'Multiple choice' : card.format === 'self_explain' ? 'Explain' : 'Flashcard'}</span>
+      <span className="build-preview-kind">{card.format === 'multiple_choice' ? 'Multiple choice' : 'Flashcard'}</span>
       <p className="build-preview-question">{card.question}</p>
       {card.format === 'multiple_choice' && <ol className="build-preview-options" aria-label="Answer options">{card.choices.map((choice, i) => <li key={i}><span aria-hidden="true">{String.fromCharCode(65 + i)}</span>{choice}</li>)}</ol>}
       <button type="button" className="build-reveal" aria-expanded={revealed} aria-controls="build-preview-answer" onClick={() => setRevealed(!revealed)}>{revealed ? 'Hide answer' : 'Show answer'}</button>
@@ -38,7 +39,7 @@ export function BuildReview({ draft, importDraft, data, destination, setDestinat
   const build = normalizeBuildDraft(importDraft.build, destination);
   const existing = destination.startsWith('set:');
   const set = data.sets.find(s => s.id === destination.slice(4));
-  const invalid = reviewError(draft, destination, data.sets.map(s => s.id));
+  const invalid = draft?.cards.some(c => c.format !== 'qa' && c.format !== 'multiple_choice') ? 'Go back and generate this draft as Flashcards or Multiple choice.' : reviewError(draft, destination, data.sets.map(s => s.id));
   const locked = saving || pendingSave;
   const icons: PatchIconName[] = ['book', 'bars', 'arrow', 'document'];
   return <section className="build-review">

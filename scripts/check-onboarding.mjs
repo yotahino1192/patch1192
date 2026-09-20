@@ -77,8 +77,8 @@ try {
  const previewData=await data();const beforePreview=previewData.retention.session;
  const previewDestination=continueLearning(previewData,[]);
  const previewTitle=previewDestination.kind==='set'?previewData.sets.find(s=>s.id===previewDestination.id).title:'今日の復習';
- await until(()=>evaluate('!!document.querySelector(".patch-home .patch-action-card")'));
- await click('.patch-home .patch-action-card');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
+ await until(()=>evaluate('!!document.querySelector(".patch-current-node .patch-lesson-start")'));
+ await click('.patch-current-node .patch-lesson-start');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
  assert.equal(await evaluate('document.querySelector("#lesson-preview-title").textContent'), previewTitle);
  assert.deepEqual((await data()).retention.session,beforePreview);
  await click('.patch-sheet-close');await until(()=>evaluate('!document.querySelector(".patch-sheet").open'));
@@ -105,8 +105,8 @@ try {
  assert.equal(await evaluate("window.retentionMock.published.some(p=>'dueCardIds' in p.snapshot || 'session' in p.snapshot)"),false);
  await link('patch://card/deleted-or-foreign');await until(()=>evaluate("!!document.querySelector('.patch-home')"));await noOverflow();
  // Starting the preview enters the same real Study flow; opening alone made no session.
- await until(()=>evaluate('!!document.querySelector(".patch-home .patch-action-card")'));
- await click('.patch-home .patch-action-card');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
+ await until(()=>evaluate('!!document.querySelector(".patch-current-node .patch-lesson-start")'));
+ await click('.patch-current-node .patch-lesson-start');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
  await click('.patch-sheet .patch-primary');await waitText('タップで回答を表示');
  assert.ok((await data()).retention.session?.id);
 

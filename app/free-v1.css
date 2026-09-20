@@ -1,0 +1,37 @@
+/* Free v1 presentation. State, verdicts and progress come from the existing session. */
+.is-studying .study-page { color: var(--patch-evergreen); }
+.is-studying .study-page .study-header { align-items: center; gap: 12px; }
+.is-studying .study-page .study-header h1 { overflow-wrap: anywhere; line-height: 1.4; }
+.is-studying .study-page .flashcard { border-radius: 24px; }
+.is-studying .study-page .study-choice-grid { grid-template-columns: 1fr; gap: 10px; padding: 0 20px 20px; }
+.is-studying .study-page .study-choice-grid button { display: flex; align-items: center; gap: 12px; padding: 14px; min-height: 56px; text-align: left; border-radius: 16px; background: var(--patch-white); color: var(--patch-evergreen); border: 1.5px solid #c9ded5; font-size: 16px; line-height: 1.45; }
+.is-studying .study-page .study-choice-grid button > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.is-studying .study-page .study-option-letter { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; display: grid; place-items: center; background: #f0f7f3; font-size: 13px; font-weight: 700; }
+.is-studying .study-page .study-choice-grid button:disabled { opacity: 1; cursor: default; }
+.is-studying .study-page .study-choice-grid button.choice-correct { background: var(--patch-mint-base); border-color: var(--patch-leaf-green); }
+.is-studying .study-page .study-choice-grid button.choice-selected-incorrect { background: #fff0e0; border-color: #b37a42; }
+.is-studying .study-page .study-choice-grid button[aria-pressed="true"] { box-shadow: inset 0 0 0 1px currentColor; }
+.is-studying .study-page .study-choice-grid button:focus-visible { outline: 3px solid var(--patch-evergreen); outline-offset: 3px; }
+.is-studying .study-page .choice-feedback { margin: 0 20px 20px; padding: 14px 16px; border-radius: 14px; text-align: left; line-height: 1.6; overflow-wrap: anywhere; }
+.is-studying .study-page .choice-feedback.is-correct { color: var(--patch-evergreen); background: var(--patch-mint-base); }
+.is-studying .study-page .choice-feedback.is-incorrect { color: #694324; background: #fff0e0; }
+.is-studying .study-page .record-choice { min-height: 56px; white-space: normal; line-height: 1.5; padding: 14px 20px; border-radius: 16px; }
+.is-studying .study-page .flashcard-content { gap: 16px; }
+.is-studying .study-page .flashcard-content strong { font-size: clamp(20px, 5.4vw, 26px); line-height: 1.5; }
+.is-studying .study-page .study-question-context { font-size: 15px; line-height: 1.5; margin: 0; color: #49665e; overflow-wrap: anywhere; }
+.is-studying .study-page .swipe-actions { margin-top: 16px; }
+.is-studying .study-page .swipe-actions button { min-height: 56px; line-height: 1.4; }
+.patch-main-shell .records-page .record-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.patch-main-shell .records-page .record-stats article { min-width: 0; background: #eff9f3; color: var(--patch-evergreen); }
+.patch-main-shell .records-page .record-stats small { overflow-wrap: anywhere; line-height: 1.5; }
+.patch-main-shell .records-page .reminder-list button { min-height: 72px; align-items: center; }
+.patch-main-shell .records-page .reminder-list button > div { min-width: 0; }
+.patch-main-shell .records-page .reminder-list strong { overflow-wrap: anywhere; }
+.patch-main-shell .session-complete .completion-actions { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.patch-main-shell .session-complete .completion-actions button { min-height: 48px; }
+@media (max-width: 359px) {
+  .is-studying .study-page .study-choice-grid { padding-inline: 14px; }
+  .is-studying .study-page .study-choice-grid button { gap: 8px; padding: 12px; }
+  .patch-main-shell .records-page .reminder-list button { flex-wrap: wrap; }
+  .patch-main-shell .records-page .reminder-list button em { margin-left: auto; }
+}

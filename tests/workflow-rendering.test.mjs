@@ -72,11 +72,15 @@ test("saved import content and attachment text render after returning", () => {
   for (const text of ["書きかけの文章", "講義.txt", "Accepted for processing"]) assert.ok(html.includes(text));
 });
 
-test("resumed multiple-choice lesson retains its result and unsent AI question", () => {
+test("Free v1 resumes multiple-choice feedback while keeping deferred AI UI hidden", () => {
   const session = { ...EMPTY_SESSION, id: "lesson", setId: "s1", queue: ["c1"], flipped: true, selectedChoice: "B", aiOpen: true, aiCompose: true, aiInput: "どうして？" };
   const html = render(Study, { session, updateSession: noop, data, queue: session.queue, flipped: true, setFlipped: noop, setQueue: noop, sessionDone: false, setSessionDone: noop, sessionSetId: "s1", sessionId: "lesson", sessionTotal: 1, sessionMistakes: 0, setSessionMistakes: noop, startStudy: noop, setData: noop, backToSets: noop, goHome: noop, now });
   assert.ok(html.includes("選択結果を記録して次へ"));
-  assert.ok(html.includes('value="どうして？"'));
+  assert.ok(!html.includes('value="どうして？"'));
+  assert.equal(session.aiInput, 'どうして？', 'Stored draft is preserved, not rendered or sent');
+  assert.ok(html.includes('aria-pressed="true"'));
+  assert.ok(html.includes('choice-correct'));
+  assert.ok(!html.includes('card-ai-button'));
   assert.ok(html.includes("中断する"));
   assert.equal((html.match(/class="flashcard /g) || []).length, 1);
 });

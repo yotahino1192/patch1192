@@ -1,4 +1,9 @@
 export const english: Record<string, string> = {
+"復習したカード数": "Cards reviewed",
+"Patchを作って学習すると、ここに記録が表示されます。": "Create a Patch and start studying. Your history will appear here.",
+"このカードは現在のバージョンでは学習できません": "This card format is not available in this version",
+"FlashcardsまたはMultiple ChoiceのPatchを選んでください。": "Choose a Patch with Flashcards or Multiple Choice.",
+"Patchesに戻る": "Back to Patches",
 "別のPatchを選ぶ": "Choose another Patch",
 "今回取り組んだこと": "What you practised",
 "この端末での学習時間：{0}分{1}秒": "Study time on this device: {0}m {1}s",

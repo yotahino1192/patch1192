@@ -29,6 +29,7 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
   useEffect(() => { heading.current?.focus(); }, [step]);
   const source = materialSource(importDraft);
   const invalid = materialError(importDraft);
+  const formatValid = ['一問一答', '4択問題'].includes(importDraft.style);
   const reading = importDraft.attachments.some(a => a.status === 'reading');
   const destinationValid = build.destinationMode === 'new' || (!patchesLoading && !patchesError && data.sets.some(s => s.id === build.existingPatchId));
   const hasMaterial = source.length >= MIN_SOURCE_LENGTH || importDraft.attachments.some(a => !a.status || a.status === 'accepted');
@@ -38,7 +39,7 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
     setDestination(destinationMode === 'existing' ? `set:${build.existingPatchId}` : destination.startsWith('folder:') ? destination : 'root');
   };
   const choosePatch = (id: string) => { update({ existingPatchId: id }); setDestination(`set:${id}`); };
-  const generate = () => { if (!invalid && !focusInvalid && destinationValid) void onGenerate(); };
+  const generate = () => { if (!invalid && !focusInvalid && destinationValid && formatValid) void onGenerate(); };
   const upload = async (selected: File[]) => {
     const slots = Math.max(0, MAX_ATTACHMENTS - importDraft.attachments.length);
     setUploadError('');
@@ -102,6 +103,7 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
       <fieldset className="build-detail"><legend>Level of detail</legend><div>{[['要点のみ', 'Key points', 'Essentials'], ['標準', 'Standard', 'Balanced'], ['詳しく', 'Detailed', 'In-depth']].map(([value, title, subtitle]) => <label key={value} className={`build-choice ${importDraft.detail === value ? 'selected' : ''}`}><input type="radio" name="detail" checked={importDraft.detail === value} onChange={() => setImportDraft(d => ({ ...d, detail: value }))} /><Radio selected={importDraft.detail === value} /><span><strong>{title}</strong><small>{subtitle}</small></span></label>)}</div></fieldset>
       <fieldset className="build-format"><legend>Study format</legend><div>{[['一問一答', 'Flashcards', 'Recall the answer'], ['4択問題', 'Multiple choice', 'Choose an answer']].map(([value, title, subtitle]) => <label key={value} className={`build-choice ${importDraft.style === value ? 'selected' : ''}`}><input type="radio" name="format" checked={importDraft.style === value} onChange={() => setImportDraft(d => ({ ...d, style: value }))} /><Radio selected={importDraft.style === value} /><span><strong>{title}</strong><small>{subtitle}</small></span></label>)}</div></fieldset>
       {invalid && <p className="build-error" role="alert">{invalid}</p>}
+      {!formatValid && <p className="build-error" role="alert">Choose Flashcards or Multiple choice to continue with this saved draft.</p>}
       {!destinationValid && <p className="build-error" role="alert">Choose an available Patch in Step 1.</p>}
     </section>}
     {step === 'preparing' && <section className="build-preparing">
@@ -109,6 +111,6 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
       {generationRunning ? <div role="status"><p>This may take a moment.</p><span className="build-dots" aria-hidden="true"><i /><i /><i /></span></div> : <div><p role="alert">{build.generation.error || 'Your material is saved. Retry to check your interrupted request.'}</p><button type="button" className="build-primary" onClick={generate}>Retry</button><button type="button" className="build-return" onClick={() => update({ step: 3 })}>Back to Customize learning</button></div>}
     </section>}
     {step === 'review' && review}
-    {typeof step === 'number' && <div className="build-actions"><button type="button" className="build-primary" disabled={step === 1 ? !destinationValid : step === 2 ? !!invalid : !!invalid || focusInvalid || !destinationValid || generationRunning} onClick={() => step === 3 ? generate() : update({ step: step === 1 ? 2 : 3 })}>{step === 3 ? 'Generate Patch' : 'Continue'}</button></div>}
+    {typeof step === 'number' && <div className="build-actions"><button type="button" className="build-primary" disabled={step === 1 ? !destinationValid : step === 2 ? !!invalid : !!invalid || focusInvalid || !destinationValid || !formatValid || generationRunning} onClick={() => step === 3 ? generate() : update({ step: step === 1 ? 2 : 3 })}>{step === 3 ? 'Generate Patch' : 'Continue'}</button></div>}
   </div>;
 }
