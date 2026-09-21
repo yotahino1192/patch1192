@@ -28,7 +28,8 @@ window.fetch = async (path, options) => {
   if(url==='/api/ai/chat') {
     fixture.aiRequests.push({body,key:new Headers(options.headers).get('Idempotency-Key')});
     const mode=fixture.explanationMode;
-    if(mode==='loading')await new Promise(resolve=>fixture.releaseExplanation=resolve);
+    if(mode==='loading'||mode==='delayedError')await new Promise(resolve=>fixture.releaseExplanation=resolve);
+    if(mode==='delayedError')return Response.json({code:'AI_PROVIDER_FAILED'},{status:502});
     if(mode==='network')throw new TypeError('Fixture network failure');
     if(mode==='unknown')return Response.json({code:'AI_REQUEST_UNKNOWN'},{status:503});
     if(mode==='provider')return Response.json({code:'AI_PROVIDER_FAILED'},{status:502});
@@ -36,9 +37,13 @@ window.fetch = async (path, options) => {
   }
   if(url==='/api/retention' && body?.action==='start' && fixture.failStart)return Response.json({error:'Test start failure'},{status:503});
   const saving=url==='/api/data' && ['saveSet','addCardsToSet'].includes(body?.action);
+  const reviewing=url==='/api/data' && body?.action==='reviewCard';
+  if(reviewing && fixture.failReview)throw new TypeError('Fixture offline answer');
+  if(reviewing && fixture.holdReview)await new Promise(resolve=>fixture.releaseReview=resolve);
   if(saving && fixture.holdSave)await new Promise(resolve=>fixture.releaseSave=resolve);
   if(saving && fixture.failSave)return Response.json({error:'Test validation failure'},{status:400});
   const result=await originalFetch(path,options);
+  if(reviewing && fixture.loseReview){fixture.loseReview=false;throw new TypeError('Fixture lost committed answer');}
   if(saving && fixture.loseSave){fixture.loseSave=false;throw Error('Test lost response after commit');}
   return result;
 };

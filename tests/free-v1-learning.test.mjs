@@ -177,3 +177,25 @@ test('new malformed MCQ save and append fail before persistence; legacy fallback
  }
  const d=await data(u);assert.equal(d.sets.length,1);assert.equal(d.sets[0].cards.length,1);
 });
+
+test('explicit legacy resume initializes the retention clock in the request timezone',async()=>{
+ const u=await user(),s=await setup(u);
+ await send(u,answer(s,s.cards[0]));
+ await c.execute({sql:'UPDATE study_sessions SET completed_at=NULL,earned_day=NULL WHERE user_id=? AND id=?',args:[u.id,s.id]});
+ await c.execute({sql:'DELETE FROM retention_state WHERE user_id=?',args:[u.id]});
+ const r=await retention(new Request('http://localhost/api/retention',{method:'POST',headers:headers(u.subject,u.id,{'content-type':'application/json','x-patch-timezone':'America/Los_Angeles'}),body:JSON.stringify({action:'resume',id:s.id})}));
+ assert.equal(r.status,200);
+ assert.equal((await c.execute({sql:'SELECT timezone FROM retention_state WHERE user_id=?',args:[u.id]})).rows[0].timezone,'America/Los_Angeles');
+});
+
+test('removed Patch cannot resume or accept orphaned cards; completed history retains answer snapshots',async()=>{
+ const u=await user(),s=await setup(u,[mcq,qa]);
+ assert.equal((await send(u,answer(s,s.cards[0],{selectedChoice:'B'}))).status,200);
+ const completed=await setup(u,[mcq]);await send(u,answer(completed,completed.cards[0],{selectedChoice:'A'}));
+ await c.execute({sql:'DELETE FROM card_sets WHERE user_id=?',args:[u.id]});
+ const resumed=await retention(request(u,'/api/retention',{action:'resume',id:s.id}));assert.equal(resumed.status,200);assert.equal((await resumed.json()).status,'UNAVAILABLE');
+ assert.equal((await send(u,answer(s,s.cards[1]))).status,409);
+ assert.equal((await retention(request(u,'/api/retention',{action:'start',id:'orphan-'+crypto.randomUUID(),cardIds:[s.cards[1].id]}))).status,404);
+ const d=await data(u,s.id);assert.equal(d.studyHistory.find(h=>h.id===completed.id).results[0].response.question,'Q');assert.equal(d.studySessions[0].processed,1);
+ assert.equal(d.retention.session,undefined);assert.equal(d.retention.dueCount,0);
+});
