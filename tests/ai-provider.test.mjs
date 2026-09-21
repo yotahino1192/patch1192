@@ -87,3 +87,12 @@ test('non-choice material keeps answer and requires no correct choice index', as
  });
  assert.equal(generated.cards[0].answer,'A');
 });
+
+
+test('new MCQ generation never uses the legacy flashcard fallback', async () => {
+ const card={question:'Q',choices:['A','B','C','D'],correctChoiceIndex:0,format:'multiple_choice',difficulty:1};
+ for(const cards of [[],[{...card,choices:['A','B']}],[{...card,choices:['A','A','C','D']}],[{...card,correctChoiceIndex:4}],[{...card,format:'qa'}],[{...card,question:' '}],[card,{...card,choices:[]}]]) {
+  const material={title:'T',category:'C',summary:'S',keyPoints:['K'],cards};
+  await mocked(async()=>assert.rejects(execution.run({endpoint:'cards',dispatch:async()=>{}},()=>generateMaterial({inputKind:'topic',text:'Photosynthesis',detail:'normal',style:'4択問題'})),e=>e instanceof ProviderError && !e.uncertain && e.diagnostic.category==='validation'),async()=>Response.json({...response(),output:[{content:[{type:'output_text',text:JSON.stringify(material)}]}]}));
+ }
+});

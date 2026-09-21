@@ -15,6 +15,7 @@ export const authIdentities = sqliteTable("auth_identities", {
 }, table => [primaryKey({ columns: [table.issuer, table.subject] }), index("auth_identities_user_idx").on(table.userId)]);
 
 export const sources = sqliteTable("sources", {
+  inputKind: text("input_kind").notNull().default("source"),
   patchId: text("patch_id"),
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
@@ -71,6 +72,8 @@ export const cards = sqliteTable("cards", {
 ]);
 
 export const reviewLogs = sqliteTable("review_logs", {
+  responseJson: text("response_json"),
+  payloadHash: text("payload_hash"),
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   cardId: text("card_id").notNull(),

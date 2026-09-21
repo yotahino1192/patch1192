@@ -22,7 +22,7 @@ test('DST uses actual 23/25-hour days, Tokyo midnight and travel cannot award tw
 });
 test('official duration estimate depends on material, not fixed card count',()=>{
  const easy={question:'Q',answer:'A',format:'qa',difficulty:1};const long={question:'Explain '.repeat(100),answer:'Answer '.repeat(100),format:'self_explain',difficulty:3};
- assert.equal(planStudy([easy,easy,easy]).qualifies,false);assert.equal(planStudy([long,long,long]).qualifies,true);assert(planStudy(Array(100).fill(easy)).estimatedSeconds<=600);
+ assert.equal(planStudy([easy,easy,easy]).qualifies,true);assert.equal(planStudy([long,long,long]).qualifies,true);assert(planStudy(Array(100).fill(easy)).estimatedSeconds<=600);
 });
 async function cards(owner,n=10){await saveGeneratedSet(owner,{title:'Retention',category:'',summary:'',keyPoints:[],sourceContent:'source',cards:Array.from({length:n},(_,i)=>({question:'Q'+i,answer:'A',format:'qa',choices:[],difficulty:2}))});return (await loadAppData(owner)).sets[0].cards;}
 test('official session completes once, retries preserve evidence, undo recalculates, second completed set preserves day',async()=>{

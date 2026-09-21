@@ -26,7 +26,12 @@ export function materialSource(draft: ImportDraft) {
 export function materialError(draft: ImportDraft): string {
   if (draft.attachments.some(a => a.status === 'reading')) return 'Please wait while your files are checked.';
   const length = materialSource(draft).length;
-  if (length < MIN_SOURCE_LENGTH) return `Add at least ${MIN_SOURCE_LENGTH} characters of source material. A short topic alone is not supported yet.`;
+  if (draft.inputKind === 'topic') {
+    if (draft.attachments.length) return 'Use source material mode for uploaded files.';
+    if (!length || length > 200) return 'Enter a topic of 1–200 characters.';
+    return '';
+  }
+  if (length < MIN_SOURCE_LENGTH) return `Add at least ${MIN_SOURCE_LENGTH} characters of source material. Choose Topic for a short topic.`;
   if (length > MAX_SOURCE_LENGTH) return 'Text and accepted files together must be at most 30,000 characters.';
   return '';
 }
@@ -34,6 +39,6 @@ export function generationInput(draft: ImportDraft, language: 'ja' | 'en') {
   const build = normalizeBuildDraft(draft.build);
   const error = materialError(draft);
   if (error) throw new Error(error);
-  if (build.coverage === 'focus' && (!build.focus.trim() || build.focus.length > MAX_FOCUS_LENGTH)) throw new Error('Enter your focus (up to 1,000 characters).');
-  return { text: materialSource(draft), detail: draft.detail, style: draft.style, language, ...(build.coverage === 'focus' ? { focus: build.focus.trim() } : {}) };
+  if (draft.inputKind !== 'topic' && build.coverage === 'focus' && (!build.focus.trim() || build.focus.length > MAX_FOCUS_LENGTH)) throw new Error('Enter your focus (up to 1,000 characters).');
+  return { ...(draft.inputKind === "topic" ? { inputKind: "topic" as const } : {}), text: materialSource(draft), detail: draft.detail, style: draft.style, language, ...(draft.inputKind !== 'topic' && build.coverage === 'focus' ? { focus: build.focus.trim() } : {}) };
 }

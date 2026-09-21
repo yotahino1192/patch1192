@@ -1,3 +1,4 @@
+import { contentRevision, fingerprint, persistedContent, readResponse, loadStudyViews, requireStudyAssignment } from './study.ts';
 import { reconcileStudy, retentionSnapshot } from "./retention.ts";
 import { PRESETS, GOALS, validInterests, recommend } from "../lib/onboarding";
 import { InputError } from "../lib/api-input.ts";
@@ -92,9 +93,10 @@ export async function loadAppData(userId: string, sessionIds: string[] = [], tim
   }));
 
   for (const set of sets) {
-    const source = await db.prepare("SELECT content FROM sources WHERE user_id = ? AND id = (SELECT source_id FROM card_sets WHERE id = ? AND user_id = ?)")
-      .bind(userId, set.id, userId).first<{ content: string }>();
+    const source = await db.prepare("SELECT content, input_kind FROM sources WHERE user_id = ? AND id = (SELECT source_id FROM card_sets WHERE id = ? AND user_id = ?)")
+      .bind(userId, set.id, userId).first<{ content: string; input_kind: "source" | "topic" | "mixed" }>();
     set.sourceContent = source?.content || "";
+    set.sourceKind = source?.input_kind || "source";
   }
 
   const requestedSessions = [...new Set([...sessionIds, ...(!profile.onboardingCompleted && profile.initialSessionId ? [profile.initialSessionId] : [])])];
@@ -107,6 +109,7 @@ export async function loadAppData(userId: string, sessionIds: string[] = [], tim
     responseMs: Number(row.response_ms),
     reviewedAt: String(row.reviewed_at),
     operationId: row.operation_id ? String(row.operation_id) : null,
+    response: readResponse(row.response_json),
   });
   const reviews = (reviewResult.results || []).filter((row) => !row.undone_at).map(mapReview);
   const sessionReviews = sessionRows.filter((row) => !row.undone_at).map(mapReview);
@@ -122,17 +125,16 @@ export async function loadAppData(userId: string, sessionIds: string[] = [], tim
   }));
 
   const folders = (folderResult.results || []).map((row) => ({ id: String(row.id), parentId: row.parent_id ? String(row.parent_id) : null, name: String(row.name) }));
-  return { retention: await retentionSnapshot(userId,timezone), profile, undoneOperationIds: sessionRows.filter((row) => row.undone_at && row.operation_id).map((row) => String(row.operation_id)), sets, reviews, ...(requestedSessions.length ? { sessionReviews } : {}), chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: [...(reviewResult.results || []), ...sessionRows].filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
+  return { ...await loadStudyViews(userId, requestedSessions), retention: await retentionSnapshot(userId,timezone), profile, undoneOperationIds: sessionRows.filter((row) => row.undone_at && row.operation_id).map((row) => String(row.operation_id)), sets, reviews, ...(requestedSessions.length ? { sessionReviews } : {}), chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: [...(reviewResult.results || []), ...sessionRows].filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
 }
 
 function mapCard(row: Record<string, unknown>): Card {
   return {
     id: String(row.id),
     setId: String(row.set_id),
-    question: String(row.question),
-    answer: String(row.answer),
-    format: ["qa", "multiple_choice", "self_explain"].includes(String(row.format)) ? String(row.format) as Card["format"] : "qa",
-    choices: parseJsonArray(row.choices),
+    ...persistedContent(row),
+    format: persistedContent(row).format as Card["format"],
+    contentRevision: contentRevision(row),
     status: String(row.status) as Card["status"],
     difficulty: Number(row.difficulty),
     dueAt: String(row.due_at),
@@ -159,8 +161,8 @@ function materialStatements(db: ReturnType<typeof database>, userId: string, mat
   const sourceId = id("src");
   const setId = id("set");
   const statements = [
-    db.prepare("INSERT INTO sources (id,user_id,title,content,created_at,updated_at) VALUES (?,?,?,?,?,?)")
-      .bind(sourceId, userId, material.title, material.sourceContent, now, now),
+    db.prepare("INSERT INTO sources (id,user_id,title,content,created_at,updated_at,input_kind) VALUES (?,?,?,?,?,?,?)")
+      .bind(sourceId, userId, material.title, material.sourceContent, now, now, material.sourceKind || "source"),
     db.prepare(`INSERT INTO card_sets
       (id,user_id,source_id,title,category,summary,key_points,created_at,updated_at,last_studied_at,next_review_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
@@ -189,15 +191,15 @@ function normalizeChoices(card: GeneratedCard): string[] {
   return [...choices.slice(0, 3), answer];
 }
 
-export async function addCardsToSet(userId: string, setId: string, newCards: GeneratedCard[], source?: { title: string; content: string }, operationId?: string): Promise<string[]> {
+export async function addCardsToSet(userId: string, setId: string, newCards: GeneratedCard[], source?: { title: string; content: string; kind?: "source" | "topic" }, operationId?: string): Promise<string[]> {
   await ensureDatabase();
   const db = database();
   const existing = await db.prepare("SELECT id FROM card_sets WHERE id = ? AND user_id = ?").bind(setId, userId).first<{ id: string }>();
   if (!existing) throw new Error("SET_NOT_FOUND");
   const now = new Date().toISOString();
   const statements = (cardIds: string[]) => [
-    ...(source ? [db.prepare("UPDATE sources SET content = content || ?, updated_at = ? WHERE user_id = ? AND id = (SELECT source_id FROM card_sets WHERE id = ? AND user_id = ?)")
-      .bind(`\n\n--- ${source.title} ---\n${source.content}`, now, userId, setId, userId)] : []),
+    ...(source ? [db.prepare("UPDATE sources SET content = content || ?, updated_at = ?, input_kind = CASE WHEN input_kind = ? THEN input_kind ELSE 'mixed' END WHERE user_id = ? AND id = (SELECT source_id FROM card_sets WHERE id = ? AND user_id = ?)")
+      .bind(`\n\n--- ${source.title} ---\n${source.content}`, now, source.kind || "source", userId, setId, userId)] : []),
     ...newCards.map((card, index) => db.prepare(`INSERT INTO cards
       (id,set_id,user_id,question,answer,format,choices,status,difficulty,due_at,interval_days,review_count,correct_count,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -238,21 +240,31 @@ async function persistMaterialOnce(userId: string, operationId: string, payload:
   });
 }
 
-export async function reviewCard(userId: string, cardId: string, rating: BinaryReviewRating, responseMs: number, sessionId: string | null, operation?: { operationId: string; expectedReviewCount: number }): Promise<string> {
+export async function reviewCard(userId: string, cardId: string, rating: BinaryReviewRating, responseMs: number, sessionId: string | null, operation?: { operationId: string; expectedReviewCount: number; selectedChoice?: string; contentRevision?: string; requireSession?: boolean }): Promise<string> {
   await ensureDatabase();
   await loadDailyReview(userId);
   return database().transaction(async (tx) => {
+    const payloadHash = operation ? fingerprint([cardId,sessionId,operation.selectedChoice === undefined ? ['evaluation',rating] : ['choice',operation.selectedChoice],responseMs,operation.expectedReviewCount,operation.contentRevision??null]) : null;
     if (operation) {
       const existing = (await tx.execute({ sql: "SELECT * FROM review_logs WHERE user_id = ? AND operation_id = ?", args: [userId, operation.operationId] })).rows[0];
       if (existing) {
         const previous = JSON.parse(String(existing.previous_state));
-        if (existing.card_id !== cardId || existing.session_id !== sessionId || existing.rating !== rating || previous.reviewCount !== operation.expectedReviewCount) throw new Error("REVIEW_OPERATION_CONFLICT");
+        if (existing.payload_hash ? existing.payload_hash !== payloadHash : existing.card_id !== cardId || existing.session_id !== sessionId || existing.rating !== rating || previous.reviewCount !== operation.expectedReviewCount) throw new Error("REVIEW_OPERATION_CONFLICT");
         return String(existing.id); // Includes undone operations: a retry must never reapply them.
       }
     }
+    if (operation?.requireSession) await requireStudyAssignment(tx,userId,sessionId!,cardId);
     const card = (await tx.execute({ sql: "SELECT * FROM cards WHERE id = ? AND user_id = ?", args: [cardId, userId] })).rows[0];
     if (!card || ["アーカイブ", "削除済み"].includes(String(card.status))) throw new Error("CARD_NOT_FOUND");
     if (operation && Number(card.review_count) !== operation.expectedReviewCount) throw new Error("REVIEW_STATE_CONFLICT");
+    const content = persistedContent(card), revision = contentRevision(card);
+    if (operation?.contentRevision && operation.contentRevision !== revision) throw new Error('REVIEW_STATE_CONFLICT');
+    if (operation?.requireSession && !operation.contentRevision) throw new InputError('画面を再読み込みして回答してください。',409);
+    if (content.format === 'multiple_choice') {
+      if (typeof operation?.selectedChoice !== 'string' || !content.choices.includes(operation.selectedChoice)) throw new InputError('有効な選択肢を選んでください。');
+      rating = operation.selectedChoice === content.answer ? 'good' : 'again';
+    } else if (operation?.selectedChoice !== undefined) throw new InputError('回答形式を確認してください。');
+    const response = {...content,selectedChoice:operation?.selectedChoice??null,correct:rating==='good',contentRevision:revision};
     const nowMs = Date.now();
     const now = new Date(nowMs).toISOString();
     const schedule = scheduleBinaryReview(rating, Number(card.interval_days), nowMs);
@@ -261,7 +273,7 @@ export async function reviewCard(userId: string, cardId: string, rating: BinaryR
     const previous = { status: card.status, dueAt: card.due_at, intervalDays: card.interval_days, reviewCount: card.review_count, correctCount: card.correct_count, lastStudiedAt: set?.last_studied_at ?? null };
     const reviewId = id("review");
     await tx.execute({ sql: "UPDATE cards SET status = ?, due_at = ?, interval_days = ?, review_count = review_count + 1, correct_count = correct_count + ?, updated_at = ? WHERE id = ? AND user_id = ?", args: [schedule.status, new Date(schedule.dueAtMs).toISOString(), schedule.intervalDays, schedule.correctDelta, now, cardId, userId] });
-    await tx.execute({ sql: "INSERT INTO review_logs (id,user_id,card_id,session_id,rating,response_ms,reviewed_at,previous_state,operation_id) VALUES (?,?,?,?,?,?,?,?,?)", args: [reviewId, userId, cardId, sessionId, rating, Number.isFinite(responseMs) ? Math.max(0, Math.min(responseMs, 3_600_000)) : 0, now, JSON.stringify(previous), operation?.operationId ?? null] });
+    await tx.execute({ sql: "INSERT INTO review_logs (id,user_id,card_id,session_id,rating,response_ms,reviewed_at,previous_state,operation_id,response_json,payload_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?)", args: [reviewId, userId, cardId, sessionId, rating, Number.isFinite(responseMs) ? Math.max(0, Math.min(responseMs, 3_600_000)) : 0, now, JSON.stringify(previous), operation?.operationId ?? null, JSON.stringify(response), payloadHash] });
     await tx.execute({ sql: "UPDATE card_sets SET last_studied_at = ?, updated_at = ?, next_review_at = (SELECT MIN(due_at) FROM cards WHERE set_id = ? AND user_id = ? AND status NOT IN ('アーカイブ', '削除済み')) WHERE id = ? AND user_id = ?", args: [now, now, setId, userId, setId, userId] });
     await completeFirstLearning(tx, userId, sessionId, now);
     await reconcileStudy(tx, userId, sessionId, now);

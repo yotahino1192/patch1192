@@ -23,13 +23,13 @@ const {POST:WORKER}=await import('../app/api/internal/account-deletions/route.ts
 const store=await import('../db/store.ts');
 let serial=0,calls=0,send;
 const realFetch=globalThis.fetch;after(()=>globalThis.fetch=realFetch);
-globalThis.fetch=async(url,options)=>{assert.equal(url,'https://api.openai.com/v1/responses');calls++;return send?send(url,options):Response.json({status:'completed',usage:{input_tokens:100,output_tokens:100},output:[{content:[{type:'output_text',text:JSON.stringify({title:'T',category:'C',summary:'S',keyPoints:[],cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]})}]}]});};
+globalThis.fetch=async(url,options)=>{assert.equal(url,'https://api.openai.com/v1/responses');calls++;return send?send(url,options):Response.json({status:'completed',usage:{input_tokens:100,output_tokens:100},output:[{content:[{type:'output_text',text:JSON.stringify({title:'T',category:'C',summary:'S',keyPoints:['K'],cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]})}]}]});};
 process.env.OPENAI_API_KEY='test-only';
 const user=async()=>{const subject='user_privacy_'+(++serial);return {subject,userId:await resolveInternalUser(issuer,subject),sessionId:'sess_'+subject,issuer,claims:{reverification_id:'before',fva:[0,-1]}};};
 const req=(u,body,path='/api/data',claims)=>new Request(origin+path,{method:body?'POST':'GET',headers:headers(u.subject,u.userId,{'content-type':'application/json',...(body?.operationId?{'Idempotency-Key':body.operationId}:{}),...(claims?{authorization:'Bearer '+token(u.subject,claims)}:{})}),...(body?{body:JSON.stringify(body)}:{})});
 const consent=async(u,state='granted',extra={})=>{const c=await getConsent(u.userId);return setConsent(u.userId,{state,revision:c.revision,operationId:crypto.randomUUID(),consentVersion:CONSENT_VERSION,policyVersion:POLICY_VERSION,textHash:c.textHash,language:'ja',...extra});};
 const generation=(extra={})=>({text:'教材'.repeat(50),operationId:crypto.randomUUID(),...extra});
-const material={title:'T',category:'C',summary:'S',keyPoints:[],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]};
+const material={title:'T',category:'C',summary:'S',keyPoints:['K'],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]};
 async function deletion(u){const c=await createDeletionChallenge(u.userId,u);const input={challengeId:c.challengeId,operationId:crypto.randomUUID(),receipt:'ab'.repeat(32)};return {input,result:await requestDeletion({...u,claims:{fva:[0,-1],reverification_id:crypto.randomUUID()}},input)};}
 test('all consent states and outdated version gate generation and lesson summary with zero external calls',async()=>{
  const u=await user();

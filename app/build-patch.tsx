@@ -32,7 +32,7 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
   const formatValid = ['一問一答', '4択問題'].includes(importDraft.style);
   const reading = importDraft.attachments.some(a => a.status === 'reading');
   const destinationValid = build.destinationMode === 'new' || (!patchesLoading && !patchesError && data.sets.some(s => s.id === build.existingPatchId));
-  const hasMaterial = source.length >= MIN_SOURCE_LENGTH || importDraft.attachments.some(a => !a.status || a.status === 'accepted');
+  const hasMaterial = importDraft.inputKind !== 'topic' && (source.length >= MIN_SOURCE_LENGTH || importDraft.attachments.some(a => !a.status || a.status === 'accepted'));
   const focusInvalid = hasMaterial && build.coverage === 'focus' && (!build.focus.trim() || build.focus.length > MAX_FOCUS_LENGTH);
   const setMode = (destinationMode: 'new' | 'existing') => {
     update({ destinationMode });
@@ -44,6 +44,7 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
     const slots = Math.max(0, MAX_ATTACHMENTS - importDraft.attachments.length);
     setUploadError('');
     if (selected.length > slots) { setUploadError(`You can attach up to ${MAX_ATTACHMENTS} files. Select fewer files and try again.`); return; }
+    setImportDraft(d => ({ ...d, inputKind: 'source' }));
     const files = selected.slice(0, slots).map(file => ({ file, id: crypto.randomUUID() }));
     setImportDraft(d => ({ ...d, attachments: [...d.attachments, ...files.map(({ file, id }) => ({ id, name: file.name, text: '', size: file.size, status: 'reading' as const }))] }));
     for (const { file, id } of files) {
@@ -76,7 +77,8 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
     </section>}
     {step === 2 && <section className="build-content build-material">
       <h1 ref={heading} tabIndex={-1}>What do you want to learn?</h1>
-      <div className="build-text"><textarea aria-label="Material text" aria-describedby="build-material-help build-count" placeholder={'Paste your text here...\nFor example: a ChatGPT conversation, an article, or class notes'} maxLength={MAX_SOURCE_LENGTH} value={importDraft.text} onChange={e => setImportDraft(d => ({ ...d, text: e.target.value }))} /><span id="build-count">{importDraft.text.length.toLocaleString('en-US')} / {MAX_SOURCE_LENGTH.toLocaleString('en-US')}</span></div>
+      <label className="build-helper">Input type <select aria-label="Input type" value={importDraft.inputKind || 'source'} onChange={e => setImportDraft(d => ({ ...d, inputKind: e.target.value as 'source' | 'topic' }))}><option value="source">Source material</option><option value="topic" disabled={!!importDraft.attachments.length}>Topic</option></select></label>
+      <div className="build-text"><textarea aria-label="Material text" aria-describedby="build-material-help build-count" placeholder={importDraft.inputKind === 'topic' ? 'For example: Interest Rates, Photosynthesis, Japanese particles' : 'Paste your text here...\nFor example: a ChatGPT conversation, an article, or class notes'} maxLength={MAX_SOURCE_LENGTH} value={importDraft.text} onChange={e => setImportDraft(d => ({ ...d, text: e.target.value }))} /><span id="build-count">{importDraft.text.length.toLocaleString('en-US')} / {MAX_SOURCE_LENGTH.toLocaleString('en-US')}</span></div>
       <input ref={input} type="file" aria-label="Upload learning files" accept={DOCUMENT_ACCEPT} multiple hidden disabled={reading || importDraft.attachments.length >= MAX_ATTACHMENTS} onChange={e => { const files = Array.from(e.target.files || []); e.target.value = ''; void upload(files); }} />
       <button className="build-upload" type="button" disabled={reading || importDraft.attachments.length >= MAX_ATTACHMENTS} onClick={() => input.current?.click()}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9a4 4 0 0 1 6 6l-8 8a2 2 0 0 1-3-3l7-7" /></svg>Upload files</button>
       <p className="build-formats">{DOCUMENT_ACCEPT.split(',').join(' · ')}<br />Up to {MAX_DOCUMENT_BYTES / 1024 / 1024} MB per file · {MAX_ATTACHMENTS} files maximum</p>
@@ -86,7 +88,7 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
         <span className="build-file-status" role="status">{file.status === 'reading' ? '…' : file.status === 'failed' ? '!' : <PatchIcon name="check" size={16} />}</span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setImportDraft(d => ({ ...d, attachments: d.attachments.filter(a => a.id !== file.id) }))}><PatchIcon name="close" size={22} /></button>
         {file.error && <p className="build-file-error" role="alert">{file.error}</p>}
       </li>)}</ul>}
-      <p id="build-material-help" className="build-helper">Use 80–30,000 characters of source material, including files. Text-based PDFs only (up to 200 pages).</p>
+      <p id="build-material-help" className="build-helper">{importDraft.inputKind === 'topic' ? 'Enter a topic (1–200 characters). AI uses general knowledge, not an uploaded source.' : 'Use 80–30,000 characters of source material, including files. Text-based PDFs only (up to 200 pages).'}</p>
       <p className="build-helper">AI processing limits may require a shorter excerpt, especially for multibyte text.</p>
       {!!source.length && invalid && !reading && <p className="build-error" role="status">{invalid}</p>}
       {!!importDraft.attachments.length && <p className="build-helper">Combined material: {source.length.toLocaleString('en-US')} / 30,000 characters</p>}

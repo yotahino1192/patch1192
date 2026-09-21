@@ -14,6 +14,12 @@ window.fetch = async (path, options) => {
   const url=String(path), body=typeof options?.body==='string'?JSON.parse(options.body):null;
   if(options?.method==='POST')fixture.writes.push({url,body});
   if(url.includes('/api/ai/'))fixture.aiCalls++;
+  // Opt-in transport fixture: production generation hook, real save/study APIs.
+  // The authenticated generation route/provider contract is covered in free-v1-learning.test.mjs.
+  if(url==='/api/ai/cards' && fixture.mockGeneration) {
+    const format=body.style==='4択問題'?'multiple_choice':'qa';
+    return Response.json({title:'Generated '+(body.inputKind||'source'),category:'Biology',summary:'Photosynthesis basics',keyPoints:['Light and water'],...(body.inputKind==='topic'?{sourceKind:'topic'}:{}),cards:[1,2].map(i=>({question:'What powers photosynthesis? '+i,answer:'Sunlight',choices:format==='multiple_choice'?['Sunlight','Wind','Sound','Gravity']:[],format,difficulty:1}))});
+  }
   if(url==='/api/retention' && body?.action==='start' && fixture.failStart)return Response.json({error:'Test start failure'},{status:503});
   const saving=url==='/api/data' && ['saveSet','addCardsToSet'].includes(body?.action);
   if(saving && fixture.holdSave)await new Promise(resolve=>fixture.releaseSave=resolve);
@@ -24,6 +30,7 @@ window.fetch = async (path, options) => {
 };
 configureNativeAuth({ initialize:async()=>config.identity,getSession:async()=>config.identity,getToken:async()=>(await(await originalFetch('/__build_review_identity')).json()).token,subscribe:()=>()=>{},startEmail:async()=>{},verifyEmail:async()=>config.identity,signOut:async()=>{} });
 const root=createRoot(document.getElementById('root'));
+fixture.reset=()=>writeAccountWorkspace(localStorage,config.identity.userId,EMPTY_WORKSPACE);
 fixture.workspace=()=>readAccountWorkspace(localStorage,config.identity.userId);
 fixture.stage=(format='qa',focus=false,invalid=false)=>{
   const source='Interest rates affect borrowing costs. Higher borrowing costs can reduce spending and demand, which can ease inflation.';

@@ -45,7 +45,7 @@ export function estimateCardSeconds(card:{question:string;answer:string;format:s
 export function planStudy<T extends {question:string;answer:string;format:string;difficulty:number}>(cards:T[]) {
  const selected:T[]=[];let estimatedSeconds=0;
  for(const card of cards){const cost=estimateCardSeconds(card);if(estimatedSeconds+cost>600)break;selected.push(card);estimatedSeconds+=cost;if(estimatedSeconds>=300)break;}
- return {cards:selected,estimatedSeconds,qualifies:estimatedSeconds>=300&&estimatedSeconds<=600};
+ return {cards:selected,estimatedSeconds,qualifies:selected.length>0};
 }
 export type Destination={kind:"onboarding"|"session"|"review"|"set"|"card"|"import"|"home";id?:string;setId?:string};
 export function parseDeepLink(raw:string):Destination|null {

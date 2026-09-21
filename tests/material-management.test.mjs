@@ -80,7 +80,7 @@ test("editing, archiving and reversible deletion preserve user data and ownershi
   await assert.rejects(manageMaterial("owner", { action: "editCard", cardId: card.id, question: "Q2", answer: "X", choices: ["A", "B", "C", "D"] }), /INVALID_CHOICES/);
   await manageMaterial("owner", { action: "editCard", cardId: card.id, question: "Q2", answer: "B", choices: ["A", "B", "C", "D"] });
   await manageMaterial("owner", { action: "renameSet", setId, title: "新しい名前" });
-  await reviewCard("owner", card.id, "good", 500, "session");
+  await reviewCard("owner", card.id, "good", 500, "session", {operationId:"mcq-review",expectedReviewCount:0,selectedChoice:"B"});
   for (const [action, status] of [["archiveCard", "アーカイブ"], ["deleteCard", "削除済み"]]) {
     await manageMaterial("owner", { action, cardId: card.id });
     const hidden = (await loadAppData("owner")).sets[0];

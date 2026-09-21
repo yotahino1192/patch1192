@@ -1,6 +1,6 @@
 # Free v1 release scope and integration boundary
 
-Current integration baseline: Dev `d9e304f980711f7c9859b156b89efce4d36cd063`. It already contains CLI2 operations through `6105780` (via `b51ba1e`) and the CLI1 Home/Add Material/Free v1 UI merges. CLI2 was fast-forwarded to this exact Dev tree; no UI, learning, session, grading, retention, domain or DB changes are introduced by this documentation update.
+Historical pre-CLI3 integration baseline: Dev `d9e304f980711f7c9859b156b89efce4d36cd063`. It already contains CLI2 operations through `6105780` (via `b51ba1e`) and the CLI1 Home/Add Material/Free v1 UI merges. CLI2 was fast-forwarded to this exact Dev tree; no UI, learning, session, grading, retention, domain or DB changes are introduced by this documentation update.
 
 ## Required initial scope
 
@@ -8,7 +8,7 @@ Current integration baseline: Dev `d9e304f980711f7c9859b156b89efce4d36cd063`. It
 - Study formats: **Flashcards and Multiple Choice (MCQ) only**.
 - Complete / History / Review and existing Retention / Streak behavior.
 
-This is the intended release scope, not a claim that every input contract is implemented. At this baseline, short topic input is still a **CLI3 product/server contract gap**: the current source-only generation endpoint requires at least 80 source characters. Do not advertise short-topic support as shipped, pad input or bypass validation. Pasted text and supported files remain subject to actual parser/size limits. See [CLI1 checkpoint and CLI3 gaps](free-v1-ui-readiness.md#cli3-contracts--release-gaps); no gap is implemented or worked around in this release-integration task.
+The final CLI3 integration adds explicit short-topic input (1–200 characters), authoritative processed-item Study Sessions, MCQ grading/results and short-session qualification. Pasted source and uploaded material retain the 80–30,000-character source contract and parser/size limits. See [final integration review](free-v1-integration-review.md) for validation and migration/recovery evidence. Earlier CLI1/CLI2 references to the source-only topic gap describe the pre-CLI3 baseline; production readiness remains subject to the gates below.
 
 ## Deferred — not initial-release requirements
 
@@ -18,6 +18,6 @@ Also deferred: **Advanced Lesson Composer; LEARN / EXPLAIN / APPLY; Advanced AI 
 
 ## Remaining release decisions
 
-Production provider configuration, worker scheduling/monitoring, recovery operations, legal values, Apple signing and physical-device gates remain unchanged. CLI3 must resolve the documented short-topic and learning-core contracts separately. Preserve current Study Session logic, Flashcard behavior, MCQ grading and Retention/Streak semantics until that separately reviewed work is integrated; do not change them to satisfy release paperwork.
+Production provider configuration, worker scheduling/monitoring, recovery operations, legal values, Apple signing and physical-device gates remain unchanged. The CLI3 learning-core implementation and its verification are documented in the final integration review. Its completion does not satisfy the external release gates or authorize production operations.
 
 All final copy, reviewer instructions, physical-device QA and screenshots must use the exact integrated candidate and only its verified in-scope behavior. No live provider, production DB, deployment or Apple account operation is authorized by this document.

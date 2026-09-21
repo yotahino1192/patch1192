@@ -111,7 +111,8 @@ test('review operation and recovery scopes remain per owner, including undo and 
   let bReview;
   for(const [index,subject,owner] of [[0,'user_A',a],[1,'user_B',b]]) {
     const set=sets[index].sets[0],card=set.cards[0];
-    const body={action:'reviewCard',cardId:card.id,sessionId:'shared-lesson',operationId:'shared-operation',expectedReviewCount:0,rating:'good',responseMs:50};
+    const {startStudySession}=await import('../db/retention.ts');await startStudySession(owner.userId,'shared-lesson',[card.id]);
+    const body={contentRevision:card.contentRevision,action:'reviewCard',cardId:card.id,sessionId:'shared-lesson',operationId:'shared-operation',expectedReviewCount:0,rating:'good',responseMs:50};
     const one=await POST(request(subject,owner.userId,body)),two=await POST(request(subject,owner.userId,body));
     assert.equal(one.status,200);const result=await one.json();assert.equal((await two.json()).reviewId,result.reviewId);
     if(index===1)bReview=result.reviewId;
