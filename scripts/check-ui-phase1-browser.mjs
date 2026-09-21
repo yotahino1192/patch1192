@@ -209,7 +209,7 @@ try{
  // The same displayed boxes must survive a replacement PNG with a different
  // intrinsic aspect ratio. Check neighboring CTAs too, not only the image itself.
  await cdp('Network.enable');await cdp('Network.setCacheDisabled',{cacheDisabled:true});
- const layout=()=>evaluate(`Array.from(document.querySelectorAll('.patch-mascot,.patch-greeting,.patch-current-node,.patch-primary,.bottom-nav,.patch-results,.patch-complete>h1,.patch-sheet[open]')).map(e=>({name:e.className,rect:e.getBoundingClientRect().toJSON()})).filter(e=>e.rect.width&&e.rect.height)`);
+ const layout=async()=>{await evaluate('window.scrollTo({top:0,behavior:"instant"})');return evaluate(`Array.from(document.querySelectorAll('.patch-mascot,.patch-greeting,.patch-current-node,.patch-primary,.bottom-nav,.patch-results,.patch-complete>h1,.patch-sheet[open]')).map(e=>({name:e.className,rect:e.getBoundingClientRect().toJSON()})).filter(e=>e.rect.width&&e.rect.height)`);};
  for(const [state,pose] of [['empty','standing'],['normal','reading'],['complete','celebrate']]){
   await viewport(393);mascotMode='current';await navigate('state='+state);const before=await layout();
   mascotMode='replacement';mascotRequests.length=0;await navigate('state='+state);
