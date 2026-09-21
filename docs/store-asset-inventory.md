@@ -1,6 +1,6 @@
 # Store asset inventory — 2026-09-21
 
-Current baseline: fetched `origin/Dev` **7e5335b240ffec3512cae717904333f496188de4** (2026-09-21). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
+Current integration baseline: fetched `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51** (2026-09-21), including Free v1 reliability fixes. See [integration validation](testflight-readiness-integration.md). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
 
 No final screenshots or artwork generated. Asset paths and content hashes at `7e5335b` match the previously inspected native icon/splash. Free v1 UI integration is complete; use the exact candidate for captures. Yota must approve final branding and rights. Store screenshots/optional promotional art are not Internal TestFlight blockers; clearly track them for external publication.
 

@@ -1,6 +1,6 @@
 # Patch — TestFlight go-live master runbook
 
-Audited from fetched `origin/Dev` **7e5335b240ffec3512cae717904333f496188de4**, 2026-09-21. Free v1: Topic/Text/currently supported files → Flashcards/Multiple Choice → History/Review, Streak/Retention. UI/learning integration is complete; deferred features are not gates. [Current A–E audit](release-readiness-audit.md) · [validation evidence](release-readiness-validation-20260921.md).
+Readiness checkpoint `d5ef61d` integrated with fetched `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51**, 2026-09-21; Free v1 reliability fixes are preserved. Free v1: Topic/Text/currently supported files → Flashcards/Multiple Choice → History/Review, Streak/Retention. UI/learning integration is complete; deferred features are not gates. [Current A–E audit](release-readiness-audit.md) · [integration validation](testflight-readiness-integration.md).
 
 **Not yet cleared for TestFlight.** Real external values, service evidence, Apple access and device QA remain. This pass performs no deployment, Production DB operation or Apple account operation. Steps below are future operator actions; live mutations require authorization for their actual target. Do not weaken guards or insert fake values to turn checks green.
 

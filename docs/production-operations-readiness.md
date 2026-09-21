@@ -1,6 +1,6 @@
 # Production / TestFlight operations readiness
 
-Current baseline: fetched `origin/Dev` **7e5335b240ffec3512cae717904333f496188de4** (2026-09-21). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
+Current integration baseline: fetched `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51** (2026-09-21), including Free v1 reliability fixes. See [integration validation](testflight-readiness-integration.md). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
 
 Current evidence: [2026-09-21 validation](release-readiness-validation-20260921.md). Configuration variable/CI mapping and external destination setup are maintained once in the [configuration contract](production-configuration-contract.md). This document owns worker/alert/recovery behavior; [master](testflight-go-live-runbook.md) owns release order.
 

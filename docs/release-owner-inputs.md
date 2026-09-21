@@ -1,6 +1,6 @@
 # Release values / Yota input checklist
 
-Current baseline: fetched `origin/Dev` **7e5335b240ffec3512cae717904333f496188de4** (2026-09-21). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
+Current integration baseline: fetched `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51** (2026-09-21), including Free v1 reliability fixes. See [integration validation](testflight-readiness-integration.md). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
 
 No invented identities, addresses, regions, retention promises or business claims. `lib/public-pages/config.ts` remains draft with all 19 fields null. Classification is preparation, not legal advice or publication approval.
 

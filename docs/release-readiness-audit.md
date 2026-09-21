@@ -1,5 +1,7 @@
 # Patch release readiness audit — 2026-09-21
 
+> Integration update: latest Dev `8ab9f4847c67c27e322c70366c834f40b2e6ce51` is included with its reliability fixes unchanged. See [current integration evidence](testflight-readiness-integration.md). The original preparation audit below remains the A–E blocker inventory.
+
 Audited actual fetched `origin/Dev` **7e5335b240ffec3512cae717904333f496188de4** in a new clean worktree/branch `release/testflight-readiness-20260921`. No Production deployment/DB access, Apple operation, push, merge or main modification. [Master ordered runbook](testflight-go-live-runbook.md) · [current validation](release-readiness-validation-20260921.md).
 
 **Repository preparation complete for this pass; live TestFlight readiness remains blocked by B–E.** Actual values may reveal provider/device issues requiring fixes; no claim of guaranteed upload or review approval.

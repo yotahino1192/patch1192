@@ -1,6 +1,6 @@
 # Free v1 release scope and integration boundary
 
-Current readiness baseline: `origin/Dev` **7e5335b240ffec3512cae717904333f496188de4**. Topic and Free v1 learning/UI are integrated and frozen. Current external gates: [master runbook](testflight-go-live-runbook.md).
+Current integration baseline: `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51**, including [Free v1 reliability fixes](free-v1-reliability.md); see [integration validation](testflight-readiness-integration.md). Topic and Free v1 learning/UI are integrated and frozen. Current external gates: [master runbook](testflight-go-live-runbook.md).
 
 Historical pre-CLI3 integration baseline: Dev `d9e304f980711f7c9859b156b89efce4d36cd063`. It already contains CLI2 operations through `6105780` (via `b51ba1e`) and the CLI1 Home/Add Material/Free v1 UI merges. CLI2 was fast-forwarded to this exact Dev tree; no UI, learning, session, grading, retention, domain or DB changes are introduced by this documentation update.
 

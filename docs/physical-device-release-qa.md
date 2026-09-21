@@ -1,6 +1,6 @@
 # Physical-device release QA
 
-Current baseline: fetched `origin/Dev` **7e5335b240ffec3512cae717904333f496188de4** (2026-09-21). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
+Current integration baseline: fetched `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51** (2026-09-21), including Free v1 reliability fixes. See [integration validation](testflight-readiness-integration.md). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
 
 Free v1 gate: Topic/Text/currently supported files, Flashcards/Multiple Choice, History/Review, Streak/Retention. Fill in the Blank is future work, with no required implementation, preparation or QA for this release, and is not a TestFlight or App Store blocker. Advanced Lesson / Pro / Creator / Video remain outside the initial release scope. Run the matrix first on a signed Release device install before archive, then repeat critical flows and install/update/reinstall checks on the exact uploaded TestFlight build; keep separate results. Close the app after requesting deletion and verify scheduler-driven completion independently; never treat the request receipt as completed deletion.
 
