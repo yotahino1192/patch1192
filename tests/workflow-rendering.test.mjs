@@ -35,14 +35,16 @@ const set = { id: "s1", title: "テスト教材", folderId: null, category: "テ
 const data = { sets: [set], folders: [], reviews: [], chatMessages: [], dailyReview: { day: "2026-09-09", cardIds: ["c1"], completedCardIds: [], completed: false, achievedDays: [], streak: 0 } };
 const render = (component, props, language = "ja") => renderToStaticMarkup(React.createElement(LanguageProvider, { initialLanguage: language }, React.createElement(component, props)));
 
-test("home keeps paused lessons below the collapsed ToDo without a second review panel", () => {
+test("home keeps Streak and primary Continue without secondary action lists", () => {
   const html = render(Home, { data, now, startStudy: noop, setScreen: noop, selectSet: noop, onSample: noop, onResume: noop, resumableSessions: [{ ...EMPTY_SESSION, id: "lesson", setId: "s1", queue: ["c1"] }] });
-  assert.ok(html.includes("今日のToDo"));
-  assert.ok(html.indexOf('class="daily-review-rail"') < html.indexOf('class="home-resume-list"'));
+  assert.ok(!html.includes("今日のToDo"));
+  assert.ok(html.includes('class="daily-review-rail"'));
+  assert.ok(!html.includes('class="home-resume-list"'));
   assert.ok(!html.includes('class="home-study-start"'));
-  assert.ok(html.includes("続きから学習 · 残り1枚"));
+  assert.ok(html.includes("続きから学習"));
+  assert.ok(!html.includes("下書きの続きから"));
   assert.ok(!html.includes('class="daily-todo-content"'));
-  assert.equal((html.match(/新しい教材を追加|自分の文章から作る|＋ 教材を追加する/g) || []).length, 1);
+  assert.equal((html.match(/新しい教材を追加|自分の文章から作る|＋ 教材を追加する/g) || []).length, 0);
 });
 
 test("navigation has four destinations and study is a dedicated screen", () => {

@@ -41,16 +41,20 @@ function MainScreensFixture() {
   const [screen, setScreen] = useState(params.get('screen') || 'sets');
   const [folderId, setFolderId] = useState(null);
   const [setId, setSetId] = useState(params.has('detail') ? 's0' : null);
-  const [fixtureData, setFixtureData] = useState({...data, recordActivity:[{day:'2026-09-14',cards:8},{day:'2026-09-12',cards:5},{day:'2026-09-10',cards:3}], sets:data.sets.map((set,i)=>({...set,title:params.has('long')&&i===0?'思い出す練習を通して学びを深めるための長い教材タイトル / Learning through recall':set.title})), folders: state==='empty'?[]:[{id:'folder', name:params.has('long')?'長いフォルダ名で表示が崩れないことを確認するための教材フォルダ':'My learning', parentId:null}]});
+  const librarySets=[...sets,{...sets[0],id:'s3',title:'Practical economics',cards:sets[0].cards.map(card=>({...card,id:card.id+'s3',setId:'s3'}))}].map((set,i)=>({...set,folderId:i<3?'folder-'+i:null,title:params.has('long')&&i===0?'思い出す練習を通して学びを深めるための長い教材タイトル / Learning through recall':set.title}));
+  const libraryDue=librarySets.flatMap(set=>set.cards.slice(0,2).map(card=>card.id));
+  const noLibraryReviews=state==='empty'||state==='completed'||params.has('no-reviews');
+  const libraryRetention=screen==='sets'?{...snapshot,dueCount:noLibraryReviews?0:libraryDue.length,dueCardIds:noLibraryReviews?[]:libraryDue}:snapshot;
+  const [fixtureData, setFixtureData] = useState({...data, retention:libraryRetention, recordActivity:[{day:'2026-09-14',cards:8},{day:'2026-09-12',cards:5},{day:'2026-09-10',cards:3}], sets:state==='empty'?[]:librarySets, folders:state==='empty'?[]:[0,1,2].map(i=>({id:'folder-'+i,name:params.has('long')&&i===0?'長いフォルダ名で表示が崩れないことを確認するための教材フォルダ':['School','AI','Career'][i],parentId:null}))});
   const [importDraft, setImportDraft] = useState({text:'',attachments:[],detail:'標準',style:'一問一答'});
   const [destination, setDestination] = useState('root');
   const [draft, setDraft] = useState({title:'Learning through recall',keyPoints:['Practice retrieving what you know.'],cards:cards.slice(0,2).map(c=>({...c,draftId:c.id,selected:true}))});
   const startStudy = (...args) => { window.uiFixture.starts++; window.uiFixture.lastStart = args; };
   let content;
-  if(screen === 'sets') content = <SetLibrary data={fixtureData} folderId={folderId} openSetId={setId} onFolder={id=>{setFolderId(id);setSetId(null);}} onSet={setSetId} onData={setFixtureData} onAdd={()=>setScreen('import')}><SetDetail data={fixtureData} selectedSetId={setId} selectSet={setSetId} startStudy={startStudy} now={now} onData={setFixtureData}/></SetLibrary>;
+  if(screen === 'sets') content = <SetLibrary data={fixtureData} now={now} folderId={folderId} openSetId={setId} onFolder={id=>{setFolderId(id);setSetId(null);}} onSet={setSetId} onStudy={startStudy} onData={setFixtureData} onAdd={()=>setScreen('import')}><SetDetail data={fixtureData} selectedSetId={setId} selectSet={setSetId} startStudy={startStudy} now={now} onData={setFixtureData}/></SetLibrary>;
   else if(screen === 'records') content = <Records data={fixtureData} now={now} startStudy={startStudy}/>;
   else if(screen === 'import') content = <ImportScreen data={fixtureData} importDraft={importDraft} setImportDraft={setImportDraft} destination={destination} setDestination={setDestination} onGenerate={async()=>setScreen('generate')}/>;
   else if(screen === 'generate') content = <Generate data={fixtureData} draft={draft} setDraft={setDraft} destination={destination} setDestination={setDestination} onSave={async()=>{}} onRegenerate={async()=>{}}/>;
   else content = <Home data={fixtureData} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={setSetId} onContinue={startStudy} onChoosePatch={()=>{setFolderId(null);setSetId(null);setScreen("sets");}} resumableSessions={[]} onResume={startStudy} onSample={async()=>{}}/>;
-  return <AccountContext.Provider value={null}><Shell screen={screen} setScreen={setScreen}>{content}</Shell></AccountContext.Provider>;
+  return <AccountContext.Provider value={null}><Shell screen={screen} setScreen={setScreen} title={screen==='sets'?'Patches':undefined}>{content}</Shell></AccountContext.Provider>;
 }

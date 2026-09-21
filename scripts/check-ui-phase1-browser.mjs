@@ -52,7 +52,7 @@ try{
  }
  // Main navigation visual consistency and the existing Sets actions.
  for(const screen of ['sets','records','import','generate']) {
-  for(const width of [320,393,430,768]) {
+  for(const width of screen==='sets'?[320,390,430,768,1024,1440]:[320,393,430,768]) {
    await viewport(width,width===320?568:852);
    await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?screen=${screen}&lang=ja&long=1`});
    await until(()=>evaluate('!!document.querySelector(".library-page,.records-page,.import-page,.generation-page")'));
@@ -63,13 +63,26 @@ try{
  await viewport(393);
  await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?screen=sets&lang=ja`});
  await until(()=>evaluate('!!document.querySelector(".library-set-open")'));
+ assert.equal(await evaluate('document.querySelector(".topbar-library .screen-title").textContent'),'Patches');
+ assert.equal(await evaluate('!!document.querySelector(".topbar-library .settings-button svg")'),true,'Patches reuses the existing settings dialog through the profile treatment');
+ assert.equal(await evaluate('document.querySelectorAll(".today-patch-list>button").length'),3,'Due list is compact by default');
+ assert.equal(await evaluate('document.querySelector(".today-patches").textContent.includes("4件のPatchで8枚復習できます")'),true,'Authoritative dueCardIds are grouped by Patch');
+ assert.equal(await evaluate('document.querySelectorAll(".library-folders .folder-tile").length'),3);
+ assert.equal(await evaluate('document.querySelectorAll(".all-patches .library-set-open").length'),4);
+ assert.equal(await evaluate('(()=>{const today=document.querySelector(".today-patches").getBoundingClientRect(),folders=document.querySelector(".library-folders").getBoundingClientRect(),all=document.querySelector(".all-patches").getBoundingClientRect();return today.top<folders.top&&folders.top<all.top;})()'),true,'Mobile section order matches the Patches hierarchy');
+ await click('.patch-library-view-all');await until(()=>evaluate('document.querySelectorAll(".today-patch-list>button").length===4'));
+ await click('.today-patch-list>button');
+ assert.equal(await evaluate('window.uiFixture.lastStart[0]'),'__daily__:s0','Due Patch uses the existing daily review start contract');
  await click('.folder-controls .secondary');
  assert.equal(await evaluate('!!document.querySelector("#folder-create-form")'),true);
  await screenshot('folder-form-393');
  await click('.folder-create .folder-text-button');
- await click('.library-sets .folder-text-button');
+ assert.equal(await evaluate('!!document.querySelector(".library-set-move")'),false,'Move stays out of primary rows');
+ await click('.library-set-open');
+ await click('.folder-toolbar .secondary:last-child');
  await screenshot('move-set-393');
  await click('.folder-move button[type="button"]');
+ await click('.folder-breadcrumb button');
  await evaluate(`(()=>{const e=document.querySelector('#material-search-input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'recall');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
  await until(()=>evaluate('!!document.querySelector(".search-hit-list")'));
  await screenshot('search-393');
@@ -98,6 +111,23 @@ try{
  assert.equal(await evaluate('document.querySelector(".build-primary").disabled'),true,'Empty material must still disable Continue');
  await click('.bottom-nav button:nth-child(1)');
  assert.equal(await evaluate('!!document.querySelector(".patch-home")'),true);
+ assert.equal(await evaluate('!!document.querySelector(".today-todo-button,.daily-todo")'),false,'Home no longer presents detailed review management');
+ for(const [query,label] of [['state=completed','今日の目標は完了です'],['state=normal&no-reviews=1','復習はありません']]) {
+  await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?screen=sets&lang=ja&${query}`});
+  await until(()=>evaluate('!!document.querySelector(".today-patch-empty")'));
+  assert.equal(await evaluate('document.querySelector(".today-patch-empty strong").textContent'),label);
+  await screenshot('sets-'+query.replaceAll('&','-').replaceAll('=','-')+'-393');
+ }
+ await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?screen=sets&lang=ja`});
+ await until(()=>evaluate('!!document.querySelector(".patch-library-root")'));
+ await evaluate('[...document.querySelectorAll(".patch-library h2,.patch-library p,.patch-library strong,.patch-library small,.patch-library button,.patch-library input")].map(e=>[e,parseFloat(getComputedStyle(e).fontSize)]).forEach(([e,size])=>e.style.fontSize=size*1.5+"px")');
+ assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Patches supports 150% text');
+ assert.equal(await evaluate('[...document.querySelectorAll(".today-patch-list>button")].every(button=>button.getBoundingClientRect().height>=44)'),true,'Due Patch rows retain accessible tap targets');
+ await screenshot('sets-larger-text-393');
+ await viewport(1440,900);await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?screen=sets&lang=en`});await until(()=>evaluate('!!document.querySelector(".patch-library-root")'));
+ assert.equal(await evaluate('document.querySelector(".patch-library-root").getBoundingClientRect().width<=1040'),true,'Desktop content keeps a readable max width');
+ assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Desktop Patches does not overflow');
+ await screenshot('sets-desktop-1440');
  for(const width of [320,393,430]) { await viewport(width,width===320?568:852);await navigate('reference=1');await screenshot('reference-'+width); }
  for(const state of ['empty','normal','hot','broken','completed','complete','stale']){
   await viewport(393);await navigate('state='+state);await screenshot(state+'-393');
@@ -151,6 +181,11 @@ try{
  await viewport(393);await navigate('state=complete');await click('.completion-actions .patch-primary');
  await until(()=>evaluate('!!document.querySelector(".patch-home-completed .is-completed")'));await screenshot('post-lesson-home-393');
  assert.equal(await evaluate('document.querySelector(".patch-current-node").tagName'),'DIV','Today completion is a status, not another start button');
+ await navigate('screen=home&state=completed');
+ assert.equal(await evaluate('!!document.querySelector(".patch-browse-cta")'),false,'No separate Keep going action');
+ await click('.patch-current-node .patch-lesson-start');
+ assert.equal(await evaluate('!!document.querySelector(".patch-library-root")'),true,'Completed Home Continue learning opens Patches');
+ assert.equal(await evaluate('window.uiFixture.starts'),0,'Completed Home Continue learning never starts study');
  await navigate('state=normal');await evaluate('window.uiFixture.updateSnapshot({streak:9,hot:true,completed:true,achievedDays:[18,19,20]})');
  await until(()=>evaluate('!!document.querySelector(".patch-streak-hot")'));
  assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'9-day streak','Streak uses refreshed authoritative value');
@@ -163,9 +198,9 @@ try{
  assert.equal(await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).method"),'GET');
  assert.ok((await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).url")).includes('id=saved-a'));
  await click('.patch-sheet-close');
- await click('.home-resume-list .patch-action-card:nth-child(2)');await until(()=>evaluate('window.uiFixture.pending.length===2'));
+ await click('.patch-lesson-start');await until(()=>evaluate('window.uiFixture.pending.length===2'));
  await evaluate('window.uiFixture.pending[0]()');await delay(100);
- assert.equal(await evaluate('document.querySelector(".patch-preview-time")===null'),true,'Late prior-session estimate must be ignored');
+ assert.equal(await evaluate('document.querySelector(".patch-preview-time")===null'),true,'Late closed-preview estimate must be ignored');
  await evaluate('window.uiFixture.pending[1]()');await until(()=>evaluate('document.querySelector(".patch-preview-time")?.textContent.includes("8 minutes")'));
  assert.equal(await evaluate('document.querySelector(".patch-sheet").textContent.includes("6 cards remaining")'),true);
  await screenshot('resume-preview-393');
@@ -174,7 +209,7 @@ try{
  // The same displayed boxes must survive a replacement PNG with a different
  // intrinsic aspect ratio. Check neighboring CTAs too, not only the image itself.
  await cdp('Network.enable');await cdp('Network.setCacheDisabled',{cacheDisabled:true});
- const layout=()=>evaluate(`Array.from(document.querySelectorAll('.patch-mascot,.patch-greeting,.patch-current-node,.patch-primary,.bottom-nav,.patch-results,.patch-complete>h1,.patch-sheet[open]')).map(e=>({name:e.className,rect:e.getBoundingClientRect().toJSON()})).filter(e=>e.rect.width&&e.rect.height)`);
+ const layout=async()=>{await evaluate('window.scrollTo({top:0,behavior:"instant"})');return evaluate(`Array.from(document.querySelectorAll('.patch-mascot,.patch-greeting,.patch-current-node,.patch-primary,.bottom-nav,.patch-results,.patch-complete>h1,.patch-sheet[open]')).map(e=>({name:e.className,rect:e.getBoundingClientRect().toJSON()})).filter(e=>e.rect.width&&e.rect.height)`);};
  for(const [state,pose] of [['empty','standing'],['normal','reading'],['complete','celebrate']]){
   await viewport(393);mascotMode='current';await navigate('state='+state);const before=await layout();
   mascotMode='replacement';mascotRequests.length=0;await navigate('state='+state);

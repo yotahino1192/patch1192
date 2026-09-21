@@ -9,13 +9,13 @@ import { widgetState } from "../lib/retention";
 import { isLongTermDue } from "../lib/long-term-review";
 import { AvailableLessons } from "../features/my-lesson/available-lessons";
 import { LessonPreview } from "./lesson-preview";
-import { DailyReviewRail } from "./daily-review";
+import { StreakCard } from "./streak-card";
 import { useLanguage } from "./language";
 import { Mascot } from "./mascot";
 import { PatchIcon } from "./patch-ui";
 
 type Screen = "home" | "import" | "generate" | "sets" | "study" | "records";
-export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft, resumableSessions, onResume, onSample, onContinue, onChoosePatch, onOpenLesson }: {
+export function Home({ data, now, startStudy, setScreen, selectSet, resumableSessions, onResume, onSample, onContinue, onChoosePatch, onOpenLesson }: {
   data: AppData; now: Date;
   startStudy: (setId?: string, startCardId?: string, batchSize?: number) => void;
   setScreen: (screen: Screen) => void; selectSet: (id: string) => void;
@@ -61,7 +61,7 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
       <button className="patch-text-button" disabled={sampleBusy} onClick={async () => { setSampleBusy(true); setSampleError(""); try { await onSample(); } catch (error) { setSampleError(error instanceof Error ? error.message : t("サンプルを準備できませんでした。")); } finally { setSampleBusy(false); } }}>{t(sampleBusy ? "準備しています…" : "サンプルで学習 · 3枚")}</button>
       {sampleError && <p role="alert" className="inline-error">{t(sampleError)}</p>}
     </section> : <>
-      <DailyReviewRail data={data} now={now} onStudy={startStudy} />
+      <section className="daily-review-rail" aria-label={t("連続学習記録")}><StreakCard data={data} now={now} /></section>
       <section className="patch-learning" aria-label={t("今日の学習")}>
         {recentSets.length > 0 && <><h2 className="patch-section-label">{t("最近学んだ教材")}</h2><div className="patch-recent-path">
           <svg className="patch-path-curve" viewBox={`0 0 100 ${recentSets.length * 68 + 20}`} preserveAspectRatio="none" aria-hidden="true"><path d={[
@@ -77,7 +77,7 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
             // eslint-disable-next-line @next/next/no-img-element
             <img src="/patch/lesson-book-white.png" className="patch-lesson-book-image" alt="" aria-hidden="true" />
           ) : <PatchIcon name={completed ? "check" : "plus"} size={42} />}</span>
-          {completed ? <><strong>{t("今日は完了！")}</strong><small>{t("今日の学習目標を達成しました。")}</small>{learnable && <button className="patch-lesson-start" onClick={openNext}>{t("続きから学習")}<PatchIcon name="arrow" size={21} /></button>}</> : <>
+          {completed ? <><strong>{t("今日は完了！")}</strong><small>{t("今日の学習目標を達成しました。")}</small>{learnable && <button className="patch-lesson-start" onClick={onChoosePatch}>{t("続きから学習")}<PatchIcon name="arrow" size={21} /></button>}</> : <>
             <span className="patch-current-label">{t("今日のレッスン")}</span>
             <h2 title={learnable ? title : undefined}>{learnable ? title : t("新しい教材を追加")}</h2>
             {learnable && <p className="patch-current-context">{selectedSession || remoteSession ? t("続きから学習") : destination.kind === "review" ? t("今日の復習") : t("学習")}
@@ -87,13 +87,9 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
           </>}
         </div>
       </section>
-      {(completed || resumableSessions.length > 0 || memorySets.length > 0) && <div className="patch-section-label patch-optional-label">{t(completed ? "もう少し続ける（任意）" : "学習を続ける")}</div>}
-      {resumableSessions.length > 0 && <section className="home-resume-list" aria-label={t("中断した学習")}>{resumableSessions.map(session => <button key={session.id} className="patch-action-card" onClick={() => setPreview(session.id)}><span className="patch-action-icon"><PatchIcon name="book" /></span><span><strong>{t("続きから学習 · 残り{0}枚", pendingStudyCount(session))}</strong><small>{data.sets.find(set => set.id === session.setId)?.title || t("復習")}</small></span><PatchIcon name="arrow" size={19} /></button>)}</section>}
       {memorySets.map(({ set, cards }) => <button key={set.id} className="patch-action-card" onClick={() => startStudy(`__memory__:${set.id}`)}><span className="patch-action-icon is-memory"><PatchIcon name="refresh" /></span><span><strong>{t("記憶を確かめる")}</strong><small>{set.title} · {t("{0}枚", cards.length)}</small></span><PatchIcon name="arrow" size={19} /></button>)}
-      {(completed || learnable) && <button className="patch-text-button patch-add-material" onClick={() => setScreen("import")}><PatchIcon name="plus" size={18} />{t("新しい教材を追加")}</button>}
     </>}
     {onOpenLesson && <AvailableLessons onStart={onOpenLesson} />}
-    {resumeDraft && <button className="patch-action-card" onClick={resumeDraft}><span>{t("下書きの続きから")}</span><PatchIcon name="arrow" size={20} /></button>}
     <LessonPreview open={preview !== null} onClose={() => setPreview(null)} onStart={startPreview} onChoosePatch={() => { setPreview(null); onChoosePatch(); }} title={title} summary={currentSet?.summary} sessionId={selectedSession?.id ?? remoteSession?.id} remaining={remaining} dueCount={!currentSet && destination.kind === "review" && !stale ? data.retention?.dueCount : undefined} />
   </div>;
 }
