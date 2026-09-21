@@ -379,8 +379,9 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
   const setAiInput = (aiInput: string) => updateSession((s) => ({ ...s, aiInput }));
   const setAiCompose = (aiCompose: boolean) => updateSession((s) => ({ ...s, aiCompose }));
   const aiRequestPending = useRef(false);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiError, setAiError] = useState("");
+  const [aiLoading, setAiBusy] = useState(false);
+  const [aiRequestCardId, setAiRequestCardId] = useState<string | null>(null);
+  const [aiFailure, setAiFailure] = useState<{ cardId: string; message: string } | null>(null);
   const [sessionAiMessages, setSessionAiMessages] = useState<ChatMessage[]>(() => data.chatMessages.filter((message) => message.sessionId === sessionId));
   const [summaryCards, setSummaryCards] = useState<DraftCard[]>([]);
   const [summaryKeyPoints, setSummaryKeyPoints] = useState<string[]>([]);
@@ -394,11 +395,15 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
   const suppressClick = useRef(false);
   const flashcardTapRef = useRef<HTMLButtonElement>(null);
   const card = data.sets.flatMap((item) => item.cards).find((item) => item.id === queue[0]);
+  const aiBusy = aiLoading && aiRequestCardId === card?.id;
+  const aiError = aiFailure?.cardId === card?.id ? aiFailure?.message : "";
+  const activeCardId = useRef(card?.id);
   const set = data.sets.find((item) => item.id === card?.setId) || data.sets.find((item) => item.id === sessionSetId);
   const cardMessages = sessionAiMessages.filter((message) => message.cardId === card?.id);
   const mcqExplanation = [...cardMessages].reverse().find((message) => message.role === "assistant");
 
   useEffect(() => {
+    activeCardId.current = card?.id;
     shownAt.current = currentTimeMs();
   }, [card?.id]);
   useEffect(() => {
@@ -445,8 +450,9 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
     setSessionAiMessages((current) => [...current, userMessage]);
     setData((current) => ({ ...current, chatMessages: [...current.chatMessages, userMessage] }));
     setAiInput("");
+    setAiRequestCardId(card.id);
     setAiBusy(true);
-    setAiError("");
+    setAiFailure(null);
     try {
       const result = await api<{ answer: string }>("/api/ai/chat", {
         method: "POST",
@@ -473,8 +479,8 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
     } catch (e) {
       setSessionAiMessages((current) => current.filter((message) => message.id !== userMessage.id));
       setData((current) => ({ ...current, chatMessages: current.chatMessages.filter((message) => message.id !== userMessage.id) }));
-      setAiInput(question);
-      setAiError(e instanceof Error ? e.message : "AIに質問できませんでした。");
+      if (mounted.current && activeCardId.current === card.id) setAiInput(question);
+      setAiFailure({ cardId: card.id, message: e instanceof Error ? e.message : "AIに質問できませんでした。" });
     } finally {
       aiRequestPending.current = false;
       setAiBusy(false);
@@ -740,7 +746,7 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
         {card.format !== "multiple_choice" && correctFeedback && <span className="correct-check" role="status" aria-label={t("正解です。")}><AssetIcon name="check" size={46} /></span>}
         {card.format === "multiple_choice" && <div className="study-choice-grid" aria-label={t("選択肢")}>{card.choices.map((choice, index) => <button key={choice} type="button" aria-pressed={selectedChoice === choice} disabled={flipped || busy} className={flipped ? choice === card.answer ? 'choice-correct' : choice === selectedChoice ? 'choice-selected-incorrect' : '' : ''} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedChoice(choice); setFlipped(true); setGestureMessage(t("答えを確認し、「選択結果を記録」で次へ進みます。")); }}><span className="study-option-letter" aria-hidden="true">{String.fromCharCode(65 + index)}</span><span>{choice}</span>{flipped && choice === card.answer && <PatchIcon name="check" size={20} />}</button>)}</div>}
         {card.format === "multiple_choice" && flipped && selectedChoice && <div role="status" aria-live="polite" className={`choice-feedback ${selectedChoice === card.answer ? "is-correct" : "is-incorrect"}`}><strong>{selectedChoice === card.answer ? t("正解です。") : t("正解を確認しましょう。")}</strong><p>{selectedChoice === card.answer ? t("選んだ「{0}」が正解です。", selectedChoice) : t("あなたの回答：{0}　正解：{1}", selectedChoice, card.answer)}</p></div>}
-        {card.format === "multiple_choice" && flipped && selectedChoice && <button type="button" className="mcq-ai-button" disabled={busy || aiBusy} onPointerDown={(event) => event.stopPropagation()} onClick={openMcqExplanation}><IconLabel name="sparkles">{t("AIで解説")}</IconLabel></button>}
+        {card.format === "multiple_choice" && flipped && selectedChoice && <button type="button" className="mcq-ai-button" disabled={busy || aiLoading} onPointerDown={(event) => event.stopPropagation()} onClick={openMcqExplanation}><IconLabel name="sparkles">{t("AIで解説")}</IconLabel></button>}
         {advancedStudyEnabled && card.format !== "multiple_choice" && flipped && !introductory && <button type="button" className="card-ai-button" disabled={busy || aiBusy} onPointerDown={(event) => event.stopPropagation()} onClick={openAiExplanation}><IconLabel name="sparkles">{t("AIに解説してもらう")}</IconLabel></button>}
       </article>
       {introductory && !flipped && <button className="primary wide" onClick={()=>setFlipped(true)}>{t("答えを見る")}</button>}

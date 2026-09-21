@@ -137,6 +137,15 @@ try{
    await click('.mcq-ai-button');await until(()=>evaluate('!!document.querySelector(".mcq-ai-explanation")?.textContent.includes("higher borrowing costs")'));
    assert.equal(await evaluate('document.querySelector(".record-choice").disabled'),false,'AI explanation does not block Continue');
    assert.deepEqual(await evaluate(`[...new Set([...document.querySelectorAll('.study-page *')].filter(e=>e.children.length===0&&e.textContent.trim()&&getComputedStyle(e).display!=='none').map(e=>parseFloat(getComputedStyle(e).fontSize)))].sort((a,b)=>a-b)`),[14,16,20],'Study text uses only the four approved roles');
+   assert.deepEqual(await evaluate(`[...document.querySelectorAll('.study-page *')].filter(e=>e.children.length===0&&e.textContent.trim()&&getComputedStyle(e).display!=='none').map(e=>({text:e.textContent,role:getComputedStyle(e).fontSize+'/'+getComputedStyle(e).fontWeight})).filter(e=>!['20px/700','16px/700','14px/400'].includes(e.role))`),[],'Study weight and size pairs match the approved roles');
+   await cdp('DOM.enable');await cdp('CSS.enable');await evaluate('document.fonts.ready');
+   const fontDocument=await cdp('DOM.getDocument');
+   for(const [selector,expected] of [['.choice-feedback p',['Inter','Noto Sans JP']],['.mcq-question strong',['Nunito Sans']],['.record-choice .icon-label > span:last-child',['M PLUS Rounded 1c']]]) {
+    const {nodeId}=await cdp('DOM.querySelector',{nodeId:fontDocument.root.nodeId,selector});
+    const {fonts}=await cdp('CSS.getPlatformFontsForNode',{nodeId});
+    for(const family of expected)assert.ok(fonts.some(font=>(font.familyName.startsWith(family)||(family==='M PLUS Rounded 1c'&&font.familyName.startsWith('Rounded Mplus 1c')))&&font.isCustomFont&&font.glyphCount>0),JSON.stringify({selector,expected,fonts}));
+    console.log('RENDERED_FONTS',selector,JSON.stringify(fonts));
+   }
    await shot('free-choice-selected-393');
    await click('.record-choice');await until(()=>evaluate('!reviewFixture.workspace().session.flipped'));
    const submitted=await evaluate('reviewFixture.writes.filter(w=>w.body?.action==="reviewCard").at(-1).body');assert.equal('rating' in submitted,false);assert.equal('correct' in submitted,false);assert.ok(submitted.selectedChoice);
@@ -180,6 +189,32 @@ try{
  }
  assert.equal(await evaluate('reviewFixture.aiCalls'),1,'Free v1 calls AI only after the explicit MCQ explanation action');
 
+ for(const mode of ['loading','consent','network','provider','unknown']) {
+  await openReview('multiple_choice');await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready")'));
+  await click('.build-ready .build-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));
+  await click('.study-choice-grid button:nth-child(2)');
+  const before=await evaluate('JSON.stringify({id:reviewFixture.workspace().session.id,queue:reviewFixture.workspace().session.queue,choice:reviewFixture.workspace().session.selectedChoice})');
+  await evaluate(`reviewFixture.explanationMode=${JSON.stringify(mode)};reviewFixture.consentUnavailable=${mode==='consent'}`);
+  await click('.mcq-ai-button');
+  if(mode==='loading')await until(()=>evaluate('!!reviewFixture.releaseExplanation'));
+  else await until(()=>evaluate('!!document.querySelector(".mcq-ai-error")'));
+  assert.equal(await evaluate('document.querySelector(".record-choice").disabled'),false,mode+': Continue remains available');
+  assert.equal(await evaluate('JSON.stringify({id:reviewFixture.workspace().session.id,queue:reviewFixture.workspace().session.queue,choice:reviewFixture.workspace().session.selectedChoice})'),before,mode+': answer and session stay intact');
+  const calls=await evaluate('reviewFixture.aiCalls');await delay(600);assert.equal(await evaluate('reviewFixture.aiCalls'),calls,mode+': no automatic retry');
+  if(mode==='consent')assert.equal(calls,0,'Unavailable consent makes no AI dispatch');
+  if(mode==='loading') {await click('.mcq-ai-button');assert.equal(await evaluate('reviewFixture.aiCalls'),1,'Repeated click is single flight');}
+  if(mode==='unknown') {
+   const key=await evaluate('reviewFixture.aiRequests[0].key');assert.ok(key);
+   await click('.mcq-ai-error button');await until(()=>evaluate('reviewFixture.aiRequests.length===2 && !!document.querySelector(".mcq-ai-error")'));
+   assert.equal(await evaluate('reviewFixture.aiRequests[1].key'),key,'Explicit unknown retry preserves operation identity');
+  }
+  await shot('explanation-'+mode+'-393');await click('.record-choice');
+  await until(()=>evaluate('!reviewFixture.workspace().session.flipped'));
+  assert.equal(await evaluate('document.querySelector(".pause-study").disabled'),false,'Previous question AI never blocks the next question');
+  if(mode==='loading'){await evaluate('reviewFixture.releaseExplanation()');await delay(150);assert.equal(await evaluate('reviewFixture.workspace().session.aiInput'),'','Late explanation never changes the new question');}
+ }
+ console.log('PASS: explanation loading/consent unavailable/network/provider/unknown, repeated clicks, Continue, and no automatic retry');
+
  }
  if(!liveAi && process.env.PATCH_UI_ONLY !== '1') {
  // Topic, pasted source and uploaded PDF all use the integrated generation flow.
@@ -218,7 +253,8 @@ try{
     await until(()=>evaluate('reviewFixture.workspace().session.queue.length===1'));
     await cdp('Page.reload');await until(()=>evaluate('!!document.querySelector(".patch-home")'));
     assert.equal(await evaluate('reviewFixture.workspace().session.queue.length'),1);
-    await click('.home-resume-list button');await click('dialog .patch-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));
+    // The completed Home CTA now opens Patches. Exercise the existing Continue deep link for saved-session recovery.
+    await evaluate('reviewFixture.resumeLink()');await until(()=>evaluate('!!document.querySelector(".study-page")'));
     assert.equal(await evaluate('reviewFixture.workspace().session.id'),activeId);
    }
   }
