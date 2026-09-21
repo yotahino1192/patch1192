@@ -99,3 +99,7 @@ APIはClerk認証と内部user IDによる所有権確認を使用します。`l
 ## Infrastructure Phase 1
 
 Set `PATCH_ENV=development` locally, run `npm run db:migrate` before first use, then start the app. Production/Staging require reviewed allowlists and explicit configuration. See [Production runbook](docs/production-infrastructure.md). No Production operation has been executed by this branch.
+
+## TestFlight release preparation
+
+Start with the [single go-live runbook](docs/testflight-go-live-runbook.md) for current A–E blockers, exact configuration/validation commands, Apple setup and device QA order. Operational values/evidence remain unconfigured; this is not deployment authorization.

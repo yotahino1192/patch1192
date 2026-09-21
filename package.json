@@ -49,7 +49,8 @@
     "test:ui-browser": "node scripts/check-ui-phase1-browser.mjs",
     "test:integration-browser": "node scripts/check-patch-integration-browser.mjs",
     "test:build-patch-browser": "node scripts/check-build-patch-browser.mjs",
-    "test:build-review-browser": "node scripts/check-build-review-browser.mjs"
+    "test:build-review-browser": "node scripts/check-build-review-browser.mjs",
+    "check:operations": "node scripts/check-operations-config.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",

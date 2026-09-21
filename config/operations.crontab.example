@@ -1,0 +1,11 @@
+# DISABLED TEMPLATE. Every line is commented; nothing installs or enables this file.
+# Dedicated Node 22 runner with reviewed checkout/dependencies at /opt/patch.
+# Secret manager injects the complete guarded server environment (see contract).
+# PATCH_ENV=production; DB_ID must equal reviewed production.databaseId.
+# Use read-only DB permissions for aggregate status. Never expose credentials in argv.
+# Collector must project operations_status/operation fields only, label this source
+# operations-status, and monitor process exit plus missing success >15 minutes.
+# Replace executable/checkout paths with actual runner paths. Do not enable in CI.
+# */5 * * * * cd /opt/patch && /usr/local/bin/node scripts/operations-status.mjs --allow-remote --confirm-db "$DB_ID"
+# Backup scheduling intentionally awaits Yota's interval/retention/RPO/RTO and
+# provider-specific offsite copy/key custody decisions. See recovery runbook.

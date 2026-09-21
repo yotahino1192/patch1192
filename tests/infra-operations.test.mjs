@@ -16,6 +16,8 @@ test('worker contract rejects missing/placeholder secrets and requires explicit 
   await assert.rejects(callDeletionWorker(input, policy, undefined, fetcher));
   await assert.rejects(callDeletionWorker({ ...input, PATCH_API_ORIGIN: 'https://other.patch-release.dev' }, policy, 'production', fetcher));
   await assert.rejects(callDeletionWorker({ ...input, ACCOUNT_DELETION_WORKER_SECRET: '' }, policy, 'production', fetcher));
+  for (const origin of [input.PATCH_API_ORIGIN + '/', input.PATCH_API_ORIGIN + ':443'])
+    await assert.rejects(callDeletionWorker({ ...input, PATCH_API_ORIGIN: origin }, policy, 'production', fetcher), /API_ALLOWLIST/);
   assert.equal(calls, 0);
   assert.equal(await callDeletionWorker(input, policy, 'production', fetcher), 'idle');
   for (const state of ['completed', 'retry']) assert.equal(await callDeletionWorker(input, policy, 'production', async () => Response.json({ processed: true, state })), state);

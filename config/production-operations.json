@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "environment": "production",
+  "monitoring": {
+    "providerRef": "",
+    "destinationRef": "",
+    "responderRef": "",
+    "deliveryEvidenceRef": "",
+    "statusIntervalMinutes": 5,
+    "statusHeartbeatMinutes": 15,
+    "structuredFieldsOnly": true
+  },
+  "deletion": {
+    "schedulerRef": "",
+    "intervalSeconds": 60,
+    "heartbeatMinutes": 5,
+    "completionEvidenceRef": ""
+  },
+  "backup": {
+    "storageRef": "",
+    "keyCustodyRef": "",
+    "keyId": "",
+    "recoveryOwnerRef": "",
+    "intervalHours": null,
+    "maxSuccessAgeHours": null,
+    "retentionDays": null,
+    "rpoHours": null,
+    "rtoHours": null,
+    "restoreEvidenceRef": "",
+    "reconciliationPlanRef": ""
+  }
+}

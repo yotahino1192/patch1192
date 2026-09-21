@@ -35,6 +35,8 @@ export function safeOrigin(value: string, field: string, remote: boolean): strin
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || url.pathname !== '/')
         throw new ConfigError(field);
     const host = url.hostname.toLowerCase();
+    if (remote && (host.length > 253 || !host.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))))
+        throw new ConfigError(field);
     // Remote endpoints must be DNS names; reject *all* literal IPs, not only known private ranges.
     if (remote && (url.protocol !== 'https:' || !host.includes('.') || /[:\[\]]/.test(host) || /^[\d.]+$/.test(host) || /(^|\.)(localhost|local|internal|test|invalid)$/.test(host) || /(^|\.)example\.(com|org|net|invalid)$/.test(host) || /(^|[.-])(dummy|fixture)([.-]|$)/.test(host)))
         throw new ConfigError(field);
@@ -73,6 +75,7 @@ export function validatePublic(input: EnvInput, policy: ReleasePolicy, mobile = 
     const issuer = input[mobile ? 'PATCH_CLERK_ISSUER' : 'CLERK_ISSUER'] || '';
     const api = input[mobile ? 'PATCH_API_URL' : 'PATCH_API_ORIGIN'] || (remote ? '' : 'http://localhost:3001');
     const apiOrigin = safeOrigin(api, 'API_ORIGIN', remote);
+    if (remote && api !== apiOrigin) throw new ConfigError('API_ORIGIN');
     if (!remote && !key)
         return { env, apiOrigin, clerkHost: '', clerkIssuer: issuer ? safeOrigin(issuer, 'CLERK_ISSUER', false) : '', publishableKey: '' };
     const host = clerkHost(key);

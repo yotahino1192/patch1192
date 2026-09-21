@@ -59,6 +59,8 @@ jobs:
       TURSO_DATABASE_URL: ${{ vars.TURSO_DATABASE_URL }}
       TURSO_AUTH_TOKEN: ${{ secrets.TURSO_VALIDATION_TOKEN }}
       CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      ACCOUNT_DELETION_WORKER_SECRET: ${{ secrets.ACCOUNT_DELETION_WORKER_SECRET }}
+      AI_ENABLED: ${{ vars.AI_ENABLED }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_CARD_MODEL: gpt-5-nano
       OPENAI_CHAT_MODEL: gpt-5-nano
@@ -72,4 +74,5 @@ jobs:
       - run: npm run build
       - run: npm run mobile:build
       - run: npm run check:release
+      - run: npm run check:operations
       # Intentionally no deploy, promotion, remote migration, or backup command.

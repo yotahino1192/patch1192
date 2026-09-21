@@ -2,6 +2,8 @@
 # Dedicated runner: Node 22, reviewed clean checkout at /opt/patch, secret-manager
 # injected PATCH_ENV, PATCH_API_ORIGIN, ACCOUNT_DELETION_WORKER_SECRET.
 # Replace /opt/patch and /usr/local/bin/node with reviewed absolute paths.
-# One call per minute; collect stdout/stderr and alert if heartbeat absent >5 min.
+# One call per minute; project reviewed JSON fields into the collector, label
+# source deletion-runner, and alert if heartbeat absent >5 min or job exits nonzero.
+# Never forward raw stdout/stderr wholesale. No immediate HTTP retries; obey lease/backoff.
 # No secret values in crontab or command arguments. No shell tracing.
 # * * * * * cd /opt/patch && /usr/local/bin/node scripts/deletion-worker-call.mjs --execute --confirm-env production

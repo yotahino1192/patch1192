@@ -6,7 +6,7 @@ export async function callDeletionWorker(input, policy, confirmedEnvironment, fe
   const stage = environment(input);
   if (!['staging', 'production'].includes(stage) || confirmedEnvironment !== stage) throw Error('WORKER_TARGET_CONFIRMATION_REQUIRED');
   const origin = safeOrigin(input.PATCH_API_ORIGIN || '', 'API_ORIGIN', true);
-  if (!policy[stage].apiOrigins.includes(origin)) throw Error('API_ALLOWLIST');
+  if (input.PATCH_API_ORIGIN !== origin || !policy[stage].apiOrigins.includes(origin)) throw Error('API_ALLOWLIST');
   const secret = requireWorkerSecret(input.ACCOUNT_DELETION_WORKER_SECRET);
   const response = await fetcher(origin + '/api/internal/account-deletions', {
     method: 'POST', headers: { Authorization: `Bearer ${secret}` }, redirect: 'error', signal: AbortSignal.timeout(55000),

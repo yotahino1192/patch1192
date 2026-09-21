@@ -12,6 +12,9 @@ export function validateServer(input: EnvInput, policy: ReleasePolicy = readPoli
     const databaseUrl = input.TURSO_DATABASE_URL || (env === 'development' ? 'file:.data/loop.db' : '');
     if (env !== 'development') {
         requireWorkerSecret(input.ACCOUNT_DELETION_WORKER_SECRET);
+        if (!['true', 'false'].includes(input.AI_ENABLED || '')) throw new ConfigError('AI_ENABLED');
+        if (['CLERK_SECRET_KEY', 'TURSO_AUTH_TOKEN', 'OPENAI_API_KEY', 'PATCH_BACKUP_KEY'].some(name => input[name] && input[name] === input.ACCOUNT_DELETION_WORKER_SECRET))
+            throw new ConfigError('WORKER_SECRET_REUSED');
         const target = policy[env];
         let url: URL;
         try {

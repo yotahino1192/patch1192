@@ -12,7 +12,7 @@ const host = 'clerk.patch-release.dev', origin = 'https://app.patch-release.dev'
 const pk = 'pk_' + 'live_' + Buffer.from(host + '$').toString('base64').replace(/=+$/, '');
 const target = { apiOrigins: [origin], webOrigins: [origin], clerkIssuers: ['https://' + host], databaseUrls: ['libsql://patch-release.turso.io'], databaseId: 'patch-release', models: ['gpt-5-nano'] };
 const policy = { version: 1, production: target, staging: target };
-function valid() { return { ACCOUNT_DELETION_WORKER_SECRET: randomBytes(32).toString('base64url'), PATCH_ENV: 'production', PATCH_API_ORIGIN: origin, VERCEL_PROJECT_PRODUCTION_URL: new URL(origin).host, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk, CLERK_ISSUER: 'https://' + host, CLERK_SECRET_KEY: 'sk_' + 'live_' + randomBytes(20).toString('hex'), TURSO_DATABASE_URL: target.databaseUrls[0], TURSO_AUTH_TOKEN: 'eyJ' + randomBytes(16).toString('base64url') + '.' + randomBytes(24).toString('base64url') + '.' + randomBytes(32).toString('base64url'), OPENAI_API_KEY: 'sk-' + randomBytes(24).toString('hex'), OPENAI_CARD_MODEL: 'gpt-5-nano', OPENAI_CHAT_MODEL: 'gpt-5-nano', AUTH_ALLOWED_ORIGINS: origin }; }
+function valid() { return { AI_ENABLED: 'true', ACCOUNT_DELETION_WORKER_SECRET: randomBytes(32).toString('base64url'), PATCH_ENV: 'production', PATCH_API_ORIGIN: origin, VERCEL_PROJECT_PRODUCTION_URL: new URL(origin).host, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk, CLERK_ISSUER: 'https://' + host, CLERK_SECRET_KEY: 'sk_' + 'live_' + randomBytes(20).toString('hex'), TURSO_DATABASE_URL: target.databaseUrls[0], TURSO_AUTH_TOKEN: 'eyJ' + randomBytes(16).toString('base64url') + '.' + randomBytes(24).toString('base64url') + '.' + randomBytes(32).toString('base64url'), OPENAI_API_KEY: 'sk-' + randomBytes(24).toString('hex'), OPENAI_CARD_MODEL: 'gpt-5-nano', OPENAI_CHAT_MODEL: 'gpt-5-nano', AUTH_ALLOWED_ORIGINS: origin }; }
 test('development explicit configuration passes without secrets; missing environment fails', () => { assert.equal(validateServer({ PATCH_ENV: 'development' }, policy).env, 'development'); assert.throws(() => validateServer({}, policy), /PATCH_ENV/); });
 test('remote environment requires a separate worker secret', () => {
     for (const PATCH_ENV of ['staging', 'production']) for (const secret of [undefined, '', 'a'.repeat(64), 'changeme'.repeat(8)])
@@ -21,7 +21,7 @@ test('remote environment requires a separate worker secret', () => {
 test('production and staging validate with matched allowlisted endpoints', () => { assert.equal(validateServer(valid(), policy).env, 'production'); assert.equal(validateServer({ ...valid(), PATCH_ENV: 'staging' }, policy).env, 'staging'); });
 test('production rejects test Clerk, mismatched issuer, dummy AI and unauthorized model', () => { const e = valid(); for (const change of [{ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk.replace('live', 'test') }, { CLERK_ISSUER: 'https://another.patch-release.dev' }, { OPENAI_API_KEY: 'dummy' }, { OPENAI_CHAT_MODEL: 'expensive-model' }, { CLERK_JWT_KEY: 'public-key' }, { AUTH_ALLOWED_ORIGINS: 'https://evil.tld' }])
     assert.throws(() => validateServer({ ...e, ...change }, policy)); });
-test('production rejects local, private, reserved and unallowlisted API origins', () => { for (const url of ['http://app.patch-release.dev', 'https://localhost', 'https://127.0.0.1', 'https://2130706433', 'https://10.0.0.1', 'https://172.16.0.1', 'https://192.168.1.1', 'https://[::1]', 'https://[::ffff:127.0.0.1]', 'https://example.invalid', 'https://example.com', 'https://api.example.com', 'https://host.test', 'https://unapproved.tld'])
+test('production rejects local, private, reserved and unallowlisted API origins', () => { for (const url of ['http://app.patch-release.dev', 'https://localhost', 'https://127.0.0.1', 'https://2130706433', 'https://10.0.0.1', 'https://172.16.0.1', 'https://192.168.1.1', 'https://[::1]', 'https://[::ffff:127.0.0.1]', 'https://example.invalid', 'https://example.com', 'https://api.example.com', 'https://host.test', 'https://unapproved.tld', 'https://*.patch-release.dev', 'https://app..patch-release.dev', 'https://_app.patch-release.dev'])
     assert.throws(() => validateServer({ ...valid(), PATCH_API_ORIGIN: url }, policy)); });
 test('production rejects local/test/unknown DB, bypass and public secret flags', () => { for (const change of [{ TURSO_DATABASE_URL: 'file:local.db' }, { TURSO_DATABASE_URL: 'libsql://patch-test.turso.io' }, { TURSO_DATABASE_URL: 'libsql://other.turso.io' }, { AUTH_BYPASS: 'true' }, { USE_MOCK_AUTH: '1' }, { CLERK_ISSUER: 'https://' + host + '/' }, { TEST_ACCOUNT_BYPASS: '1' }, { PATCH_DEVELOPMENT_ONLY: 'true' }, { NEXT_PUBLIC_OPENAI_API_KEY: 'secret' }])
     assert.throws(() => validateServer({ ...valid(), ...change }, policy)); });
@@ -66,4 +66,22 @@ test('production artifact rejects literal local/dummy/dev issuer endpoints', asy
  const { checkArtifactEndpoints } = await import('../scripts/infra/artifact.mjs');
  for (const url of ['http://localhost:3001/api/data','https://example.invalid','https://dummy.patch.tld','https://instance.clerk.accounts.dev','http://127.0.0.1/api']) assert.throws(() => checkArtifactEndpoints(JSON.stringify({ url })));
  assert.doesNotThrow(() => checkArtifactEndpoints('https://api.patch-app.tld/api/data'));
+});
+
+test('hosted contract requires explicit AI decision, canonical origin and independent worker credential', () => {
+    for (const PATCH_ENV of ['staging', 'production']) {
+        for (const AI_ENABLED of [undefined, '', 'yes']) assert.throws(() => validateServer({ ...valid(), PATCH_ENV, AI_ENABLED }, policy), /AI_ENABLED/);
+        assert.equal(validateServer({ ...valid(), PATCH_ENV, AI_ENABLED: 'false' }, policy).env, PATCH_ENV);
+        for (const PATCH_API_ORIGIN of [origin + '/', origin + ':443', origin.replace('https:', 'HTTPS:')])
+            assert.throws(() => validateServer({ ...valid(), PATCH_ENV, PATCH_API_ORIGIN }, policy), /API_ORIGIN/);
+        const e = valid();
+        assert.throws(() => validateServer({ ...e, PATCH_ENV, ACCOUNT_DELETION_WORKER_SECRET: e.CLERK_SECRET_KEY }, policy), /WORKER_SECRET_REUSED/);
+    }
+});
+
+test('even allowlisted wildcard/malformed hosted DNS names cannot weaken the origin contract', () => {
+    for (const origin of ['https://*.patch-release.dev', 'https://app..patch-release.dev', 'https://_app.patch-release.dev']) {
+        const e = { ...valid(), PATCH_API_ORIGIN: origin };
+        assert.throws(() => validateServer(e, { ...policy, production: { ...target, apiOrigins: [origin] } }), /API_ORIGIN/);
+    }
 });

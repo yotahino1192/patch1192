@@ -1,3 +1,5 @@
+> Historical implementation/validation record. Current blockers and command order are in [the master runbook](testflight-go-live-runbook.md); current evidence is in [the 2026-09-21 pass](release-readiness-validation-20260921.md). Old missing-feature statements below are not current blockers.
+
 # Dev compatibility review — 2026-09-20
 
 This supersedes the original branch-baseline assumption in the first release audit. **Do not merge the preserved original branch.** The current `codex/patch-release-preparation` is rebuilt on current Dev with only release-preparation changes. No merge into Dev, push or deployment was performed.
