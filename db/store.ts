@@ -1,4 +1,4 @@
-import { contentRevision, fingerprint, persistedContent, readResponse, loadStudyViews, requireStudyAssignment } from './study.ts';
+import { contentRevision, fingerprint, persistedContent, readResponse, loadStudyViews, requireStudyAssignment, requireExplanationCard } from './study.ts';
 import { reconcileStudy, retentionSnapshot } from "./retention.ts";
 import { PRESETS, GOALS, validInterests, recommend } from "../lib/onboarding";
 import { InputError } from "../lib/api-input.ts";
@@ -334,10 +334,12 @@ export async function loadAiCardContext(userId: string, setId: string, cardId: s
   cardQuestion: string;
   cardAnswer: string;
   sourceContent: string;
+  contentRevision: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
 }> {
   await ensureDatabase();
   const db = database();
+  const card = await db.transaction(tx => requireExplanationCard(tx,userId,setId,cardId,sessionId));
   const context = await db.prepare(`SELECT c.id AS card_id, c.set_id, c.question, c.answer, s.category, src.content
     FROM cards c
     INNER JOIN card_sets s ON s.id = c.set_id AND s.user_id = c.user_id
@@ -356,9 +358,10 @@ export async function loadAiCardContext(userId: string, setId: string, cardId: s
     setId: String(context.set_id),
     cardId: String(context.card_id),
     category: String(context.category),
-    cardQuestion: String(context.question),
-    cardAnswer: String(context.answer),
+    cardQuestion: String(card.question),
+    cardAnswer: String(card.answer),
     sourceContent: String(context.content),
+    contentRevision: contentRevision(card),
     history,
   };
 }

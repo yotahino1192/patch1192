@@ -189,20 +189,20 @@ try{
  }
  assert.equal(await evaluate('reviewFixture.aiCalls'),1,'Free v1 calls AI only after the explicit MCQ explanation action');
 
- for(const mode of ['loading','consent','network','provider','unknown']) {
+ for(const mode of ['loading','delayedError','consent','network','provider','unknown']) {
   await openReview('multiple_choice');await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready")'));
   await click('.build-ready .build-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));
   await click('.study-choice-grid button:nth-child(2)');
   const before=await evaluate('JSON.stringify({id:reviewFixture.workspace().session.id,queue:reviewFixture.workspace().session.queue,choice:reviewFixture.workspace().session.selectedChoice})');
   await evaluate(`reviewFixture.explanationMode=${JSON.stringify(mode)};reviewFixture.consentUnavailable=${mode==='consent'}`);
   await click('.mcq-ai-button');
-  if(mode==='loading')await until(()=>evaluate('!!reviewFixture.releaseExplanation'));
+  if(['loading','delayedError'].includes(mode))await until(()=>evaluate('!!reviewFixture.releaseExplanation'));
   else await until(()=>evaluate('!!document.querySelector(".mcq-ai-error")'));
   assert.equal(await evaluate('document.querySelector(".record-choice").disabled'),false,mode+': Continue remains available');
   assert.equal(await evaluate('JSON.stringify({id:reviewFixture.workspace().session.id,queue:reviewFixture.workspace().session.queue,choice:reviewFixture.workspace().session.selectedChoice})'),before,mode+': answer and session stay intact');
   const calls=await evaluate('reviewFixture.aiCalls');await delay(600);assert.equal(await evaluate('reviewFixture.aiCalls'),calls,mode+': no automatic retry');
   if(mode==='consent')assert.equal(calls,0,'Unavailable consent makes no AI dispatch');
-  if(mode==='loading') {await click('.mcq-ai-button');assert.equal(await evaluate('reviewFixture.aiCalls'),1,'Repeated click is single flight');}
+  if(['loading','delayedError'].includes(mode)) {await click('.mcq-ai-button');assert.equal(await evaluate('reviewFixture.aiCalls'),1,'Repeated click is single flight');}
   if(mode==='unknown') {
    const key=await evaluate('reviewFixture.aiRequests[0].key');assert.ok(key);
    await click('.mcq-ai-error button');await until(()=>evaluate('reviewFixture.aiRequests.length===2 && !!document.querySelector(".mcq-ai-error")'));
@@ -211,9 +211,44 @@ try{
   await shot('explanation-'+mode+'-393');await click('.record-choice');
   await until(()=>evaluate('!reviewFixture.workspace().session.flipped'));
   assert.equal(await evaluate('document.querySelector(".pause-study").disabled'),false,'Previous question AI never blocks the next question');
-  if(mode==='loading'){await evaluate('reviewFixture.releaseExplanation()');await delay(150);assert.equal(await evaluate('reviewFixture.workspace().session.aiInput'),'','Late explanation never changes the new question');}
+  if(['loading','delayedError'].includes(mode)){await evaluate('reviewFixture.releaseExplanation()');await delay(150);assert.equal(await evaluate('reviewFixture.workspace().session.aiInput'),'','Late explanation never changes the new question');assert.equal(await evaluate('!!document.querySelector(".mcq-ai-error")'),false);}
  }
  console.log('PASS: explanation loading/consent unavailable/network/provider/unknown, repeated clicks, Continue, and no automatic retry');
+ for(const format of ['qa','multiple_choice']) {
+  await openReview(format);await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready")'));
+  await click('.build-ready .build-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));
+  const sessionId=await evaluate('reviewFixture.workspace().session.id');
+  const submit=format==='qa'?'.swipe-actions .incorrect':'.record-choice';
+  await click(format==='qa'?'.flashcard-tap':'.study-choice-grid button:nth-child(2)');
+  const choice=await evaluate('reviewFixture.workspace().session.selectedChoice');
+  await cdp('Page.reload');await until(()=>evaluate('!!document.querySelector(".patch-home")'));
+  await evaluate('reviewFixture.resumeLink();reviewFixture.resumeLink()');await until(()=>evaluate('!!document.querySelector(".study-page")'));
+  assert.equal(await evaluate('reviewFixture.workspace().session.selectedChoice'),choice,'Selected answer survives reload before submission');
+  assert.equal(await evaluate('reviewFixture.workspace().session.flipped'),true);
+  await evaluate('reviewFixture.failReview=true');await click(submit);
+  await until(()=>evaluate('!!document.querySelector(".study-page .inline-error")'));
+  const pending=await evaluate('reviewFixture.workspace().session.pendingReview');assert.ok(pending.operationId);
+  assert.equal((await db.execute({sql:'SELECT count(*) n FROM review_logs WHERE session_id=?',args:[sessionId]})).rows[0].n,0);
+  const before=await evaluate('reviewFixture.writes.filter(w=>w.body?.action==="reviewCard").length');
+  await evaluate('reviewFixture.failReview=false;reviewFixture.holdReview=true;reviewFixture.loseReview=true');
+  await click(submit);await until(()=>evaluate('!!reviewFixture.releaseReview'));await click(submit);
+  assert.equal(await evaluate('reviewFixture.writes.filter(w=>w.body?.action==="reviewCard").length'),before+1,'Repeated tap is single flight');
+  assert.equal(await evaluate('reviewFixture.writes.filter(w=>w.body?.action==="reviewCard").at(-1).body.operationId'),pending.operationId);
+  await evaluate('reviewFixture.holdReview=false;reviewFixture.releaseReview()');
+  await until(()=>evaluate('!!document.querySelector(".study-page .inline-error")'));
+  assert.equal((await db.execute({sql:'SELECT count(*) n FROM review_logs WHERE session_id=?',args:[sessionId]})).rows[0].n,1);
+  await cdp('Page.reload');await until(()=>evaluate('!!document.querySelector(".patch-home")'));
+  assert.equal(await evaluate('reviewFixture.workspace().session.queue.length'),1);
+  assert.equal(await evaluate('!!reviewFixture.workspace().session.pendingReview'),false);
+  await evaluate('reviewFixture.resumeLink()');await until(()=>evaluate('!!document.querySelector(".study-page")'));
+  await click(format==='qa'?'.flashcard-tap':'.study-choice-grid button:nth-child(2)');
+  await evaluate(`document.querySelector(${JSON.stringify(submit)}).click();document.querySelector(${JSON.stringify(submit)}).click()`);
+  await until(()=>evaluate('!!document.querySelector(".session-complete")'));
+  const completed=(await data()).studyHistory.find(s=>s.id===sessionId);assert.equal(completed.results.length,2);assert.equal(completed.status,'COMPLETED');
+  assert.equal((await db.execute({sql:'SELECT count(*) n FROM review_logs WHERE session_id=?',args:[sessionId]})).rows[0].n,2);
+ }
+ console.log('PASS: Flashcard/MCQ selected-answer reload, offline submission, explicit same-key retry, double tap, lost committed response, resume and exactly-once completion');
+
 
  }
  if(!liveAi && process.env.PATCH_UI_ONLY !== '1') {
@@ -302,4 +337,10 @@ try{
  if(!liveAi) console.log('PASS: real App Review/Ready; flashcard/choice previews without progress; Back; destination overlay; new save; append; double-submit; failure; lost response/reload/retry; real Retention lesson start on added cards only; mobile layouts.');
  if(!liveAi) console.log('PASS: Free v1 Flashcard/Choice -> feedback -> saved Complete -> Home/History; deferred features hidden; 320/390/393/430/768; text scale and keyboard.');
  console.log('Screenshots: '+output);
-}finally{ws?.close();await vite?.close();server.kill('SIGTERM');chrome.kill('SIGTERM');db.close();await delay(250);if(liveAi)console.log('Live QA ledger retained for audit: '+dir);else await rm(dir,{recursive:true,force:true});}
+}finally{
+ ws?.close();await vite?.close();
+ await Promise.all([server,chrome].map(async child=>{if(child.exitCode===null){child.kill('SIGTERM');await Promise.race([new Promise(resolve=>child.once('exit',resolve)),delay(3000)]);}}));
+ db.close();
+ if(liveAi)console.log('Live QA ledger retained for audit: '+dir);
+ else await rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:200});
+}

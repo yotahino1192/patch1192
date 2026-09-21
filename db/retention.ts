@@ -36,7 +36,7 @@ export async function startStudySession(userId:string,id:string,cardIds:string[]
     await reconcileStudy(tx,userId,id,new Date().toISOString());
     return {id,cardIds:JSON.parse(String(old.card_ids)) as string[],estimatedSeconds:Number(old.estimated_seconds),qualifies:Boolean(old.completed_at ? old.qualifies : 1),session:await readStudySession(tx,userId,id)};
   }
-  const rows=(await tx.execute({sql:`SELECT * FROM cards WHERE user_id=? AND id IN (${cardIds.map(()=>"?").join(",")}) AND status NOT IN ('削除済み','アーカイブ')`,args:[userId,...cardIds]})).rows;
+  const rows=(await tx.execute({sql:`SELECT c.* FROM cards c JOIN card_sets p ON p.id=c.set_id AND p.user_id=c.user_id WHERE c.user_id=? AND c.id IN (${cardIds.map(()=>"?").join(",")}) AND c.status NOT IN ('削除済み','アーカイブ')`,args:[userId,...cardIds]})).rows;
   if(rows.length!==cardIds.length)throw new InputError("学習対象が見つかりません。",404);
   const ordered=cardIds.map(id=>rows.find(r=>r.id===id)!).map(r=>({id:String(r.id),setId:String(r.set_id),...persistedContent(r),difficulty:Number(r.difficulty)}));
   if(ordered.some(c=>!c.question||!c.answer||!['qa','multiple_choice','self_explain'].includes(c.format)))throw new InputError('学習できるカードを選んでください。');
@@ -50,8 +50,8 @@ export async function retentionSnapshot(userId:string,zone?:string,now=Date.now(
   const clock=await retentionClock(tx,userId,now,zone);
   const earned=(await tx.execute({sql:"SELECT DISTINCT earned_day FROM study_sessions WHERE user_id=? AND completed_at IS NOT NULL AND qualifies=1 AND earned_day<=? ORDER BY earned_day DESC",args:[userId,clock.day]})).rows.map(r=>Number(r.earned_day));
   const days=new Set(earned);let cursor=days.has(clock.day)?clock.day:clock.day-1,streak=0;while(days.has(cursor)){streak++;cursor--;}
-  const due=(await tx.execute({sql:"SELECT id FROM cards WHERE user_id=? AND review_count>0 AND status NOT IN ('未学習','アーカイブ','削除済み') AND due_at<? ORDER BY due_at,id",args:[userId,new Date(clock.end).toISOString()]})).rows.map(r=>String(r.id));
-  const interrupted=(await tx.execute({sql:"SELECT s.* FROM study_sessions s WHERE s.user_id=? AND s.completed_at IS NULL AND s.patch_id IS NULL AND s.onboarding=0 AND NOT EXISTS (SELECT 1 FROM json_each(s.card_ids) j WHERE NOT EXISTS (SELECT 1 FROM review_logs r WHERE r.user_id=s.user_id AND r.session_id=s.id AND r.card_id=j.value AND r.undone_at IS NULL) AND NOT EXISTS (SELECT 1 FROM cards c WHERE c.id=j.value AND c.user_id=s.user_id AND c.status NOT IN ('アーカイブ','削除済み'))) ORDER BY s.created_at DESC LIMIT 1",args:[userId]})).rows[0];
+  const due=(await tx.execute({sql:"SELECT c.id FROM cards c JOIN card_sets p ON p.id=c.set_id AND p.user_id=c.user_id WHERE c.user_id=? AND c.review_count>0 AND c.status NOT IN ('未学習','アーカイブ','削除済み') AND c.due_at<? ORDER BY c.due_at,c.id",args:[userId,new Date(clock.end).toISOString()]})).rows.map(r=>String(r.id));
+  const interrupted=(await tx.execute({sql:"SELECT s.* FROM study_sessions s WHERE s.user_id=? AND s.completed_at IS NULL AND s.patch_id IS NULL AND s.onboarding=0 AND NOT EXISTS (SELECT 1 FROM json_each(s.card_ids) j WHERE NOT EXISTS (SELECT 1 FROM review_logs r WHERE r.user_id=s.user_id AND r.session_id=s.id AND r.card_id=j.value AND r.undone_at IS NULL) AND NOT EXISTS (SELECT 1 FROM cards c JOIN card_sets p ON p.id=c.set_id AND p.user_id=c.user_id WHERE c.id=j.value AND c.user_id=s.user_id AND c.status NOT IN ('アーカイブ','削除済み'))) ORDER BY s.created_at DESC LIMIT 1",args:[userId]})).rows[0];
   return {version:1,generatedAt:now,expiresAt:Math.min(clock.end,now+6*3600000),day:clock.day,dayEnd:clock.end,timezone:clock.timezone,achievedDays:earned.filter(d=>d>=clock.day-6),streak,hot:streak>=5,completed:days.has(clock.day),broken:earned.length>0&&streak===0,dueCount:due.length,dueCardIds:due,reminderTime:clock.reminderTime,reviewReminder:clock.reviewReminder,streakWarning:clock.streakWarning,...(interrupted?{session:{id:String(interrupted.id),setId:String(interrupted.set_id),cardIds:JSON.parse(String(interrupted.card_ids)) as string[]}}:{})};
  });
 }
@@ -59,10 +59,11 @@ export async function saveRetentionPreferences(userId:string,input:{reminderTime
  await initializeDatabase();await database().transaction(async tx=>{await retentionClock(tx,userId,Date.now(),zone);await tx.execute({sql:"UPDATE retention_state SET reminder_time=?,review_reminder=?,streak_warning=? WHERE user_id=?",args:[input.reminderTime,+input.reviewReminder,+input.streakWarning,userId]});});
 }
 
-export async function resumeStudySession(userId:string,id:string) {
+export async function resumeStudySession(userId:string,id:string,zone?:string) {
  await initializeDatabase();return database().transaction(async tx=>{
   const session=await readStudySession(tx,userId,id);
   if(!session)throw new InputError('学習セッションが見つかりません。',404);
+  await retentionClock(tx,userId,Date.now(),zone);
   await reconcileStudy(tx,userId,id,new Date().toISOString());
   return readStudySession(tx,userId,id);
  });

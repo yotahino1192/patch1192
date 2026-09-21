@@ -9,6 +9,7 @@ import { loadAiCardContext } from "../../../../db/store";
 import { prepareQuestion, prepareLessonQuestion } from "../../../../lib/openai";
 import { lessonHelpContext, loadLessonHelp } from '../../../../lib/ai/lesson-context';
 import { AiError } from '../../../../lib/ai/execution';
+import { contentRevision, requireExplanationCard } from '../../../../db/study';
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,9 +53,15 @@ async function handlePOST(request: Request): Promise<Response> {
     const cardId = String(body.cardId || "").trim();
     const sessionId = String(body.sessionId || "").trim().slice(0, 120);
     let send: ReturnType<typeof prepareQuestion>;
+    let revision: string;
     const result = await runAi(database(), userId, 'chat', request.headers.get('Idempotency-Key'), body, async () => ({ answer: await send() }), async (tx, result) => {
-      const owner = (await tx.execute({ sql: "SELECT id FROM cards WHERE id=? AND set_id=? AND user_id=? AND status <> '削除済み'", args: [cardId, setId, userId] })).rows[0];
-      if (!owner) throw new Error('CARD_NOT_FOUND');
+      try {
+        const card = await requireExplanationCard(tx,userId,setId,cardId,sessionId);
+        if (contentRevision(card) !== revision) throw new AiError('AI_REQUEST_CANCELLED',409);
+      } catch (error) {
+        if (error instanceof Error && error.message === 'CARD_NOT_FOUND') throw new AiError('AI_REQUEST_CANCELLED',409);
+        throw error;
+      }
       const now = Date.now();
       for (const [role, content, offset] of [['user', question, 0], ['assistant', result.answer, 1]] as const) {
         await tx.execute({ sql: 'INSERT INTO chat_messages(id,user_id,set_id,card_id,session_id,role,content,created_at) VALUES(?,?,?,?,?,?,?,?)', args: [randomUUID(), userId, setId, cardId, sessionId, role, content, new Date(now + offset).toISOString()] });
@@ -64,6 +71,8 @@ async function handlePOST(request: Request): Promise<Response> {
       if (question.length > 2000) throw new InputError('質問は2,000文字以内で入力してください。');
       if (!setId || !cardId || !sessionId) throw new InputError('学習セッションを確認できませんでした。');
     const context = await loadAiCardContext(userId, setId, cardId, sessionId);
+    revision = context.contentRevision;
+    if (body.contentRevision !== undefined && body.contentRevision !== revision) throw new InputError('教材が変更されています。画面を再読み込みしてください。',409);
     send = prepareQuestion({
       language: body.language === "en" ? "en" : "ja",
       question,

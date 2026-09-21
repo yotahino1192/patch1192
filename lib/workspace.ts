@@ -93,9 +93,9 @@ export function reconcileSession(session: StudySession, data: AppData): StudySes
   if (authoritative) {
     const delivered = authoritative.results.find(r => r.operationId === session.pendingReview?.operationId);
     const card = data.sets.flatMap(s=>s.cards).find(c=>c.id===authoritative.currentItemId);
-    const same = authoritative.currentItemId === session.queue[0] && (!session.itemRevision || session.itemRevision === card?.contentRevision);
     const pending = session.pendingReview;
     const stale = pending && (pending.cardId !== authoritative.currentItemId || pending.contentRevision !== card?.contentRevision || pending.expectedReviewCount !== card?.reviewCount);
+    const same = !stale && authoritative.currentItemId === session.queue[0] && (!session.itemRevision || session.itemRevision === card?.contentRevision);
     const inBatch = session.batchSize ? session.queue.filter(id=>authoritative.remainingIds.includes(id)) : authoritative.remainingIds;
     return { ...session, total:authoritative.total, queue:inBatch, remaining:session.batchSize?authoritative.remainingIds.filter(id=>!inBatch.includes(id)):[],
       done:authoritative.status==='COMPLETED', unavailable:authoritative.status==='UNAVAILABLE', itemRevision:card?.contentRevision,
@@ -104,6 +104,7 @@ export function reconcileSession(session: StudySession, data: AppData): StudySes
       pendingReview:delivered || stale ? null : session.pendingReview,
       undo:delivered ? studyUndoCheckpoint(session,delivered.id) : session.undo,
       flipped:same && session.flipped, selectedChoice:same?session.selectedChoice:null,
+      aiInput:same?session.aiInput:'', aiOpen:same && session.aiOpen, aiCompose:same && session.aiCompose,
       editDraft:same?session.editDraft:null };
   }
   const reviews = (data.sessionReviews ?? data.reviews).filter((review) => review.sessionId === session.id);

@@ -12,6 +12,17 @@ export function persistedContent(row: Record<string, unknown>): StudyContent {
     choices: Array.isArray(choices) && choices.every(c => typeof c === 'string') ? choices : [] });
 }
 export function contentRevision(row: Record<string, unknown>) { return fingerprint(persistedContent(row)); }
+/** Explanation may finish after Continue, but must still belong to an owned assignment. */
+export async function requireExplanationCard(tx: Transaction, userId: string, setId: string, cardId: string, sessionId: string) {
+  const card = (await tx.execute({sql:`SELECT c.* FROM cards c JOIN card_sets p ON p.id=c.set_id AND p.user_id=c.user_id
+    WHERE c.user_id=? AND c.set_id=? AND c.id=? AND c.status NOT IN ('アーカイブ','削除済み')
+    AND (EXISTS (SELECT 1 FROM study_sessions s,json_each(s.card_ids) j
+      WHERE s.user_id=c.user_id AND s.id=? AND s.patch_id IS NULL AND j.value=c.id)
+      OR EXISTS (SELECT 1 FROM user_profiles p,json_each(p.initial_card_ids) j
+        WHERE p.user_id=c.user_id AND p.initial_session_id=? AND j.value=c.id))`,args:[userId,setId,cardId,sessionId,sessionId]})).rows[0];
+  if (!card) throw new Error('CARD_NOT_FOUND');
+  return card;
+}
 export function readResponse(value: unknown): StudyResponse | null {
   if (!value) return null;
   return JSON.parse(String(value)) as StudyResponse;
@@ -24,7 +35,7 @@ export async function readStudySession(tx: Transaction, userId: string, id: stri
   const results = reviews.filter(r => cardIds.includes(String(r.card_id))).map(r => ({id:String(r.id),cardId:String(r.card_id),rating:String(r.rating) as 'good'|'again',response:readResponse(r.response_json),reviewedAt:String(r.reviewed_at),operationId:r.operation_id?String(r.operation_id):null}));
   const processed = new Set(results.map(r=>r.cardId));
   const remainingIds = cardIds.filter(id=>!processed.has(id));
-  const cards = (await tx.execute({sql:`SELECT * FROM cards WHERE user_id=? AND id IN (${cardIds.map(()=>'?').join(',') || 'NULL'})`,args:[userId,...cardIds]})).rows;
+  const cards = (await tx.execute({sql:`SELECT c.* FROM cards c JOIN card_sets p ON p.id=c.set_id AND p.user_id=c.user_id WHERE c.user_id=? AND c.id IN (${cardIds.map(()=>'?').join(',') || 'NULL'})`,args:[userId,...cardIds]})).rows;
   const unavailable = !cardIds.length || remainingIds.some(id=>!cards.some(c=>c.id===id && !['アーカイブ','削除済み'].includes(String(c.status)) && persistedContent(c).question && persistedContent(c).answer && ['qa','multiple_choice','self_explain'].includes(persistedContent(c).format)));
   return {id,setId:String(session.set_id),title:String(session.title||'Patch'),cardIds,remainingIds,currentItemId:remainingIds[0]??null,processed:processed.size,total:cardIds.length,
     status:session.completed_at?'COMPLETED':unavailable?'UNAVAILABLE':'ACTIVE',completedAt:session.completed_at?String(session.completed_at):null,qualifies:Boolean(session.qualifies),results};
