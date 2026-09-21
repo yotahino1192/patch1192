@@ -10,6 +10,8 @@ PATCH_ENV=development npm run db:rehearse-local
 
 No URL/provider secret is needed. Tests use in-memory sources, encrypted temp backups and isolated file restores; application reads, review/undo/session recovery, consent, AI dedup, deletion/tombstone behavior and isolation are verified. The fixtures mock external deletion calls; they never delete a Clerk account. Run without production environment files or credentials.
 
+Current pass evidence: [validation](release-readiness-validation-20260921.md). Local fixtures exercise the current manifest, real `loadAppData`, review/session/undo and AI replay logic, consent/lifecycle fences and mocked deletion completion; they are not a remote Turso/Clerk rehearsal. The full unit suite also runs `tests/free-v1-learning.test.mjs`, including an encrypted restore of MCQ receipts/replay, topic provenance and account-deletion isolation.
+
 ## Staging, then separately authorized production rehearsal
 
 Before execution, securely inject all required server environment values and `PATCH_BACKUP_KEY` (32 random bytes encoded as 64 hex characters) plus approved key ID. Store encryption key independently from backup files. Do not generate a replacement key when attempting to recover old backups. Choose a **new** restricted backup directory and approved checkout on an encrypted, access-controlled machine. Set `DB_ID` to reviewed policy databaseId, `BACKUP_DIR` to that new directory; these shell variables are metadata, never credentials.
@@ -24,6 +26,8 @@ npm run db:restore-check -- --backup "$BACKUP_DIR"
 
 Use explicit `PATCH_ENV=staging` or `production` in the reviewed environment, not CLI URL overrides. `db:backup` reads the selected live DB; it still needs prior approval. `db:restore-check` authenticates/decrypts locally and always uses scratch DB; no target/remote flag or production write is needed. Decrypted data resides in scratch until cleanup, so use an encrypted disk and restricted operator access. Interruptions/kill may leave temp directories requiring controlled cleanup. Do not retain plaintext snapshots or paste manifests/counts into public tickets.
 
+The first successful restore-check proves exact data/schema, not application behavior on the real restored snapshot. The CLI deliberately deletes scratch. Before live recovery approval, use a reviewed isolated recovery harness with `restoreCheck(directory, key, { verify })` to call app readers **only against the provided scratch client**, or a provider-specific isolated clone; never redirect global Production credentials into test fixtures. Record sample reads/ownership, authoritative Study Session/MCQ/history and deletion/AI evidence without logging materials. Persistent replacement provisioning and cutover remain provider-dependent C work; do not claim local tests implement a Production cutover.
+
 Record source release SHA/schema, backup timestamp, opaque key ID/storage location, encrypted hash, validation outcome and elapsed durations in restricted evidence. Measure actual DB size, duration, interruption behavior and RPO/RTO versus the owner's approved objectives. Test retrieving ciphertext AND the correct key from separate custody, including a different recovery operator. Mark backup usable only after a successful authenticated restore-check and offsite copy verification. An uploaded ciphertext file or `BACKUP_OK` alone is insufficient.
 
 ## Incident cutover — not automated here
@@ -37,3 +41,16 @@ Record source release SHA/schema, backup timestamp, opaque key ID/storage locati
 Future production **write** CLIs (`db:migrate`, AI stop/resolve/resume) require both `--allow-remote --confirm-db "$DB_ID"` and `--maintenance-confirmation "$DB_ID"`. CI remote targets are prohibited by the existing guard. Do not append these flags merely to bypass a failure. Migrations are never a repair-on-start action.
 
 Remaining decisions: backup interval and retention, deletion propagation deadline into retained backups, recovery evidence retention, storage/cross-region policy, key owners/rotation, RPO/RTO and incident responder. No promises are entered into legal pages until Yota approves them.
+
+## Rehearsal evidence checklist
+
+- [ ] Approved source DB ID, read-only target review, immutable release SHA/schema checksum, operator/start/end; no live writes by rehearsal.
+- [ ] New 0700 backup directory, authenticated ciphertext/manifest pair (0600), key ID and separate custody; actual backup duration/size recorded privately.
+- [ ] Offsite copy retrieved and artifact hash verified; old key recovered by alternate authorized operator.
+- [ ] Scratch restore schema/migration/FK/integrity and exact counts/rowids pass; app-read/invariant evidence linked; wrong-key/corrupt-copy failure alert exercised in isolation.
+- [ ] Last usable snapshot age meets approved RPO; restore + reconciliation + replacement/cutover drill duration meets RTO. A CLI duration alone is not total recovery time.
+- [ ] Post-snapshot deletion/tombstone/consent and AI ledger reconciliation plan tested with synthetic or approved isolated data before any cutover; unavailable evidence keeps traffic/AI fenced.
+- [ ] Alert delivery for backup failure, missing success, restore failure and offsite-copy failure acknowledged by responder; record `restoreEvidenceRef` and `reconciliationPlanRef` only after evidence exists.
+- [ ] Scratch/plaintext cleanup verified (including abnormal-exit leftovers) under retention/access policy. Last good encrypted copy retained.
+
+Backup/restore commands do not install a schedule or upload offsite. Provider-specific backup/PITR limits, the offsite transfer command/identity and durable replacement import procedure must be selected and reviewed after Yota chooses those services. No Production DB is used by local tests.

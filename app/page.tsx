@@ -475,8 +475,10 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
           language,
           setId: set.id,
           cardId: card.id,
+          contentRevision: card.contentRevision,
         }),
       });
+      if (!mounted.current) return;
       const assistant: ChatMessage = {
         id: `answer-${crypto.randomUUID()}`,
         setId: set.id,
@@ -489,6 +491,7 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
       setSessionAiMessages((current) => [...current, assistant]);
       setData((current) => ({ ...current, chatMessages: [...current.chatMessages, assistant] }));
     } catch (e) {
+      if (!mounted.current) return;
       setSessionAiMessages((current) => current.filter((message) => message.id !== userMessage.id));
       setData((current) => ({ ...current, chatMessages: current.chatMessages.filter((message) => message.id !== userMessage.id) }));
       if (mounted.current && activeCardId.current === card.id) setAiInput(question);

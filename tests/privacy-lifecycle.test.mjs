@@ -54,6 +54,7 @@ test('duplicate concurrent operation and external timeout never automatically re
 });
 test('chat gate and post-flight consent check prevent chat persistence',async()=>{
  const u=await user();const setId=await store.saveGeneratedSet(u.userId,material),cardId=(await store.loadAppData(u.userId)).sets[0].cards[0].id;
+ const {startStudySession}=await import('../db/retention.ts');await startStudySession(u.userId,'study',[cardId]);
  const b={question:'Q',setId,cardId,sessionId:'study',operationId:crypto.randomUUID()};const before=calls;assert.equal((await CHAT(req(u,b))).status,403);assert.equal(calls,before);
  await consent(u);send=async()=>{await consent(u,'revoked');return Response.json({status:'completed',usage:{input_tokens:100,output_tokens:100},output:[{content:[{type:'output_text',text:'Answer'}]}]});};
  try{assert.equal((await CHAT(req(u,b))).status,403);assert.equal((await db.prepare('SELECT count(*) n FROM chat_messages WHERE user_id=?').bind(u.userId).first()).n,0);}finally{send=null;}

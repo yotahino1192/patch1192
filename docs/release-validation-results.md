@@ -1,3 +1,5 @@
+> Historical implementation/validation record. Current blockers and command order are in [the master runbook](testflight-go-live-runbook.md); current evidence is in [the 2026-09-21 pass](release-readiness-validation-20260921.md). Old missing-feature statements below are not current blockers.
+
 # Release preparation validation — 2026-09-20
 
 **Historical first-pass results.** For the current Dev-based candidate, see [Dev compatibility review](release-dev-compatibility.md).

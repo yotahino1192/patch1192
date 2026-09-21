@@ -1,10 +1,10 @@
 # Physical-device release QA
 
-Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+Current integration baseline: fetched `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51** (2026-09-21), including Free v1 reliability fixes. See [integration validation](testflight-readiness-integration.md). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
 
-Free v1 gate: Topic/Text/PDF, Flashcards/Multiple Choice, History/Review, Streak/Retention. Fill in the Blank is future work, with no required implementation, preparation or QA for this release, and is not a TestFlight or App Store blocker. Advanced Lesson / Pro / Creator / Video remain outside the initial release scope. All results below remain NOT RUN until tested on the signed uploaded candidate. Close the app after requesting deletion and verify scheduler-driven completion independently; never treat the request receipt as completed deletion.
+Free v1 gate: Topic/Text/currently supported files, Flashcards/Multiple Choice, History/Review, Streak/Retention. Fill in the Blank is future work, with no required implementation, preparation or QA for this release, and is not a TestFlight or App Store blocker. Advanced Lesson / Pro / Creator / Video remain outside the initial release scope. Run the matrix first on a signed Release device install before archive, then repeat critical flows and install/update/reinstall checks on the exact uploaded TestFlight build; keep separate results. Close the app after requesting deletion and verify scheduler-driven completion independently; never treat the request receipt as completed deletion.
 
-**All items NOT RUN.** No physical device was used in this preparation. A compiled Simulator app does not count as a pass. Use a signed Internal TestFlight build, real production email OTP, two disposable accounts A/B and non-sensitive rights-cleared sample text/file. Keep deletion testing separate from the primary review account.
+**All items NOT RUN.** No physical device was used in this preparation. A compiled Simulator app does not count as a pass. Use a signed Release device build for pre-archive QA and Internal TestFlight for distribution QA, real production email OTP, two disposable accounts A/B and non-sensitive rights-cleared sample text/file. Keep deletion testing separate from the primary review account.
 
 Record tester/date, build/version/commit, device model, OS, locale, timezone, network, install type (fresh/update/reinstall), result and issue/evidence link. Run on iPhone and iPad while both are supported; include minimum iOS 17 and current supported iOS where hardware is available, small/large screens and advertised orientations. Never attach OTPs, tokens or personal learning content to evidence.
 
@@ -15,7 +15,7 @@ Record tester/date, build/version/commit, device model, OS, locale, timezone, ne
 | Email signup/login | Ordinary sign-up/sign-in, actual inbox delivery, wrong/expired code, resend and network interruption recover safely | NOT RUN |
 | Session persistence | Background/foreground, force quit, device reboot and token refresh preserve only valid current session; revoked/expired session prompts login | NOT RUN |
 | Logout / A→B switch | A's drafts/results/history/queued writes, notifications and Widget snapshot never leak into B; delayed A response cannot repopulate B | NOT RUN |
-| Add Material | Topic, Text and PDF inputs: keyboard/file selection, extraction limits, long content, cancel/resume and invalid/encrypted files behave correctly; no unsupported permission prompt | NOT RUN |
+| Add Material | Topic, Text and PDF/DOCX/PPTX/TXT/Markdown/CSV inputs: keyboard/file selection, extraction limits, long content, cancel/resume and invalid/encrypted files behave correctly; no unsupported permission prompt | NOT RUN |
 | Generation | Unset/declined consent prevents dispatch; allow then generate works; double tap, quota, timeout and uncertain result do not silently duplicate AI work | NOT RUN |
 | Review / save | Generated content can be checked and saved in intended destination; retry/duplicate tap produces one durable result; reload finds saved material | NOT RUN |
 | Free v1 study | Flashcards and Multiple Choice start with correct material; resume/new session, answer/feedback and accessibility match integrated behavior | NOT RUN |
@@ -33,3 +33,13 @@ Record tester/date, build/version/commit, device model, OS, locale, timezone, ne
 | Legal/support/reviewer | Public URLs open without auth, contact works; AI/deletion wording matches; fresh reviewer mailbox/login rehearsal needs no developer intervention | NOT RUN |
 
 Submission gate: all applicable rows passed on the **exact uploaded candidate**, no unresolved critical auth/data/privacy/learning defects, all exceptions explicitly owned. Optional browser/Simulator reproductions assist investigation but do not change NOT RUN device results.
+
+## Evidence matrix (separate pre-archive and TestFlight records)
+
+| Device coverage | Signed Release / pre-archive | Exact Internal TestFlight build |
+| --- | --- | --- |
+| iPhone / smallest available supported screen / minimum iOS 17 | NOT RUN | NOT RUN |
+| iPhone / large screen / current supported iOS | NOT RUN | NOT RUN |
+| iPad / supported orientations / minimum and current supported iPadOS | NOT RUN | NOT RUN |
+
+Add device model/OS/build/tester/date and issue/evidence references to each cell. If minimum-OS hardware is unavailable, retain that explicit gap; Simulator coverage cannot silently replace it. Before archive prioritize real OTP/Keychain, App Group/Widget, notifications/deep links, consent/deletion and core Free v1 flow. After upload include TestFlight install/update/reinstall and first-tester full workflow. No device result is inferred from a successful build.

@@ -1,26 +1,12 @@
 # Production / TestFlight operations readiness
 
-Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+Current integration baseline: fetched `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51** (2026-09-21), including Free v1 reliability fixes. See [integration validation](testflight-readiness-integration.md). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
 
-Original operations baseline: Dev `716d298d8361d217eb1c16ec898a1958861a91bc`. Current integration baseline: Dev `d9e304f980711f7c9859b156b89efce4d36cd063`, which already includes CLI2 operations and CLI1 UI. This follow-up updates release documentation only; no live service, production DB, scheduler, Apple or deployment action is included. See [validation record](production-operations-validation.md) for historical executed checks and [owner inputs](release-owner-inputs.md) for unresolved values.
+Current evidence: [2026-09-21 validation](release-readiness-validation-20260921.md). Configuration variable/CI mapping and external destination setup are maintained once in the [configuration contract](production-configuration-contract.md). This document owns worker/alert/recovery behavior; [master](testflight-go-live-runbook.md) owns release order.
 
 ## Configuration contract
 
-Current Free v1 / TestFlight scope: Topic/Text/PDF input; **Flashcards and Multiple Choice only**; History/Review; Streak/Retention. Fill in the Blank is future work, with no implementation or preparation in this release task, and **not a TestFlight or App Store blocker**. Operational readiness requirements otherwise remain unchanged.
-
-**CODE COMPLETE:** explicit `PATCH_ENV` identity; exact per-environment public allowlists; server/mobile separation; production live Clerk key/issuer matching; remote Turso allowlist and token shape; models allowlist; bypass/debug/secret-leak rejection; offline web/mobile/native artifact gates. Added required worker secret in **staging and production**: independently generated random 32–256 base64url/hex characters, no whitespace/known placeholders/repeated single character. This is a shape check, not entropy or provider authentication proof. Development and mobile public validation do not require server secrets.
-
-**EXTERNAL CONFIGURATION REQUIRED:** policy is intentionally empty. Do not enter example domains or fake keys to pass release checks. Server validation now blocks any staging/production build or DB CLI missing the worker secret; provision it in the build/server environment before integrating this branch. No version/build, mobile config, schema, UI or learning semantics changed.
-
-Manual sequence, after separate service-operation authorization:
-
-1. Choose production API/web DNS and Clerk production instance. Verify domain ownership, DNS, mail delivery, email OTP sign-in/sign-up and fresh deletion reverification. Confirm social connections disabled for the initial email-only scope; Apple-linked deletion remains blocked without token revocation implementation.
-2. Choose a distinct production Turso database and record its exact URL and stable `databaseId`. Staging must use distinct DB, Clerk instance and credentials; compare the reviewed policy entries explicitly (the validator does not prove account isolation). Approve regions separately. Never point local/CI tests at production.
-3. Review `config/release-policy.json`: API origins, web origins, Clerk issuers, database URLs/ID and allowed models for each environment. Supply `PATCH_API_ORIGIN`, `VERCEL_PROJECT_PRODUCTION_URL`, `AUTH_ALLOWED_ORIGINS` without paths/trailing slash/wildcards, and matching `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_ISSUER`.
-4. Through the chosen secret manager inject server-only `CLERK_SECRET_KEY`, `TURSO_AUTH_TOKEN`, `OPENAI_API_KEY`, `ACCOUNT_DELETION_WORKER_SECRET`; set `TURSO_DATABASE_URL`, both `OPENAI_*_MODEL` and explicit `AI_ENABLED`. Do not set `CLERK_JWT_KEY` for release. Generate the worker key outside Git and share it only with its runner; rotate both together. No shell tracing or secrets in commands/logs/issues. Rotate/revoke on exposure. Backup key/ID belong only to backup/recovery operators, not mobile.
-5. Mobile receives only `PATCH_ENV`, `PATCH_API_URL`, `PATCH_CLERK_PUBLISHABLE_KEY`, `PATCH_CLERK_ISSUER`; same production API and Clerk instance as server. Never copy the server environment into mobile.
-6. On the reviewed final commit run Node 22 `npm run check:env`, web build, `npm run ios:sync`, `npm run check:release` and archive validation in the TestFlight runbook. Keep environment identity explicit and DEBUG/test bypasses absent. These commands do not prove credentials work, migrations are applied or services have been deployed.
-7. Separately authorize schema/provider setup and staging → production smoke tests; verify mail, consent, one AI generation, deletion through completion, monitoring delivery, restore evidence and rollback ownership before beta.
+`check:env` validates explicit deployment identity, canonical HTTPS/DNS origins, approved Clerk/Turso/models, provider credential format, independent worker secret and explicit hosted `AI_ENABLED`. `check:release` adds sealed artifact/secret/schema gates. `check:operations` separately validates reviewed operational references, schedules/objectives and evidence references; it does not authenticate a provider or prove those references are true. Empty checked-in values intentionally block readiness. See the [exact variable list](production-configuration-contract.md).
 
 ## Deletion runner
 
@@ -32,9 +18,41 @@ Existing authoritative behavior remains: persistent jobs; immediate lifecycle/to
 
 Completion means job `completed`, Clerk removed, `users.lifecycle_state=deleted`, auth identity removed, private rows scrubbed, and intentional tombstone/accounting records retained. Apple-linked accounts require real revocation integration and remain retrying; never mark completed manually to hide this blocker. Test app closure, runner outage/recovery, repeated calls, lease expiry and provider outage in staging with disposable accounts before enabling production.
 
+
+### Safe manual verification (future authorized service work)
+
+Local/mock coverage, no scheduler or provider contact:
+
+```sh
+PATCH_ENV=development node --test tests/infra-operations.test.mjs tests/privacy-lifecycle.test.mjs
+```
+
+Before enabling a schedule, on **staging** with reviewed public policy and securely injected runner variables:
+
+1. Verify missing auth is rejected (does not enqueue or process a job):
+
+   ```sh
+   curl --silent --show-error --output /dev/null --write-out '%{http_code}\n' \
+     --request POST "$PATCH_API_ORIGIN/api/internal/account-deletions"
+   ```
+
+   Expected **401**. A redirect, 200 or any other result fails the check; do not forward a secret to investigate an unreviewed redirect.
+2. With operator DB environment, run `npm run ops:status -- --allow-remote --confirm-db "$DB_ID"`. Review queue ownership/target; the worker chooses the oldest due job, not a supplied account. Use a staging queue containing only approved disposable accounts.
+3. Request deletion through ordinary UI with fresh email reverification, save only restricted evidence, close app, then explicitly invoke:
+
+   ```sh
+   npm run ops:deletion-worker -- --execute --confirm-env staging
+   ```
+
+   **This mutates the selected queued account.** Exit 0 with `idle` means no eligible job, not proof of completion; `completed` needs the matching lifecycle/provider evidence. `retry` or failed exits 1. No body, receipt or secret is printed by this runner.
+4. Verify completed receipt/lifecycle, Clerk removal, learning-row removal, stale JWT/late-write rejection and other-user isolation. Reinvoke only according to schedule/backoff. Repeat provider outage, runner outage, restart and lease expiry tests; restore provider and observe eventual completion without app running. Do not simulate outages by breaking Production credentials.
+5. Record completion/outage evidence and enable staging scheduler. Confirm runner heartbeat while queue is empty. Only after separate Production authorization repeat controlled checks on reviewed Production queue and use `--confirm-env production` with `PATCH_ENV=production`.
+
+Templates remain **disabled**: [deletion cron](../config/deletion-worker.crontab.example), [operations cron](../config/operations.crontab.example). Do not run worker commands during build/CI. The job needs Node 22, locked dependencies, reviewed checkout/policy, egress to API, a scheduler secret injection mechanism and structured collector source labels. Runner receives no DB/provider credentials.
+
 ## Monitoring and alerts
 
-**CODE COMPLETE:** existing API structured failures now include 401/403 as well as 5xx, with status/duration/random request ID only. Readiness DB failure emits `operation/database_check/failed`. Deletion route emits `idle/completed/retry/failed`; migration, backup, restore-check and DB validation commands emit named `operation` outcomes. Existing AI `ai_denied`, `ai_unknown`, `ai_complete` remain authoritative. New records contain no user IDs, URLs, material, prompts, responses, emails or credentials; no token values are introduced. Existing AI usage counters are numeric accounting metadata, not token strings.
+**CODE COMPLETE:** existing API structured failures now include 401/403 as well as 5xx, with status/duration/random request ID only. Readiness DB failure emits `operation/database_check/failed`. Deletion route emits `idle/completed/retry/failed`; migration, backup, restore-check and DB validation commands emit named `operation` outcomes. Existing AI `ai_denied`, `ai_unknown`, `ai_complete` remain authoritative. Operation records contain no user IDs, URLs, material, prompts, responses, emails or credentials; no token values are introduced. Existing AI usage counters are numeric accounting metadata, not token strings.
 
 `npm run ops:status` uses existing guarded DB targeting and schema validation, **read-only** aggregates: unresolved/unknown AI, expired dispatch/reservation leases, oldest age; pending/retry/due deletion, oldest age, Apple blockers. It does not expire reservations, retry AI, release cost or change jobs. Includes expired dispatch markers even without new traffic. Exit 1 for unknown/expired AI, Apple blockers or deletion age >1 hour; DB failure also exits 1. Aggregate scans should initially run every five minutes; measure production cost before expanding frequency. Monitor absence of records too.
 
@@ -44,22 +62,23 @@ Completion means job `completed`, Clerk removed, `users.lifecycle_state=deleted`
 | --- | --- | --- |
 | API 5xx | ≥5 in 5 min or readiness fails twice | Investigate service/DB availability; stop rollout |
 | Auth 401/403 | ≥20 in 5 min or >3× established baseline | Check Clerk key/issuer/session rollout; never bypass auth |
-| AI failures | ≥5 denied in 5 min; any unknown | Check quota/provider/DB; review unknown before any resolution |
+| AI failures | ≥5 `ai_denied` in 5 min; any `ai_unknown`; classify with `ai_diagnostic` reason/category | Check quota/provider/DB; review unknown before any resolution |
 | AI unresolved | Any unknown, expired dispatch or expired reservation | Run guarded status; follow safe resolution below |
 | DB | Any database_check failed / ops query failed | Check connection/schema/service status, no automatic migrate |
 | Deletion | Retry repeating on 3 ticks; age >1h; any Apple blocker | Owner investigates provider/backlog; no lifecycle bypass |
-| Worker heartbeat | No runner outcome for >5 min | Scheduler/secret/service incident, even with empty queue |
+| Worker heartbeat | No runner-source outcome for >5 min (do not count duplicate API-source events) | Scheduler/secret/service incident, even with empty queue |
 | Migration | Any migration failed | Stop release; inspect safe migration state, no blind rerun |
-| Backup | Any backup failed OR no success within approved interval | Check custody/storage/permissions; do not delete last good copy |
+| Aggregate heartbeat | No successful operations-status snapshot for >15 min | Check read-only runner/credentials; DB silence must not appear healthy |
+| Backup | Any backup failed OR no usable offsite-verified backup within approved `maxSuccessAgeHours` | Check custody/storage/permissions; do not delete last good copy |
 | Restore | Any restore_check failed or overdue rehearsal | Block release/recovery cutover until investigated |
 
-Use `/api/health` for process availability and `/api/ready` for bounded DB readiness; a green health endpoint alone is insufficient. Raw DB errors from individual operations may be indistinguishable from generic API/AI failure by design; correlate time with readiness/provider health, without adding SQL/parameters to logs. Validate notification delivery with synthetic events first; no provider or alert channel has been configured here.
+Use `/api/health` for process availability and `/api/ready` for bounded DB readiness; a green health endpoint alone is insufficient. Raw DB errors from individual operations may be indistinguishable from generic API/AI failure by design; correlate time with readiness/provider health, without adding SQL/parameters to logs. Validate notification delivery with synthetic events first; no provider or alert channel has been configured here. Follow the [collector projection/destination setup](production-configuration-contract.md); ignore unreviewed stdout, label runner/API sources and monitor scheduler/process failures as well as closed application events.
 
 ## AI unknown operational audit
 
-On Dev baseline, `unknown` and expired `dispatching` never return to reserved or automatically dispatch again. They retain concurrency and maximum cost reservations. Reusing the key returns unknown/in-progress; a new key can still be blocked by the owner's active operation. Cancel of already dispatched work also retains reservation until reconciliation. Unknown is intentionally capable of blocking further generation.
+On the current Dev, `unknown` and expired `dispatching` never return to reserved or automatically dispatch again. They retain concurrency and maximum cost reservations. Reusing the key returns unknown/in-progress; a new key can still be blocked by the owner's active operation. Cancel of already dispatched work also retains reservation until reconciliation. Unknown is intentionally capable of blocking further generation.
 
-Add Material fix `ab8192cc72318cb7f5c44ca6cf109a7020a804f4` is now included in Dev `d9e304f` through CLI1 integration. It adds previous-unresolved diagnostics and a **file-DB development-only** `resolve-local-unknown` command with owner/stopped-worker/uncertain-outcome acknowledgements. It retains max cost; production still requires provider-final evidence. This CLI2 update preserves that implementation unchanged. The earlier Dev `716d298` audit predates its integration; no active feature branch is modified here.
+Current Dev includes previous-unresolved diagnostics and a **file-DB development-only** `resolve-local-unknown` command. Production still requires provider-final evidence and the guarded `resolve-final` operation; local abandonment is never a Production workaround. No learning/AI behavior is changed by this readiness pass.
 
 Safe operator procedure on baseline (future remote actions require separate authorization):
 

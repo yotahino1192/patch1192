@@ -1,6 +1,8 @@
+> Historical implementation/validation record. Current blockers and command order are in [the master runbook](testflight-go-live-runbook.md); current evidence is in [the 2026-09-21 pass](release-readiness-validation-20260921.md). Old missing-feature statements below are not current blockers.
+
 # Production operations validation — 2026-09-21
 
-Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+Current baseline: fetched `origin/Dev` **7e5335b240ffec3512cae717904333f496188de4** (2026-09-21). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
 
 Branch: `codex/patch-production-readiness`; isolated worktree `/private/tmp/patch-production-readiness`. Base and remotely reconfirmed Dev: `716d298d8361d217eb1c16ec898a1958861a91bc`. No merge/push/deploy, production DB/provider operations or Apple account operations performed.
 
