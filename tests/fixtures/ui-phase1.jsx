@@ -1,6 +1,8 @@
 // Development/test entry only. Production entrypoints never import this file.
 import React, {useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
+import {PrivacyContext} from '../../app/privacy-provider';
+import {BuildReview, PatchReady} from '../../app/build-review';
 import {Home} from '../../app/home-screen';
 import {SetLibrary} from '../../app/set-library';
 import {Shell, Study, SetDetail, Records, ImportScreen, Generate} from '../../app/page'; // Exported only by the test Vite plugin.
@@ -45,16 +47,27 @@ function MainScreensFixture() {
   const libraryDue=librarySets.flatMap(set=>set.cards.slice(0,2).map(card=>card.id));
   const noLibraryReviews=state==='empty'||state==='completed'||params.has('no-reviews');
   const libraryRetention=screen==='sets'?{...snapshot,dueCount:noLibraryReviews?0:libraryDue.length,dueCardIds:noLibraryReviews?[]:libraryDue}:snapshot;
-  const [fixtureData, setFixtureData] = useState({...data, retention:libraryRetention, recordActivity:[{day:'2026-09-14',cards:8},{day:'2026-09-12',cards:5},{day:'2026-09-10',cards:3}], sets:state==='empty'?[]:librarySets, folders:state==='empty'?[]:[0,1,2].map(i=>({id:'folder-'+i,name:params.has('long')&&i===0?'長いフォルダ名で表示が崩れないことを確認するための教材フォルダ':['School','AI','Career'][i],parentId:null}))});
-  const [importDraft, setImportDraft] = useState({text:'',attachments:[],detail:'標準',style:'一問一答'});
+  const [fixtureData, setFixtureData] = useState({...data, retention:libraryRetention, studyHistory:state==='empty'?[]:[{id:'history-1',title:sets[0].title,setId:'s0',processed:1,total:6,completedAt:now.toISOString(),results:[{id:'r1',rating:'good',cardId:'c0s0'}]}], recordActivity:state==='empty'?[]:[{day:'2026-09-14',cards:8},{day:'2026-09-12',cards:5},{day:'2026-09-10',cards:3}], sets:state==='empty'?[]:librarySets, folders:state==='empty'?[]:[0,1,2].map(i=>({id:'folder-'+i,name:params.has('long')&&i===0?'長いフォルダ名で表示が崩れないことを確認するための教材フォルダ':['School','AI','Career'][i],parentId:null}))});
+  const step=params.get('step')||'1';
+  const [importDraft, setImportDraft] = useState({text:params.has('step')?'Memory and recall. 記憶を思い出す練習。'.repeat(5):'',attachments:[],detail:'標準',style:'一問一答',build:{step:/^[123]$/.test(step)?Number(step):step,coverage:'focus',focus:'Memory / 記憶',generation:{status:state==='error'?'failed':'running',error:'Connection interrupted. Your material is saved. Try again.'}}});
   const [destination, setDestination] = useState('root');
   const [draft, setDraft] = useState({title:'Learning through recall',keyPoints:['Practice retrieving what you know.'],cards:cards.slice(0,2).map(c=>({...c,draftId:c.id,selected:true}))});
   const startStudy = (...args) => { window.uiFixture.starts++; window.uiFixture.lastStart = args; };
   let content;
   if(screen === 'sets') content = <SetLibrary data={fixtureData} now={now} folderId={folderId} openSetId={setId} onFolder={id=>{setFolderId(id);setSetId(null);}} onSet={setSetId} onStudy={startStudy} onData={setFixtureData} onAdd={()=>setScreen('import')}><SetDetail data={fixtureData} selectedSetId={setId} selectSet={setSetId} startStudy={startStudy} now={now} onData={setFixtureData}/></SetLibrary>;
   else if(screen === 'records') content = <Records data={fixtureData} now={now} startStudy={startStudy}/>;
-  else if(screen === 'import') content = <ImportScreen data={fixtureData} importDraft={importDraft} setImportDraft={setImportDraft} destination={destination} setDestination={setDestination} onGenerate={async()=>setScreen('generate')}/>;
+  else if(screen === 'import') content = <ImportScreen data={fixtureData} importDraft={importDraft} setImportDraft={setImportDraft} destination={destination} setDestination={setDestination} generationRunning={importDraft.build.step==='preparing'&&state!=='error'} review={<BuildReview draft={draft} importDraft={importDraft} data={fixtureData} destination={destination} setDestination={setDestination} setDraft={setDraft} onSave={async()=>{}} saving={false} pendingSave={false} error={state==='error'?'Your Patch could not be saved. Try again.':''}/>} onGenerate={async()=>setScreen('generate')}/>;
+  else if(screen === 'ready') content = <PatchReady saved={{title:sets[0].title,appended:false}} onStart={async()=>{throw Error('offline');}} onHome={()=>setScreen('home')}/>;
+  else if(screen === 'study') content = <StudyFixture data={fixtureData}/>;
   else if(screen === 'generate') content = <Generate data={fixtureData} draft={draft} setDraft={setDraft} destination={destination} setDestination={setDestination} onSave={async()=>{}} onRegenerate={async()=>{}}/>;
   else content = <Home data={fixtureData} now={now} startStudy={startStudy} setScreen={setScreen} selectSet={setSetId} onContinue={startStudy} onChoosePatch={()=>{setFolderId(null);setSetId(null);setScreen("sets");}} resumableSessions={[]} onResume={startStudy} onSample={async()=>{}}/>;
-  return <AccountContext.Provider value={null}><Shell screen={screen} setScreen={setScreen} title={screen==='sets'?'Patches':undefined}>{content}</Shell></AccountContext.Provider>;
+  return <AccountContext.Provider value={params.has('settings')||screen==='study'?{...account,email:'long-address-for-responsive-check@example.test',scope:{...account.scope,request:async()=>{await new Promise(resolve=>setTimeout(resolve,150));throw Error('Network unavailable. Try again.');}}}:null}><PrivacyContext.Provider value={params.has('settings')?{change:async()=>{},refresh:async()=>({state:'revoked'})}:null}><Shell screen={screen==='ready'?'import':screen} buildStep={screen==='ready'?'ready':importDraft.build.step} setScreen={setScreen} title={screen==='sets'?'Patches':undefined}>{content}</Shell></PrivacyContext.Provider></AccountContext.Provider>;
+}
+
+function StudyFixture({data}) {
+  const mcq=params.has('mcq');
+  const studyData={...data,sets:[{...sets[0],cards:sets[0].cards.map(c=>({...c,format:mcq?'multiple_choice':'qa',question:params.has('long')?'長い日本語の質問と English content: '+c.question.repeat(4):c.question,choices:mcq?['Recall / 思い出す練習','Read / 読む','Sleep / 睡眠','Repeat / 繰り返す']:[],answer:mcq?'Recall / 思い出す練習':c.answer}))}]};
+  const [session,updateSession]=useState({...EMPTY_SESSION,id:'qa-study',setId:'s0',queue:studyData.sets[0].cards.map(c=>c.id),total:6,aiOpen:params.has('ai'),aiCompose:params.has('ai')});
+  const [flipped,setFlipped]=useState(false);
+  return <Study session={session} updateSession={updateSession} data={studyData} queue={session.queue} flipped={flipped} setFlipped={setFlipped} setQueue={()=>{}} sessionDone={false} setSessionDone={()=>{}} sessionSetId="s0" sessionId={session.id} sessionTotal={6} sessionMistakes={0} setSessionMistakes={()=>{}} startStudy={()=>{}} setData={()=>{}} backToSets={()=>{}} goHome={()=>{}} onPause={()=>{}} now={now}/>;
 }

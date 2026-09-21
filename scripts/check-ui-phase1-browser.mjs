@@ -26,7 +26,7 @@ try{
   if(mascotMode==='replacement'&&finalMascotPaths.includes(path)){res.setHeader('Content-Type','image/png');res.setHeader('Cache-Control','no-store');res.end(replacementPng);return;}
   if(mascotMode==='missing-standing'&&(path===finalMascotPaths[0]||path==='/loop-companion.jpeg')){res.statusCode=404;res.end();return;}
   next();
- });}},{name:'test-only-screen-exports',enforce:'pre',transform(code,id){if(id.endsWith('/app/page.tsx'))return code+'\nexport { Shell, Study, SetDetail, Records, ImportScreen, Generate };';}},react()],define:{'process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY':'""'},server:{host:'127.0.0.1',port,strictPort:true,fs:{allow:[process.cwd(),realpathSync('node_modules')]}}});await server.listen();
+ });}},{name:'test-only-screen-exports',enforce:'pre',transform(code,id){if(id.endsWith('/app/page.tsx'))return code+'\nexport { Shell, Study, SetDetail, Records, ImportScreen, Generate };';}},react()],define:{'process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY':'""'},server:{watch:{ignored:['**/.next/**','**/dist/**','**/ios/App/App/public/**','**/outputs/**']},host:'127.0.0.1',port,strictPort:true,fs:{allow:[process.cwd(),realpathSync('node_modules')]}}});await server.listen();
  chrome=spawn(process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--no-first-run','--no-default-browser-check',`--remote-debugging-port=${debugPort}`,`--user-data-dir=${dir}/chrome`,'about:blank'],{stdio:'ignore'});chrome.on('error',e=>startupError=e);
  await until(async()=>(await fetch(`http://127.0.0.1:${debugPort}/json/version`)).ok);
  const tab=await(await fetch(`http://127.0.0.1:${debugPort}/json/new?about:blank`,{method:'PUT'})).json();ws=new WebSocket(tab.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);
@@ -39,6 +39,68 @@ try{
  const viewport=(width,height=852)=>cdp('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:true});
  const navigate=async query=>{await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?${query}`});await until(()=>evaluate('!!document.querySelector(".patch-greeting,.patch-complete")'));await evaluate('document.fonts.ready');await until(()=>evaluate('[...document.images].every(i=>i.complete&&i.naturalWidth>0)'));};
  await cdp('Runtime.enable');await cdp('Page.enable');
+ // Text-only scaling preserves viewport size, unlike pinch zoom. Snapshot computed
+ // sizes first so nested text is scaled once; include controls and inherited text.
+ if(process.env.PATCH_PREFLIGHT_QA) {
+  const cases=['screen=home','state=complete','screen=sets','screen=sets&state=empty','screen=records','screen=records&state=empty','screen=import','screen=import&step=2','screen=import&step=3','screen=import&step=review','screen=import&step=preparing','screen=import&step=preparing&state=error','screen=ready','screen=study','screen=study&mcq=1','screen=study&mcq=1&ai=1'];
+  const findings=[];
+  for(const query of process.env.PATCH_PREFLIGHT_QA==='controls'?[]:process.env.PATCH_PREFLIGHT_QA==='records'?cases.filter(q=>q.startsWith('screen=records')):cases) for(const width of [320,390,430,768,1024,1440]) for(const scale of [1,1.5,2]) {
+   await viewport(width,width===320?568:852);
+   await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?${query}&lang=${width===390?'en':'ja'}&long=1`});
+   await until(()=>evaluate('!!document.querySelector("main > *")'));
+   await evaluate('document.fonts.ready');
+   await evaluate(`Array.from(document.querySelectorAll('body *')).filter(e=>!e.closest('svg')&&!e.closest('dialog:not([open])')).map(e=>[e,parseFloat(getComputedStyle(e).fontSize)]).forEach(([e,size])=>e.style.setProperty('font-size',size*${scale}+'px','important'))`);
+   await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+   if(width===390&&scale===1) {
+    const {nodes}=await cdp('Accessibility.getFullAXTree');
+    assert.deepEqual(nodes.filter(n=>!n.ignored&&['button','link','textbox','combobox','radio'].includes(n.role?.value)&&!n.name?.value?.trim()).map(n=>n.role.value),[],query+': controls have accessible names');
+   }
+   assert.equal(await evaluate(`(()=>{const bars=[...document.querySelectorAll('.bar-chart > div')];return bars.every((e,i)=>{const count=e.querySelector('i').getBoundingClientRect(),day=e.querySelector('b').getBoundingClientRect();return count.bottom<=day.top&&(!i||bars[i-1].querySelector('i').getBoundingClientRect().right<=count.left)})})()`),true,'Chart labels never overlap');
+   const overflow=await evaluate(`({page:document.documentElement.scrollWidth>innerWidth,nav:[...document.querySelectorAll('.bottom-nav button')].some(e=>e.scrollWidth>e.clientWidth+1||e.scrollHeight>e.clientHeight+1),outside:[...document.querySelectorAll('main button,main input,main textarea')].filter(e=>{const r=e.getBoundingClientRect();return !e.closest('.folder-grid')&&r.width>0&&(r.left< -1||r.right>innerWidth+1)}).map(e=>e.className)})`);
+   if(overflow.page||overflow.nav||overflow.outside.length)findings.push({query,width,scale,...overflow});
+   if(width===320&&scale===2){const shot=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(join(output,'preflight-'+query.replaceAll('&','-').replaceAll('=','-')+'.png'),Buffer.from(shot.data,'base64'));}
+  }
+  await writeFile(join(output,'preflight-findings.json'),JSON.stringify(findings,null,2));
+  assert.deepEqual(findings,[],'Preflight layout matrix');
+  const open=async query=>{await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/ui-phase1.html?${query}`});await until(()=>evaluate('!!document.querySelector("main > *")'));await evaluate('document.fonts.ready');};
+  await viewport(320,568);await open('screen=sets&settings=1&lang=en');
+  assert.equal(await evaluate('document.querySelector(".settings-button").getBoundingClientRect().width>=44'),true);
+  await click('.settings-button');
+  await evaluate(`Array.from(document.querySelectorAll('.settings-dialog *')).filter(e=>!e.closest('svg')).map(e=>[e,parseFloat(getComputedStyle(e).fontSize)]).forEach(([e,size])=>e.style.fontSize=size*2+'px')`);
+  await click('.settings-account .danger');
+  assert.equal(await evaluate('document.querySelector(".settings-dialog[open]").scrollWidth<=document.querySelector(".settings-dialog[open]").clientWidth'),true,'Settings and Delete Account fit at 200%');
+  await evaluate('document.querySelector(".account-deletion button:last-child").scrollIntoView({block:"center"})');
+  assert.equal(await evaluate('document.querySelector(".account-deletion button:last-child").getBoundingClientRect().bottom<=innerHeight'),true,'Deletion cancel remains reachable');
+  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  assert.equal(await evaluate('document.activeElement.matches(".settings-button")'),true,'Settings restores focus');
+  for(const query of ['screen=import&step=2','screen=import&step=3','screen=import&step=review']) {
+   await viewport(390,360);await open(query);
+   await evaluate('document.querySelector("main textarea,main input:not([type=radio])").focus();document.activeElement.scrollIntoView({block:"center"})');
+   assert.equal(await evaluate('(()=>{const r=document.activeElement.getBoundingClientRect();return r.bottom>0&&r.top<innerHeight})()'),true,'Focused field remains reachable');
+   await evaluate('document.querySelector(".build-primary").scrollIntoView({block:"center"})');
+   assert.equal(await evaluate('(()=>{const e=document.querySelector(".build-primary"),r=e.getBoundingClientRect();return e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})()'),true,'CTA reachable in keyboard-sized viewport');
+   await viewport(390);assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Dismiss restores width');
+  }
+  await viewport(390,360);await open('screen=sets');
+  await evaluate('document.querySelector("#material-search-input").focus();document.activeElement.scrollIntoView({block:"center"})');
+  assert.equal(await evaluate('document.activeElement.getBoundingClientRect().bottom<document.querySelector(".bottom-nav").getBoundingClientRect().top'),true,'Search visible above navigation');
+  await open('screen=import&step=2');
+  await evaluate(`(()=>{const select=document.querySelector('select[aria-label="Input type"]');select.value='topic';select.dispatchEvent(new Event('change',{bubbles:true}));const input=document.querySelector('textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Japanese particles / 助詞');input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.scrollIntoView({block:'center'});})()`);
+  await until(()=>evaluate('document.querySelector("#build-material-help").textContent.includes("1–200")'));
+  assert.equal(await evaluate('document.querySelector(".build-primary").disabled'),false,'Short mixed-language Topic can continue');
+  await viewport(390);
+  await open('screen=study&mcq=1&lang=en');await click('.study-choice-grid button');
+  await click('.mcq-ai-button');await until(()=>evaluate('!!document.querySelector(".mcq-ai-error [role=alert]")'));
+  assert.match(await evaluate('document.querySelector(".mcq-ai-error").textContent'),/Network unavailable/);
+  assert.equal(await evaluate('document.querySelector(".mcq-ai-error button").disabled'),false,'Explain error is retryable');
+  await click('.mcq-ai-error button');await until(()=>evaluate('!!document.querySelector(".mcq-ai-error [role=alert]")'));
+  await open('screen=ready');await click('.build-primary');await until(()=>evaluate('!!document.querySelector(".build-error[role=alert]")'));
+  assert.match(await evaluate('document.querySelector(".build-error").textContent'),/Your Patch is saved/);
+  assert.deepEqual(errors,[]);
+  console.log('PASS: preflight layouts; settings/deletion 200%, focus return, keyboard-sized inputs/CTA, Explain retry, Ready failure.');
+ }
+ if(process.env.PATCH_PREFLIGHT_QA!=='records') {
  for(const [width,lang,label] of [[320,'ja','別のPatchを選ぶ'],[393,'en','Choose another Patch']]) {
   await viewport(width,width===320?568:852);await navigate(`screen=home&lang=${lang}`);
   await click('.patch-lesson-start');await until(()=>evaluate('document.querySelector(".patch-sheet").open'));
@@ -109,6 +171,7 @@ try{
  assert.equal(await evaluate('!!document.querySelector(".import-page")'),true);
  await click('.build-primary');
  assert.equal(await evaluate('document.querySelector(".build-primary").disabled'),true,'Empty material must still disable Continue');
+ await click('.build-back');
  await click('.bottom-nav button:nth-child(1)');
  assert.equal(await evaluate('!!document.querySelector(".patch-home")'),true);
  assert.equal(await evaluate('!!document.querySelector(".today-todo-button,.daily-todo")'),false,'Home no longer presents detailed review management');
@@ -241,4 +304,5 @@ try{
  assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true,'Home supports 150% text');
  await screenshot('home-larger-text-393');
  console.log('PASS: main tabs; Home states and real destinations; 320/393/430/768 widths; 150% text; Start/Continue inside Today component with 44px targets; preview focus/recovery; completion; authoritative Streak; stable approved assets. Screenshots: '+output);
+ }
 }finally{ws?.close();if(chrome&&chrome.exitCode===null){const closed=new Promise(r=>chrome.once('exit',r));chrome.kill('SIGTERM');await closed;}await server?.close();await rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:100});}

@@ -1348,3 +1348,44 @@ html:has(.is-studying), body:has(.is-studying), .is-studying { background: #fff;
   .is-studying .study-page .choice-feedback,
   .is-studying .study-page .mcq-ai-button { margin-inline: 14px; }
 }
+
+/* Free v1 preflight: grow with text while retaining the approved type scale. */
+.app-shell .settings-button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; flex-shrink: 0; }
+.app-shell.patch-home-shell .settings-button,
+.app-shell.patch-main-shell .topbar .settings-button { width: 44px; height: 44px; min-height: 44px; }
+.app-shell .bottom-nav { height: auto; min-height: 64px; }
+.app-shell.patch-home-shell .bottom-nav { height: auto; min-height: 70px; }
+.app-shell .bottom-nav button { min-width: 0; min-height: 52px; padding-block: 4px; }
+.app-shell .bottom-nav button > span:last-child { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; max-width: 100%; }
+:is(.patch-home-shell, .patch-main-shell) > main { padding-bottom: calc(var(--bottom-nav-height, 70px) + 24px + env(safe-area-inset-bottom, 0px)); }
+.app-shell .patch-sheet { --sheet-bottom: calc(var(--bottom-nav-height, 70px) + 8px + max(10px, env(safe-area-inset-bottom, 0px))); }
+.build-shell .build-step-1 { padding-bottom: calc(var(--bottom-nav-height, 76px) + 12px + env(safe-area-inset-bottom)); }
+.build-shell .build-step-1 .build-actions { bottom: calc(var(--bottom-nav-height, 76px) + 2px); }
+.app-shell :is(input, textarea, select) { scroll-margin-block: 100px; }
+.app-shell :is(a, summary):focus-visible { outline: 3px solid var(--patch-evergreen); outline-offset: 3px; }
+.app-shell .settings-close { flex: 0 0 44px; }
+.app-shell .settings-dialog { overflow-wrap: anywhere; padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+.app-shell .settings-dialog :is(input, fieldset) { min-width: 0; max-width: 100%; }
+.app-shell .settings-dialog a { display: inline-block; padding-block: 12px; }
+.patch-library-section-heading { flex-wrap: wrap; }
+.patch-library-section-heading > div:first-child { flex: 1 1 150px; min-width: 0; }
+.patch-main-shell .patch-library-search .secondary { min-height: 44px; }
+.build-flow { overflow-wrap: anywhere; }
+.build-flow .build-review-name > div:focus-within { outline: 3px solid var(--patch-evergreen); outline-offset: 3px; }
+.build-flow .build-choice > strong { min-width: 0; }
+.build-flow .build-focus-field textarea { height: auto; min-height: 3em; }
+/* A sticky action must not obscure a field in a keyboard-sized viewport. */
+@media (max-height: 500px) {
+  .build-flow .build-actions { position: static; }
+}
+.is-studying .study-page .study-header { display: flex; flex-wrap: wrap; }
+.is-studying .study-page .study-header h1 { flex: 1 1 220px; min-width: 0; }
+.is-studying .study-page .study-header .pause-study { flex-shrink: 0; min-height: 44px; }
+.build-flow { --build-muted: #526779; }
+.build-text textarea::placeholder { color: #526779; }
+.patch-main-shell :is(.patch-library-section-heading p, .today-patch-list small, .today-patch-empty span, .today-patch-more, .library-set-open small) { color: #526779; }
+/* Keep chart labels apart at enlarged text sizes; scroll only the chart if needed. */
+.patch-main-shell .records-page .bar-chart { height: auto; min-height: 136px; grid-template-columns: repeat(7, minmax(2em, 1fr)); overflow-x: auto; padding-bottom: 4px; }
+.patch-main-shell .records-page .bar-chart > div { grid-template-rows: max(108px, calc(90px + 1.5em)) auto; }
+.patch-main-shell .records-page .bar-chart i { top: auto; bottom: 100%; left: 50%; transform: translateX(-50%); width: max-content; line-height: 1.4; }
+.patch-main-shell .records-page .bar-chart b { line-height: 1.4; }

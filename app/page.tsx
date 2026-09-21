@@ -160,6 +160,18 @@ function Shell({ screen, setScreen, children, title, buildStep = 1 }: {
   const { t } = useLanguage();
   const mainRef = useRef<HTMLElement>(null);
   const settingsRef = useRef<HTMLDialogElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navRef.current;
+    const shell = mainRef.current?.parentElement;
+    if (!nav || !shell) return;
+    // Reserve the actual navigation height when text wraps at larger sizes.
+    const measure = () => shell.style.setProperty('--bottom-nav-height', `${nav.getBoundingClientRect().height}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav);
+    return () => { observer.disconnect(); shell.style.removeProperty('--bottom-nav-height'); };
+  }, [screen, buildStep]);
   useEffect(() => {
     mainRef.current?.focus();
   }, [screen]);
@@ -174,7 +186,7 @@ function Shell({ screen, setScreen, children, title, buildStep = 1 }: {
       </header>}
       {screen !== "study" && <SettingsDialog dialogRef={settingsRef} />}
       <main ref={mainRef} tabIndex={-1}>{children}</main>
-      {screen !== "study" && (screen !== 'import' || buildStep === 1) && <nav className="bottom-nav" aria-label={t("メインナビゲーション")}>
+      {screen !== "study" && (screen !== 'import' || buildStep === 1) && <nav ref={navRef} className="bottom-nav" aria-label={t("メインナビゲーション")}>
         {navItems.map((item) => {
           const active = item.id === screen || (item.id === "import" && screen === "generate");
           return (
