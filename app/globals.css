@@ -887,9 +887,6 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav button { border-radius: 10px; color: var(--patch-muted); gap: 0; font-size: 12px; }
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav button.active { background: var(--patch-mint-base); color: var(--patch-leaf-green); }
 :is(.patch-home-shell, .patch-main-shell) .bottom-nav .nav-image { width: 30px; height: 30px; }
-.patch-main-shell:has(.patch-library-root) .bottom-nav { height: 58px; padding: 4px; }
-.patch-main-shell:has(.patch-library-root) .bottom-nav button { gap: 0; font-size: 11px; }
-.patch-main-shell:has(.patch-library-root) .bottom-nav .nav-image { width: 26px; height: 26px; }
 .patch-home { width: min(100%, 480px); margin: auto; padding: 4px 24px 20px; }
 .patch-greeting { display: flex; gap: 14px; align-items: center; margin: 0 0 14px; }
 .patch-bubble { position: relative; flex: 0 1 190px; min-width: 0; padding: 7px 11px; border: 1px solid var(--patch-line); border-radius: 12px; background: #fff; box-shadow: var(--patch-shadow); }
@@ -1297,7 +1294,7 @@ html:has(.is-studying), body:has(.is-studying), .is-studying { background: #fff;
 .patch-main-shell .patch-library .library-folders .patch-library-section-heading { align-items: center; margin-bottom: 2px; }
 .patch-main-shell .patch-library .library-folders .folder-controls { margin: 0; }
 .patch-main-shell .patch-library .folder-grid { grid-auto-flow: column; grid-auto-columns: 142px; grid-template-columns: none; overflow-x: auto; gap: 8px; }
-.patch-main-shell .patch-library .folder-tile { grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; min-height: 60px; padding: 8px; gap: 2px 7px; border-radius: 12px; }
+.patch-main-shell .patch-library .folder-tile { grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; min-height: 48px; padding: 5px 8px; gap: 2px 7px; border-radius: 12px; }
 .patch-main-shell .patch-library .folder-icon { width: 28px; height: 28px; background: none; border-radius: 0; color: #f0be45; }
 .patch-main-shell .patch-library .folder-tile:nth-child(4n + 2) .folder-icon { color: #a89be9; }
 .patch-main-shell .patch-library .folder-tile:nth-child(4n + 3) .folder-icon { color: #719deb; }
