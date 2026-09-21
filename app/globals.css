@@ -1302,3 +1302,49 @@ html:has(.is-studying), body:has(.is-studying), .is-studying { background: #fff;
 .patch-library .folder-arrow { display: none; }
 .patch-library .folder-tile small { font-size: 11px; line-height: 1.25; }
 .patch-library .library-set-open { width: 100%; }
+
+/* Free v1 study type and color roles. Keep all visible study copy on the four approved type patterns. */
+.is-studying {
+  --font-heading: var(--font-nunito), var(--font-rounded-jp), sans-serif;
+  --study-muted: color-mix(in srgb, var(--patch-evergreen) 65%, transparent);
+  --patch-line: var(--patch-blue-gray);
+}
+.is-studying .study-page { color: var(--patch-evergreen); font: 400 14px/1.6 var(--font-body); }
+.is-studying .study-page button { font: 700 16px/1.4 var(--font-heading); }
+.is-studying .study-page :is(.study-header h1, .flashcard-content strong) { font: 700 20px/1.5 var(--font-heading); }
+.is-studying .study-page :is(.record-choice, .swipe-actions button strong, .choice-feedback strong, .mcq-ai-button, .mcq-ai-heading h2, .source-details summary) { font: 700 16px/1.4 var(--font-heading); }
+.is-studying .study-page :is(.study-progress-remaining, .flashcard-content small, .choice-feedback p, .mcq-ai-explanation p, .source-details p) { font: 400 14px/1.6 var(--font-body); }
+.is-studying .study-page :is(.study-tools button, .study-header .pause-study, .flashcard .chip) { font: 400 14px/1.4 var(--font-heading); }
+.is-studying .study-page :is(.study-progress-remaining, .flashcard-content small) { color: var(--study-muted); }
+.is-studying .study-page .flashcard .chip { color: var(--patch-evergreen); background: var(--patch-mint-base); }
+.is-studying .study-page .flashcard:has(.study-choice-grid).flipped { background: var(--patch-white); border-color: var(--patch-blue-gray); }
+.is-studying .study-page .mcq-question { min-height: 176px; cursor: default; }
+.is-studying .study-page .study-choice-grid button { font: 400 14px/1.5 var(--font-heading); color: var(--patch-evergreen); background: var(--patch-white); border-color: var(--patch-blue-gray); }
+.is-studying .study-page .study-choice-grid button:hover:not(:disabled) { color: var(--patch-evergreen); background: var(--patch-mint-base); border-color: var(--patch-leaf-green); }
+.is-studying .study-page .study-option-letter { font: 400 14px/1 var(--font-body); color: var(--patch-evergreen); background: var(--patch-mint-base); }
+.is-studying .study-page .study-choice-grid button.choice-correct { color: var(--patch-evergreen); background: var(--patch-mint-base); border-color: var(--patch-leaf-green); }
+.is-studying .study-page .study-choice-grid button.choice-selected-incorrect { color: var(--patch-evergreen); background: var(--patch-peach-base); border-color: var(--patch-orange-base); }
+.is-studying .study-page .study-choice-grid button.choice-selected-incorrect .study-option-letter { background: var(--patch-orange-base); color: var(--patch-white); }
+.is-studying .study-page .choice-feedback { display: grid; gap: 4px; margin: 0 20px 12px; padding: 14px 16px; text-align: left; color: var(--patch-evergreen); }
+.is-studying .study-page .choice-feedback p { margin: 0; overflow-wrap: anywhere; }
+.is-studying .study-page .choice-feedback.is-correct { color: var(--patch-evergreen); background: var(--patch-mint-base); border: 1px solid var(--patch-leaf-green); }
+.is-studying .study-page .choice-feedback.is-incorrect { color: var(--patch-evergreen); background: var(--patch-peach-base); border: 1px solid var(--patch-orange-base); }
+.is-studying .study-page .mcq-ai-button { min-height: 44px; margin: 0 20px 18px; padding: 9px 14px; border: 1px solid var(--patch-blue-gray); border-radius: 999px; background: var(--patch-white); color: var(--patch-evergreen); }
+.is-studying .study-page .mcq-ai-button:hover:not(:disabled) { background: var(--patch-mint-base); border-color: var(--patch-leaf-green); }
+.is-studying .study-page .mcq-ai-explanation { margin: 12px 0; padding: 16px; border: 1px solid var(--patch-blue-gray); border-radius: 16px; background: var(--patch-mint-base); color: var(--patch-evergreen); user-select: text; }
+.is-studying .study-page .mcq-ai-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.is-studying .study-page .mcq-ai-heading h2,
+.is-studying .study-page .mcq-ai-explanation p { margin: 0; overflow-wrap: anywhere; }
+.is-studying .study-page .mcq-ai-heading button { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--patch-white); color: var(--patch-evergreen); }
+.is-studying .study-page .mcq-ai-error { display: grid; gap: 10px; }
+.is-studying .study-page .mcq-ai-error .secondary { min-height: 44px; font: 700 16px/1.4 var(--font-heading); }
+.is-studying .study-page .record-choice { color: var(--patch-white); background: var(--patch-evergreen); }
+.is-studying .study-page .swipe-actions .correct { color: var(--patch-evergreen); background: var(--patch-mint-base); border-color: var(--patch-leaf-green); }
+.is-studying .study-page .swipe-actions .incorrect { color: var(--patch-evergreen); background: var(--patch-peach-base); border-color: var(--patch-orange-base); }
+.is-studying .flashcard.swiping-right { border-color: var(--patch-leaf-green); }
+.is-studying .flashcard.swiping-left { border-color: var(--patch-orange-base); }
+@media (max-width: 359px) {
+  .is-studying .study-page .mcq-question { min-height: 156px; }
+  .is-studying .study-page .choice-feedback,
+  .is-studying .study-page .mcq-ai-button { margin-inline: 14px; }
+}

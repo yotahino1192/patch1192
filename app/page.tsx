@@ -396,6 +396,7 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
   const card = data.sets.flatMap((item) => item.cards).find((item) => item.id === queue[0]);
   const set = data.sets.find((item) => item.id === card?.setId) || data.sets.find((item) => item.id === sessionSetId);
   const cardMessages = sessionAiMessages.filter((message) => message.cardId === card?.id);
+  const mcqExplanation = [...cardMessages].reverse().find((message) => message.role === "assistant");
 
   useEffect(() => {
     shownAt.current = currentTimeMs();
@@ -485,8 +486,16 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
     setAiCompose(Boolean(aiInput.trim()));
   };
 
+  const openMcqExplanation = () => {
+    setAiOpen(true);
+    setAiCompose(false);
+    if (!mcqExplanation && !aiBusy && !aiRequestPending.current) {
+      void askAi(t("この問題の正解がなぜ正しいかを、短くわかりやすく説明してください。"));
+    }
+  };
+
   const submitVerdict = async (verdict: LessonVerdict) => {
-    if (!card || !flipped || busy || aiBusy || busyRef.current) return;
+    if (!card || !flipped || busy || (aiBusy && card.format !== "multiple_choice") || busyRef.current) return;
     let resolvedVerdict: LessonVerdict = card.format === "multiple_choice" && selectedChoice
       ? selectedChoice === card.answer ? "correct" : "incorrect"
       : verdict;
@@ -711,22 +720,32 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
           if (event.key === "ArrowRight") { event.preventDefault(); void submitVerdict("correct"); }
         }}
       >
-        <button ref={flashcardTapRef} className="flashcard-tap" type="button" onClick={toggleCard} aria-pressed={flipped} aria-label={flipped ? t("回答を表示中") : card.format === "multiple_choice" ? t("質問。選択肢から回答") : t("質問。タップして回答を表示")}>
-          <span key={`${card.id}:${flipped ? "answer" : "question"}`} className={`flashcard-content ${flipped ? "showing-answer" : "showing-question"} ${(flipped ? card.answer : card.question).length > 120 ? "long-content" : ""}`}>
-            <span className="chip blue">{flipped ? t("回答") : card.format === "multiple_choice" ? t("4択問題") : t("質問")}</span>
-            {flipped && card.format === 'multiple_choice' && <span className="study-question-context">{card.question}</span>}
-            <strong aria-live="polite">{flipped ? card.answer : card.question}</strong>
-            {!flipped && <small className={card.format !== "multiple_choice" ? "card-tap-hint" : undefined}>{card.format === "multiple_choice" ? t("答えを1つ選んでください") : t("タップで回答を表示")}</small>}
-          </span>
-        </button>
-        {(correctFeedback || (flipped && selectedChoice === card.answer)) && <span className="correct-check" role="status" aria-label={t("正解です。")}><AssetIcon name="check" size={46} /></span>}
+        {card.format === "multiple_choice" ? (
+          <div className="flashcard-tap mcq-question" aria-labelledby={`mcq-question-${card.id}`}>
+            <span className={`flashcard-content showing-question ${card.question.length > 120 ? "long-content" : ""}`}>
+              <span className="chip blue">{t("4択問題")}</span>
+              <strong id={`mcq-question-${card.id}`}>{card.question}</strong>
+              {!flipped && <small>{t("答えを1つ選んでください")}</small>}
+            </span>
+          </div>
+        ) : (
+          <button ref={flashcardTapRef} className="flashcard-tap" type="button" onClick={toggleCard} aria-pressed={flipped} aria-label={flipped ? t("回答を表示中") : t("質問。タップして回答を表示")}>
+            <span key={`${card.id}:${flipped ? "answer" : "question"}`} className={`flashcard-content ${flipped ? "showing-answer" : "showing-question"} ${(flipped ? card.answer : card.question).length > 120 ? "long-content" : ""}`}>
+              <span className="chip blue">{flipped ? t("回答") : t("質問")}</span>
+              <strong aria-live="polite">{flipped ? card.answer : card.question}</strong>
+              {!flipped && <small className="card-tap-hint">{t("タップで回答を表示")}</small>}
+            </span>
+          </button>
+        )}
+        {card.format !== "multiple_choice" && correctFeedback && <span className="correct-check" role="status" aria-label={t("正解です。")}><AssetIcon name="check" size={46} /></span>}
         {card.format === "multiple_choice" && <div className="study-choice-grid" aria-label={t("選択肢")}>{card.choices.map((choice, index) => <button key={choice} type="button" aria-pressed={selectedChoice === choice} disabled={flipped || busy} className={flipped ? choice === card.answer ? 'choice-correct' : choice === selectedChoice ? 'choice-selected-incorrect' : '' : ''} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedChoice(choice); setFlipped(true); setGestureMessage(t("答えを確認し、「選択結果を記録」で次へ進みます。")); }}><span className="study-option-letter" aria-hidden="true">{String.fromCharCode(65 + index)}</span><span>{choice}</span>{flipped && choice === card.answer && <PatchIcon name="check" size={20} />}</button>)}</div>}
-        {flipped && selectedChoice && <p role="status" aria-live="polite" className={`choice-feedback ${selectedChoice === card.answer ? "is-correct" : "is-incorrect"}`}>{t("選んだ答え：")}{selectedChoice}{t("。")}{selectedChoice === card.answer ? t("正解です。") : t("正解は「{0}」です。", card.answer)}</p>}
-        {advancedStudyEnabled && flipped && !introductory && <button type="button" className="card-ai-button" disabled={busy || aiBusy} onPointerDown={(event) => event.stopPropagation()} onClick={openAiExplanation}><IconLabel name="sparkles">{t("AIに解説してもらう")}</IconLabel></button>}
+        {card.format === "multiple_choice" && flipped && selectedChoice && <div role="status" aria-live="polite" className={`choice-feedback ${selectedChoice === card.answer ? "is-correct" : "is-incorrect"}`}><strong>{selectedChoice === card.answer ? t("正解です。") : t("正解を確認しましょう。")}</strong><p>{selectedChoice === card.answer ? t("選んだ「{0}」が正解です。", selectedChoice) : t("あなたの回答：{0}　正解：{1}", selectedChoice, card.answer)}</p></div>}
+        {card.format === "multiple_choice" && flipped && selectedChoice && <button type="button" className="mcq-ai-button" disabled={busy || aiBusy} onPointerDown={(event) => event.stopPropagation()} onClick={openMcqExplanation}><IconLabel name="sparkles">{t("AIで解説")}</IconLabel></button>}
+        {advancedStudyEnabled && card.format !== "multiple_choice" && flipped && !introductory && <button type="button" className="card-ai-button" disabled={busy || aiBusy} onPointerDown={(event) => event.stopPropagation()} onClick={openAiExplanation}><IconLabel name="sparkles">{t("AIに解説してもらう")}</IconLabel></button>}
       </article>
       {introductory && !flipped && <button className="primary wide" onClick={()=>setFlipped(true)}>{t("答えを見る")}</button>}
       <p className="study-sr-only" role="status">{busy ? t("学習記録を保存しています…") : aiBusy ? t("AIが解説を作成しています…") : t(gestureMessage)}</p>
-      {advancedStudyEnabled && aiOpen && (
+      {advancedStudyEnabled && card.format !== "multiple_choice" && aiOpen && (
         <section className="inline-ai-panel">
           <div className="inline-ai-header"><div><span><AssetIcon name="sparkles" /></span><h2>{t("AI解説")}</h2></div><button type="button" aria-label={t("AI解説を閉じる")} disabled={aiBusy} onClick={() => setAiOpen(false)}><AssetIcon name="close" size={20} /></button></div>
           {!cardMessages.length && !aiBusy && <div className="ai-start-options">
@@ -742,8 +761,16 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
           {(aiCompose || cardMessages.length > 0) && <div className="chat-input"><input autoFocus value={aiInput} onChange={(event) => setAiInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) void askAi(aiInput); }} placeholder={t(cardMessages.length ? "追加で質問する…" : "質問を入力する…")} aria-label={t(cardMessages.length ? "AIへの追加質問" : "AIへの質問")} /><button type="button" onClick={() => askAi(aiInput)} disabled={aiBusy || !aiInput.trim()} aria-label={t("質問を送信")}>⬆️</button></div>}
         </section>
       )}
+      {card.format === "multiple_choice" && flipped && selectedChoice && aiOpen && (
+        <section className="mcq-ai-explanation" aria-labelledby="mcq-ai-heading">
+          <div className="mcq-ai-heading"><h2 id="mcq-ai-heading">{t("AIによる解説")}</h2><button type="button" aria-label={t("AI解説を閉じる")} onClick={() => setAiOpen(false)}><PatchIcon name="close" size={20} /></button></div>
+          {aiBusy && <p role="status">{t("解説を考えています…")}</p>}
+          {!aiBusy && mcqExplanation && <p>{mcqExplanation.content}</p>}
+          {!aiBusy && aiError && <div className="mcq-ai-error"><p className="inline-error" role="alert">{t(aiError)}</p><button type="button" className="secondary" onClick={openMcqExplanation}>{t("もう一度試す")}</button></div>}
+        </section>
+      )}
       {(!introductory || flipped) && (card.format === "multiple_choice" && selectedChoice ? (
-        <button className="primary wide record-choice" disabled={busy || aiBusy} onClick={() => submitVerdict(selectedChoice === card.answer ? "correct" : "incorrect")}>{selectedChoice === card.answer ? <IconLabel name="check">{t("選択結果を記録して次へ")}</IconLabel> : <IconLabel name="refresh">{t("選択結果を記録して次へ")}</IconLabel>}</button>
+        <button className="primary wide record-choice" disabled={busy} onClick={() => submitVerdict(selectedChoice === card.answer ? "correct" : "incorrect")}>{selectedChoice === card.answer ? <IconLabel name="check">{t("選択結果を記録して次へ")}</IconLabel> : <IconLabel name="refresh">{t("選択結果を記録して次へ")}</IconLabel>}</button>
       ) : (
         <div className="swipe-actions compact" aria-label={t("スワイプ操作の代替ボタン")}>
           <button className="incorrect" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("incorrect")}><AssetIcon name="chevron-left" size={20} /><span><strong>{t("まだ覚えていない")}</strong></span></button>

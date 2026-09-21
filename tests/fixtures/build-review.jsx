@@ -20,6 +20,7 @@ window.fetch = async (path, options) => {
     const format=body.style==='4択問題'?'multiple_choice':'qa';
     return Response.json({title:'Generated '+(body.inputKind||'source'),category:'Biology',summary:'Photosynthesis basics',keyPoints:['Light and water'],...(body.inputKind==='topic'?{sourceKind:'topic'}:{}),cards:[1,2].map(i=>({question:'What powers photosynthesis? '+i,answer:'Sunlight',choices:format==='multiple_choice'?['Sunlight','Wind','Sound','Gravity']:[],format,difficulty:1}))});
   }
+  if(url==='/api/ai/chat') return Response.json({answer:'The correct choice follows directly from the source: higher borrowing costs reduce spending and demand.'});
   if(url==='/api/retention' && body?.action==='start' && fixture.failStart)return Response.json({error:'Test start failure'},{status:503});
   const saving=url==='/api/data' && ['saveSet','addCardsToSet'].includes(body?.action);
   if(saving && fixture.holdSave)await new Promise(resolve=>fixture.releaseSave=resolve);

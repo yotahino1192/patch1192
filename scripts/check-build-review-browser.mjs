@@ -30,6 +30,7 @@ try{
  const data=async()=>await(await fetch(origin+'/api/data',{headers:auth()})).json();
  const original={title:'Existing Economics',category:'Test',summary:'',keyPoints:['Existing learning'],sourceContent:'Original source',cards:[{question:'Original question',answer:'Original answer',format:'qa',choices:[],difficulty:1}]};
  const seeded=await(await fetch(origin+'/api/data',{method:'POST',headers:auth(),body:JSON.stringify({action:'saveSet',material:original})})).json();
+ await grantAi(db,identity.userId);
  assert.equal(seeded.data.profile.onboardingCompleted,true);
  vite=await createServer({configFile:false,root,cacheDir:join(dir,'cache'),plugins:[react(),{name:'review-test-identity',configureServer(s){s.middlewares.use('/__build_review_identity',(_req,res)=>{res.setHeader('content-type','application/json');res.setHeader('cache-control','no-store');res.end(JSON.stringify({identity,token:token('user_review',{exp:Math.floor(Date.now()/1000)+1200})}));});}}],define:{'process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY':'""'},server:{host:'127.0.0.1',port,strictPort:true,fs:{allow:[root,realpathSync('node_modules')]},proxy:{'/api':{target:origin}}}});await vite.listen();
  await until(async()=>(await fetch(`http://127.0.0.1:${debugPort}/json/version`)).ok);
@@ -109,7 +110,7 @@ try{
  for(const format of ['qa','multiple_choice']) {
   await openReview(format);await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready")'));
   await click('.build-ready .build-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));
-  assert.equal(await evaluate('!!document.querySelector(".card-ai-button,.inline-ai-panel,[data-activity-type]")'),false);
+  assert.equal(await evaluate('!!document.querySelector(".card-ai-button,.mcq-ai-button,.inline-ai-panel,[data-activity-type]")'),false);
   const activeId=await evaluate('reviewFixture.workspace().session.id');
   for(const width of [320,390,393,430,768]) {
    await cdp('Emulation.setDeviceMetricsOverride',{width,height:width===320?568:852,deviceScaleFactor:1,mobile:true});
@@ -125,6 +126,12 @@ try{
    assert.equal(await evaluate('document.querySelectorAll(".study-choice-grid button[aria-pressed=true]").length'),1);
    assert.equal((await data()).reviews.length,reviewsBefore,'Selecting and revealing feedback does not submit an Attempt');
    assert.equal(await evaluate('!!document.querySelector(".choice-feedback.is-incorrect")'),true);
+   assert.equal(await evaluate('!!document.querySelector(".swipe-actions")'),false,'MCQ never exposes Flashcard rating actions');
+   assert.equal(await evaluate('document.querySelector(".mcq-question strong").textContent'),'How can higher interest rates affect inflation?');
+   assert.equal(await evaluate('!!document.querySelector(".mcq-ai-button")'),true);
+   await click('.mcq-ai-button');await until(()=>evaluate('!!document.querySelector(".mcq-ai-explanation")?.textContent.includes("higher borrowing costs")'));
+   assert.equal(await evaluate('document.querySelector(".record-choice").disabled'),false,'AI explanation does not block Continue');
+   assert.deepEqual(await evaluate(`[...new Set([...document.querySelectorAll('.study-page *')].filter(e=>e.children.length===0&&e.textContent.trim()&&getComputedStyle(e).display!=='none').map(e=>parseFloat(getComputedStyle(e).fontSize)))].sort((a,b)=>a-b)`),[14,16,20],'Study text uses only the four approved roles');
    await shot('free-choice-selected-393');
    await click('.record-choice');await until(()=>evaluate('!reviewFixture.workspace().session.flipped'));
    const submitted=await evaluate('reviewFixture.writes.filter(w=>w.body?.action==="reviewCard").at(-1).body');assert.equal('rating' in submitted,false);assert.equal('correct' in submitted,false);assert.ok(submitted.selectedChoice);
@@ -165,10 +172,10 @@ try{
   await click('.bottom-nav button:last-child');await until(()=>evaluate('!!document.querySelector(".records-page")'));
   assert.equal(await evaluate('!!document.querySelector(".ai-history-disclosure,.record-stat-memory")'),false);await shot('free-'+format+'-history-393');
  }
- assert.equal(await evaluate('reviewFixture.aiCalls'),0,'Free v1 study/completion never auto-calls AI');
+ assert.equal(await evaluate('reviewFixture.aiCalls'),1,'Free v1 calls AI only after the explicit MCQ explanation action');
 
  }
- if(!liveAi) {
+ if(!liveAi && process.env.PATCH_UI_ONLY !== '1') {
  // Topic, pasted source and uploaded PDF all use the integrated generation flow.
  // Only the provider transport is deterministic; persistence/assignment/grading are real.
  await grantAi(db,identity.userId);
