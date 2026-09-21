@@ -1,5 +1,5 @@
 // Real App, authenticated data/Retention routes and isolated SQLite.
-// AI is disabled by default; PATCH_LIVE_AI_QA=1 opts into one development-only provider call.
+// AI is disabled by default; PATCH_LIVE_AI_QA=1 opts into one topic call per format.
 import assert from 'node:assert/strict';
 import { createClient } from '@libsql/client';
 import { migrate } from './infra/migrations.mjs';
@@ -14,9 +14,9 @@ import { join } from 'node:path';
 import nextEnv from '@next/env';
 import { grantAi } from '../tests/ai-consent-fixture.mjs';
 const dir=await mkdtemp(join(tmpdir(),'patch-review-browser-')),root=process.cwd(),origin='http://127.0.0.1:3162',port=5242,debugPort=9412;
-// Explicit opt-in only: one provider dispatch in an isolated development ledger.
+// Explicit opt-in only: two provider dispatches total in an isolated development ledger.
 const liveAi = process.env.PATCH_LIVE_AI_QA === '1';
-if(liveAi) { nextEnv.loadEnvConfig(root,true,{info(){},error(){}});assert.equal(process.env.PATCH_ENV,'development');assert.ok(process.env.OPENAI_API_KEY); }
+if(liveAi) { nextEnv.loadEnvConfig(process.env.PATCH_QA_ENV_DIR || root,true,{info(){},error(){}});assert.equal(process.env.PATCH_ENV,'development');assert.ok(process.env.OPENAI_API_KEY); }
 const output=join(root,'outputs/add-material-review');await mkdir(output,{recursive:true});
 const db=createClient({url:`file:${dir}/test.db`});await migrate(db);
 const server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p','3162','--hostname','127.0.0.1'],{cwd:root,env:{...process.env,PATCH_ENV:'development',TURSO_DATABASE_URL:`file:${dir}/test.db`,TURSO_AUTH_TOKEN:'',OPENAI_API_KEY:liveAi?process.env.OPENAI_API_KEY:'',NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:'',VERCEL:''},stdio:'ignore'});
@@ -47,7 +47,7 @@ try{
  const progress=async()=>{const d=await data();const retention={...d.retention};delete retention.generatedAt;delete retention.expiresAt;return {reviews:d.reviews,retention,counts:(await db.execute("SELECT (SELECT count(*) FROM attempts) AS attempts,(SELECT count(*) FROM review_logs) AS reviews")).rows[0]};};
  await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
  await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/build-review.html`});await until(()=>evaluate('!!document.querySelector(".patch-home")'));
- if(process.env.PATCH_CORE_ONLY !== '1') {
+ if(!liveAi && process.env.PATCH_CORE_ONLY !== '1') {
  await openReview();const before=await progress();
  await shot('prompt08-flashcard-390');
  assert.equal(await evaluate('!!document.querySelector(".build-preview-answer")'),false);
@@ -127,6 +127,7 @@ try{
    assert.equal(await evaluate('!!document.querySelector(".choice-feedback.is-incorrect")'),true);
    await shot('free-choice-selected-393');
    await click('.record-choice');await until(()=>evaluate('!reviewFixture.workspace().session.flipped'));
+   const submitted=await evaluate('reviewFixture.writes.filter(w=>w.body?.action==="reviewCard").at(-1).body');assert.equal('rating' in submitted,false);assert.equal('correct' in submitted,false);assert.ok(submitted.selectedChoice);
   } else {
    await click('.flashcard-tap');await shot('free-flashcard-answer-393');
    assert.equal((await data()).reviews.length,reviewsBefore,'Reveal does not record a review');
@@ -167,6 +168,7 @@ try{
  assert.equal(await evaluate('reviewFixture.aiCalls'),0,'Free v1 study/completion never auto-calls AI');
 
  }
+ if(!liveAi) {
  // Topic, pasted source and uploaded PDF all use the integrated generation flow.
  // Only the provider transport is deterministic; persistence/assignment/grading are real.
  await grantAi(db,identity.userId);
@@ -219,24 +221,36 @@ try{
   assert.equal((await data()).studyHistory.find(h=>h.id===activeId).results.length,2);
  }
  console.log('PASS: topic/text/PDF x Flashcards/MCQ -> Generate (fixture provider) -> Review/Save/Ready -> wrong answers -> reload/resume -> Complete -> History/Review; short +1/day and Due preserved.');
+ }
  if(liveAi) {
   assert.equal((await db.execute('SELECT count(*) n FROM ai_requests')).rows[0].n,0);
   await grantAi(db,identity.userId);
-  await click('.bottom-nav button:nth-child(3)');await until(()=>evaluate('!!document.querySelector(".build-destinations")'));
-  await click('.build-primary');
-  await evaluate(`(()=>{const e=document.querySelector('.build-text textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'Plants use sunlight to convert water and carbon dioxide into sugars through photosynthesis. Chlorophyll absorbs light. Oxygen is released. Roots absorb water, while leaves take in carbon dioxide through small openings called stomata.');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-  await click('.build-primary');await click('.build-format label:last-child');await click('.build-primary');
-  await until(()=>evaluate('!!document.querySelector(".build-dots")'));await shot('live-preparing-393');
-  await until(()=>evaluate('!!document.querySelector(".build-review,.build-preparing [role=alert]")'));
-  const ledger=(await db.execute('SELECT state,input_tokens,output_tokens FROM ai_requests')).rows;
-  console.log('Live generation ledger:',JSON.stringify(ledger));
-  assert.equal(ledger.length,1,'Only one operation; never retry an unresolved call');assert.equal(ledger[0].state,'succeeded');
-  assert.equal(await evaluate('!!document.querySelector(".build-review")'),true);await shot('live-review-393');
-  await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready")'));await shot('live-ready-393');
-  assert.equal(await evaluate('reviewFixture.aiCalls'),1);console.log('PASS: one real provider generation -> Review -> durable Save -> Ready');
+  for(const [index,format] of ['qa','multiple_choice'].entries()) {
+   await evaluate('reviewFixture.reset()');await cdp('Page.reload');await until(()=>evaluate('!!document.querySelector(".patch-home")'));
+   assert.equal(await evaluate('!!reviewFixture.mockGeneration'),false);
+   await click('.bottom-nav button:nth-child(3)');await until(()=>evaluate('!!document.querySelector(".build-destinations")'));await click('.build-primary');
+   await evaluate(`(()=>{const e=document.querySelector('[aria-label="Input type"]');e.value='topic';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+   await evaluate(`(()=>{const e=document.querySelector('.build-text textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'Photosynthesis');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+   await delay(80);await click('.build-primary');await click(format==='qa'?'.build-format label:first-child':'.build-format label:last-child');
+   await click('.build-primary');
+   await until(()=>evaluate('!!document.querySelector(".build-review,.build-preparing [role=alert]")'));
+   const ledger=(await db.execute('SELECT state,input_tokens,output_tokens FROM ai_requests ORDER BY created_at')).rows;
+   console.log('Live generation ledger (state/usage only):',JSON.stringify(ledger));
+   // No retries, new keys, or operator resolution on failed/unknown/in-flight work.
+   assert.equal(ledger.length,index+1,'Exactly one operation per format');assert.equal(ledger.at(-1).state,'succeeded','Stop on failed or UNKNOWN generation; never resend');
+   assert.equal(await evaluate('!!document.querySelector(".build-review")'),true);await shot('live-topic-'+format+'-review');
+   assert.equal(await evaluate('reviewFixture.workspace().draft.cards.every(c=>c.format==='+JSON.stringify(format)+')'),true);
+   await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready")'));
+   await click('.build-ready .build-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));await shot('live-topic-'+format+'-study');
+   if(format==='qa'){await click('.flashcard-tap');await click('.swipe-actions .incorrect');}
+   else {await click('.study-choice-grid button:first-child');await click('.record-choice');}
+   await until(()=>evaluate('!reviewFixture.workspace().session.pendingReview'));
+   assert.equal(await evaluate('reviewFixture.aiCalls'),1,'Answer time does not call AI');
+   console.log('PASS: real provider short topic -> '+format+' -> Review -> Save -> Study -> persisted answer');
+  }
  }
  assert.deepEqual(errors,[]);
- console.log('PASS: real App Review/Ready; flashcard/choice previews without progress; Back; destination overlay; new save; append; double-submit; failure; lost response/reload/retry; real Retention lesson start on added cards only; mobile layouts.');
- console.log('PASS: Free v1 Flashcard/Choice -> feedback -> saved Complete -> Home/History; deferred features hidden; 320/390/393/430/768; text scale and keyboard.');
+ if(!liveAi) console.log('PASS: real App Review/Ready; flashcard/choice previews without progress; Back; destination overlay; new save; append; double-submit; failure; lost response/reload/retry; real Retention lesson start on added cards only; mobile layouts.');
+ if(!liveAi) console.log('PASS: Free v1 Flashcard/Choice -> feedback -> saved Complete -> Home/History; deferred features hidden; 320/390/393/430/768; text scale and keyboard.');
  console.log('Screenshots: '+output);
 }finally{ws?.close();await vite?.close();server.kill('SIGTERM');chrome.kill('SIGTERM');db.close();await delay(250);if(liveAi)console.log('Live QA ledger retained for audit: '+dir);else await rm(dir,{recursive:true,force:true});}

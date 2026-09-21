@@ -506,6 +506,7 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
           action: "reviewCard",
           sessionId,
           ...attempt,
+          ...(attempt.selectedChoice !== undefined ? { rating: undefined } : {}),
         }),
       });
       if (!mounted.current) return;

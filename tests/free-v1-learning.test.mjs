@@ -167,3 +167,13 @@ test('session start replay binds the entire requested assignment, and explicit r
  const view=(await data(u,s.id)).studySessions[0];assert.equal(view.status,'COMPLETED');assert.equal(view.qualifies,true);
  assert.equal((await data(u)).retention.streak,1);
 });
+
+
+test('new malformed MCQ save and append fail before persistence; legacy fallback cannot accept new content',async()=>{
+ const u=await user(),s=await setup(u);
+ for(const card of [{...mcq,choices:['A','B']},{...mcq,choices:['A','A','C','D']},{...mcq,answer:'missing'},{...mcq,choices:[]}]) {
+  assert.equal((await send(u,{action:'saveSet',material:{title:'Invalid',category:'C',summary:'',keyPoints:['K'],sourceContent:'Photosynthesis',sourceKind:'topic',cards:[card]}})).status,400);
+  assert.equal((await send(u,{action:'addCardsToSet',setId:s.setId,cards:[card]})).status,400);
+ }
+ const d=await data(u);assert.equal(d.sets.length,1);assert.equal(d.sets[0].cards.length,1);
+});

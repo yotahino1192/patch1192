@@ -1,5 +1,7 @@
 # Patch Free v1 Learning Core 実装記録
 
+> checkpoint `7e4b8dd` の記録。最新Devとの統合・実provider検証・migration復旧レビューは [最終統合レビュー](free-v1-integration-review.md) を参照。
+
 2026-09-21 / CLI3。実装基準は `d9e304f980711f7c9859b156b89efce4d36cd063`。
 作業前に origin/Dev を fetch し、local Dev と origin/Dev が指定 SHA と一致することを確認した。
 専用ブランチ `codex/cli3-free-v1-learning-core`、専用 worktree `/private/tmp/patch-cli3-learning-core` で実装した。
