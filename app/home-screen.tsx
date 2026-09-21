@@ -87,7 +87,7 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
           </>}
         </div>
       </section>
-      {(completed || resumableSessions.length > 0 || memorySets.length > 0) && <div className="patch-section-label patch-optional-label">{t(completed ? "もう少し続ける（任意）" : "学習を続ける")}</div>}
+      {(completed || resumableSessions.length > 0 || memorySets.length > 0) && <button type="button" className="patch-browse-cta" onClick={onChoosePatch}>{t(completed ? "もう少し続ける（任意）" : "学習を続ける")}<PatchIcon name="arrow" size={21} /></button>}
       {resumableSessions.length > 0 && <section className="home-resume-list" aria-label={t("中断した学習")}>{resumableSessions.map(session => <button key={session.id} className="patch-action-card" onClick={() => setPreview(session.id)}><span className="patch-action-icon"><PatchIcon name="book" /></span><span><strong>{t("続きから学習 · 残り{0}枚", pendingStudyCount(session))}</strong><small>{data.sets.find(set => set.id === session.setId)?.title || t("復習")}</small></span><PatchIcon name="arrow" size={19} /></button>)}</section>}
       {memorySets.map(({ set, cards }) => <button key={set.id} className="patch-action-card" onClick={() => startStudy(`__memory__:${set.id}`)}><span className="patch-action-icon is-memory"><PatchIcon name="refresh" /></span><span><strong>{t("記憶を確かめる")}</strong><small>{set.title} · {t("{0}枚", cards.length)}</small></span><PatchIcon name="arrow" size={19} /></button>)}
       {(completed || learnable) && <button className="patch-text-button patch-add-material" onClick={() => setScreen("import")}><PatchIcon name="plus" size={18} />{t("新しい教材を追加")}</button>}

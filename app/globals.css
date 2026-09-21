@@ -941,7 +941,7 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-home .daily-todo-content { padding: 14px 10px; background: #f7fcfa; border-radius: 12px; }
 .patch-home .daily-todos li { padding: 10px 0; gap: 7px; }
 .patch-home .daily-todos strong { overflow-wrap: anywhere; }
-.patch-learning { display: flex; flex-direction: column; align-items: center; padding-top: 7px; border-top: 2px solid #72acab; }
+.patch-learning { display: flex; flex-direction: column; align-items: center; padding-top: 7px; }
 .patch-section-label { font-weight: 400; font-size: 12px; line-height: 1.4; color: var(--patch-muted); margin: 0 0 8px; text-align: center; }
 .patch-learning > .patch-section-label { align-self: flex-start; margin-bottom: 0; }
 .patch-recent-path { position: relative; width: 100%; display: flex; flex-direction: column; align-items: center; }
@@ -966,7 +966,7 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-current-label { font-size: 16px; font-weight: 700; line-height: 1.25; }
 .patch-current-node h2 { font: 400 18px / 1.2 var(--font-body); margin: 0; width: 100%; overflow-wrap: anywhere; letter-spacing: -.025em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .patch-current-context { margin: 0; color: var(--patch-mint); font-size: 13px; line-height: 1.25; }
-.patch-lesson-start { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; max-width: min(100%, 150px); flex-shrink: 0; overflow-wrap: anywhere; padding: 9px; margin-top: 2px; border: 0; border-radius: 999px; color: var(--patch-ink); background: var(--patch-peach); font-size: 14px; font-weight: 700; line-height: 1.2; }
+.patch-lesson-start, .patch-browse-cta { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; max-width: min(100%, 150px); flex-shrink: 0; overflow-wrap: anywhere; padding: 9px; margin-top: 2px; border: 0; border-radius: 999px; color: var(--patch-ink); background: var(--patch-peach); font-size: 14px; font-weight: 700; line-height: 1.2; }
 .patch-lesson-start svg { width: 17px; height: 17px; }
 .patch-lesson-start svg { flex-shrink: 0; }
 .patch-lesson-start:hover { filter: brightness(1.04); }
@@ -974,8 +974,8 @@ html:has(:is(.patch-home-shell, .patch-main-shell)), body:has(:is(.patch-home-sh
 .patch-current-node.is-completed { background: var(--patch-mint); color: var(--patch-ink); min-height: 208px; width: min(100%, 208px); }
 .patch-current-node.is-completed strong { font-size: 18px; font-weight: 700; line-height: 1.3; }
 .patch-current-node small { font-size: 11px; line-height: 1.4; }
-.patch-optional-label { display: flex; align-items: center; gap: 8px; margin: 18px 0 7px; }
-.patch-optional-label::before, .patch-optional-label::after { content: ""; flex: 1; height: 1px; background: var(--patch-line); }
+.patch-browse-cta { width: 100%; max-width: 280px; margin: 18px auto 10px; padding: 12px 18px; gap: 12px; }
+.patch-browse-cta svg { flex-shrink: 0; }
 .patch-action-card { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 57px; padding: 9px 10px; margin: 5px 0; border: 1px solid var(--patch-line); border-radius: 12px; background: #fff; box-shadow: var(--patch-shadow); text-align: left; }
 .patch-action-card > span:nth-child(2) { flex: 1; min-width: 0; }
 .patch-action-card strong, .patch-action-card small { display: block; overflow-wrap: anywhere; }

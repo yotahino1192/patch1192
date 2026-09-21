@@ -181,6 +181,10 @@ try{
  await viewport(393);await navigate('state=complete');await click('.completion-actions .patch-primary');
  await until(()=>evaluate('!!document.querySelector(".patch-home-completed .is-completed")'));await screenshot('post-lesson-home-393');
  assert.equal(await evaluate('document.querySelector(".patch-current-node").tagName'),'DIV','Today completion is a status, not another start button');
+ await navigate('screen=home&state=completed');
+ await click('.patch-browse-cta');
+ assert.equal(await evaluate('!!document.querySelector(".patch-library-root")'),true,'Optional learning CTA opens Patches');
+ assert.equal(await evaluate('window.uiFixture.starts'),0,'Browsing optional learning never starts study');
  await navigate('state=normal');await evaluate('window.uiFixture.updateSnapshot({streak:9,hot:true,completed:true,achievedDays:[18,19,20]})');
  await until(()=>evaluate('!!document.querySelector(".patch-streak-hot")'));
  assert.equal(await evaluate('document.querySelector(".patch-streak-count").textContent'),'9-day streak','Streak uses refreshed authoritative value');
