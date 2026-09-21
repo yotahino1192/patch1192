@@ -197,9 +197,9 @@ try{
  assert.equal(await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).method"),'GET');
  assert.ok((await evaluate("window.uiFixture.reads.find(r=>r.url.startsWith('/api/domain?')).url")).includes('id=saved-a'));
  await click('.patch-sheet-close');
- await click('.home-resume-list .patch-action-card:nth-child(2)');await until(()=>evaluate('window.uiFixture.pending.length===2'));
+ await click('.patch-lesson-start');await until(()=>evaluate('window.uiFixture.pending.length===2'));
  await evaluate('window.uiFixture.pending[0]()');await delay(100);
- assert.equal(await evaluate('document.querySelector(".patch-preview-time")===null'),true,'Late prior-session estimate must be ignored');
+ assert.equal(await evaluate('document.querySelector(".patch-preview-time")===null'),true,'Late closed-preview estimate must be ignored');
  await evaluate('window.uiFixture.pending[1]()');await until(()=>evaluate('document.querySelector(".patch-preview-time")?.textContent.includes("8 minutes")'));
  assert.equal(await evaluate('document.querySelector(".patch-sheet").textContent.includes("6 cards remaining")'),true);
  await screenshot('resume-preview-393');
