@@ -48,7 +48,7 @@ test("material manager has English controls while retaining the original cards",
 test("folder library renders both languages without translating folder names", () => {
   const props = { data: { sets: [set], folders: [{ id: "f1", parentId: null, name: "資格の勉強" }], reviews: [], chatMessages: [], dailyReview: { cardIds: [], completedCardIds: [], completed: false } }, now: new Date("2026-09-06T12:00:00+09:00"), folderId: null, openSetId: null, onFolder() {}, onSet() {}, onStudy() {}, onData() {}, onAdd() {} };
   const en = render("en", React.createElement(SetLibrary, props));
-  for (const text of ["Today&#x27;s patch", "Folder", "All Patches", "Move", "資格の勉強", "私の教材"]) assert.ok(en.includes(text), text);
+  for (const text of ["Today&#x27;s patch", "Folders", "All Patches", "資格の勉強", "私の教材"]) assert.ok(en.includes(text), text);
   const ja = render("ja", React.createElement(SetLibrary, props));
   assert.ok(ja.includes("フォルダ"));
   assert.ok(!ja.includes('class="folder-create"'));

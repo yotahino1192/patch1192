@@ -77,9 +77,12 @@ try{
  assert.equal(await evaluate('!!document.querySelector("#folder-create-form")'),true);
  await screenshot('folder-form-393');
  await click('.folder-create .folder-text-button');
- await click('.library-sets .folder-text-button');
+ assert.equal(await evaluate('!!document.querySelector(".library-set-move")'),false,'Move stays out of primary rows');
+ await click('.library-set-open');
+ await click('.folder-toolbar .secondary:last-child');
  await screenshot('move-set-393');
  await click('.folder-move button[type="button"]');
+ await click('.folder-breadcrumb button');
  await evaluate(`(()=>{const e=document.querySelector('#material-search-input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'recall');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
  await until(()=>evaluate('!!document.querySelector(".search-hit-list")'));
  await screenshot('search-393');

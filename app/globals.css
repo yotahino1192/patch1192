@@ -1282,3 +1282,27 @@ html:has(.is-studying), body:has(.is-studying), .is-studying { background: #fff;
   .is-studying .flashcard-content { padding: 20px; }
   .is-studying .swipe-actions button strong { font-size: 14px; }
 }
+
+/* Patches reference polish: presentation only, with compact non-stretching folders. */
+.patch-library .today-patch-icon,
+.patch-library .library-set-open .library-patch-icon { font-size: 24px; line-height: 1; }
+.patch-library .today-patch-icon.overdue { background: #ffeded; }
+.patch-library .today-patch-list strong,
+.patch-library .library-set-open strong,
+.patch-library .folder-tile strong { color: #122a4b; }
+.patch-library .review-ready-chip { gap: 4px; font-weight: 400; padding-inline: 6px; }
+.patch-library .review-ready-chip svg { flex-shrink: 0; }
+.patch-library .review-ready-chip.overdue { color: #be3029; background: #ffeded; }
+.patch-library .today-patch-list > button { column-gap: 6px; }
+.patch-main-shell .patch-library .library-folders .patch-library-section-heading { align-items: center; margin-bottom: 2px; }
+.patch-main-shell .patch-library .library-folders .folder-controls { margin: 0; }
+.patch-main-shell .patch-library .folder-grid { grid-auto-flow: column; grid-auto-columns: 142px; grid-template-columns: none; overflow-x: auto; gap: 8px; }
+.patch-main-shell .patch-library .folder-tile { grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; min-height: 60px; padding: 8px; gap: 2px 7px; border-radius: 12px; }
+.patch-main-shell .patch-library .folder-icon { width: 28px; height: 28px; background: none; border-radius: 0; color: #f0be45; }
+.patch-main-shell .patch-library .folder-tile:nth-child(4n + 2) .folder-icon { color: #a89be9; }
+.patch-main-shell .patch-library .folder-tile:nth-child(4n + 3) .folder-icon { color: #719deb; }
+.patch-main-shell .patch-library .folder-tile:nth-child(4n + 4) .folder-icon { color: #8bceb0; }
+.patch-main-shell .patch-library .folder-icon > svg { width: 28px; height: 28px; }
+.patch-library .folder-arrow { display: none; }
+.patch-library .folder-tile small { font-size: 11px; line-height: 1.25; }
+.patch-library .library-set-open { width: 100%; }
