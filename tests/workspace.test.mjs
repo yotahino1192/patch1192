@@ -112,3 +112,17 @@ test("pause destination follows the entry point and survives reload and batch tr
   const invalid = parseWorkspace(JSON.stringify({ ...EMPTY_WORKSPACE, session: { ...session, returnTo: { screen: 'sets', setId: 42 } } })).session;
   assert.equal(invalid.returnTo, undefined);
 });
+
+test('authoritative item changes and stale attempts reset answer and explanation state', () => {
+  const cards = data.sets[0].cards.map(c => ({...c, contentRevision:'revision-'+c.id, reviewCount:0}));
+  const view = {id:session.id,total:2,remainingIds:['c2'],currentItemId:'c2',status:'ACTIVE',results:[]};
+  const current = {...session,itemRevision:cards[0].contentRevision};
+  const loaded = {...data,sets:[{...data.sets[0],cards}],studySessions:[view]};
+  const next = reconcileSession(current,loaded);
+  assert.equal(next.aiInput,'');assert.equal(next.aiOpen,false);assert.equal(next.aiCompose,false);
+  const pending = {...current,pendingReview:{operationId:'retry',cardId:'c1',contentRevision:cards[0].contentRevision,expectedReviewCount:0,rating:'good',responseMs:1}};
+  const stale = reconcileSession(pending,{...loaded,sets:[{...data.sets[0],cards:[{...cards[0],reviewCount:1},cards[1]]}],studySessions:[{...view,remainingIds:['c1','c2'],currentItemId:'c1'}]});
+  assert.equal(stale.pendingReview,null);assert.equal(stale.selectedChoice,null);assert.equal(stale.flipped,false);
+  const resumed = reconcileSession(current,{...loaded,studySessions:[{...view,remainingIds:['c1','c2'],currentItemId:'c1'}]});
+  assert.equal(resumed.selectedChoice,'B');assert.equal(resumed.flipped,true);assert.equal(resumed.aiInput,current.aiInput);
+});

@@ -9,7 +9,7 @@ async function handle(request:Request){try{
  const {userId}=await requireAuth(request);const timezone=request.headers.get("x-patch-timezone")||undefined;
  if(timezone&&!validTimezone(timezone))throw new InputError("タイムゾーンを確認してください。");
  if(request.method==="POST"){const body=await readJsonObject(request);
-  if(body.action==="resume"){if(!validId(body.id))throw new InputError("学習セッションを確認してください。");return json(await resumeStudySession(userId,body.id));}
+  if(body.action==="resume"){if(!validId(body.id))throw new InputError("学習セッションを確認してください。");return json(await resumeStudySession(userId,body.id,timezone));}
   if(body.action==="start"){
    if(!validId(body.id)||!Array.isArray(body.cardIds)||!body.cardIds.length||body.cardIds.length>1000||!body.cardIds.every(validId)||new Set(body.cardIds).size!==body.cardIds.length)throw new InputError("学習対象を確認してください。");
    return json(await startStudySession(userId,body.id,body.cardIds,timezone));

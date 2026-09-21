@@ -13,6 +13,7 @@ const {GET:session}=await import('../app/api/auth/session/route.ts');
 const {POST:cards}=await import('../app/api/ai/cards/route.ts');
 const {POST:chat}=await import('../app/api/ai/chat/route.ts');
 const store=await import('../db/store.ts');
+const {startStudySession}=await import('../db/retention.ts');
 async function account(subject){const a=await (await session(new Request(origin+'/api/auth/session',{headers:headers(subject)}))).json();await grantAi(c,a.userId);return a;}
 function request(a,path,body,key){return new Request(origin+path,{method:'POST',headers:headers(a.subject,a.userId,{'content-type':'application/json',...(key?{'Idempotency-Key':key}:{})}),body:JSON.stringify(body)});}
 async function mock(text,fn){const prev=globalThis.fetch,old=process.env.OPENAI_API_KEY;let calls=0;process.env.OPENAI_API_KEY='mock-only';globalThis.fetch=async()=>{calls++;return Response.json({status:'completed',usage:{input_tokens:10,output_tokens:100},output:[{content:[{type:'output_text',text}]}]});};try{await fn(()=>calls);}finally{globalThis.fetch=prev;if(old===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=old;}}
@@ -27,7 +28,7 @@ test('authenticated cards route enforces key and returns stored result on replay
 });
 test('chat response, usage and exactly one pair commit together; replay uses owner-scoped result',async()=>{
  const a=await account('user_chat');await store.saveGeneratedSet(a.userId,{title:'T',category:'C',summary:'',keyPoints:['K'],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]});
- const set=(await store.loadAppData(a.userId)).sets[0];const body={setId:set.id,cardId:set.cards[0].id,sessionId:'lesson',question:'why?'},k=randomUUID();
+ const set=(await store.loadAppData(a.userId)).sets[0];await startStudySession(a.userId,'lesson',[set.cards[0].id]);const body={setId:set.id,cardId:set.cards[0].id,sessionId:'lesson',question:'why?'},k=randomUUID();
  await mock('A concise answer',async calls=>{for(let i=0;i<2;i++){const r=await chat(request(a,'/api/ai/chat',body,k));assert.equal(r.status,200);assert.deepEqual(await r.json(),{answer:'A concise answer'});}assert.equal(calls(),1);
  assert.equal((await c.execute({sql:'SELECT count(*) n FROM chat_messages WHERE user_id=?',args:[a.userId]})).rows[0].n,2);
  const b=await account('user_foreign');assert.equal((await chat(request(b,'/api/ai/chat',body,k))).status,404);assert.equal(calls(),1);
@@ -72,6 +73,7 @@ test('deletion during provider flight scrubs AI content, rejects result and reta
 test('disconnected chat never persists a late provider result and retains conservative cost evidence',async()=>{
  const a=await account('user_disconnect');await store.saveGeneratedSet(a.userId,{title:'T',category:'C',summary:'',keyPoints:['K'],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'qa',choices:[],difficulty:1}]});
  const set=(await store.loadAppData(a.userId)).sets[0],controller=new AbortController();
+ await startStudySession(a.userId,'disconnect-session',[set.cards[0].id]);
  const body={setId:set.id,cardId:set.cards[0].id,sessionId:'disconnect-session',question:'why?'};
  const oldFetch=globalThis.fetch,oldKey=process.env.OPENAI_API_KEY;let calls=0;process.env.OPENAI_API_KEY='mock-only';
  try {
@@ -99,4 +101,54 @@ test('cancel API requires auth, works without AI consent, and cannot cancel anot
   await grantAi(c,a.userId);
   assert.equal((await cards(request(a,'/api/ai/cards',body,k))).status,409);assert.equal(calls(),1);
  });
+});
+
+test('explanation requires an owned assigned session and active card before provider dispatch',async()=>{
+ const a=await account('user_explain_assignment'),b=await account('user_explain_other');
+ const material={title:'MCQ',category:'C',summary:'',keyPoints:['K'],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'multiple_choice',choices:['A','B','C','D'],difficulty:1}]};
+ await store.saveGeneratedSet(a.userId,material);await store.saveGeneratedSet(b.userId,material);
+ const own=(await store.loadAppData(a.userId)).sets[0],other=(await store.loadAppData(b.userId)).sets[0];
+ const {startStudySession}=await import('../db/retention.ts');
+ await startStudySession(a.userId,'owned-explanation',[own.cards[0].id]);await startStudySession(b.userId,'foreign-explanation',[other.cards[0].id]);
+ const body={setId:own.id,cardId:own.cards[0].id,sessionId:'foreign-explanation',question:'why?'};
+ await mock('Explanation',async calls=>{
+  for(const sessionId of ['foreign-explanation','missing-session'])assert.equal((await chat(request(a,'/api/ai/chat',{...body,sessionId},randomUUID()))).status,404);
+  for(const action of ['archiveCard','deleteCard']){
+   await store.manageMaterial(a.userId,{action,cardId:own.cards[0].id});
+   assert.equal((await chat(request(a,'/api/ai/chat',{...body,sessionId:'owned-explanation'},randomUUID()))).status,404);
+  }
+  assert.equal(calls(),0);
+ });
+});
+
+test('delayed explanations never change grades; edits and deletion cancel instead of leaving an unknown operation',async()=>{
+ for(const mutation of ['continue','editCard','deleteCard','archiveCard']){
+  const a=await account('user_explain_delayed_'+mutation);
+  await store.saveGeneratedSet(a.userId,{title:'MCQ',category:'C',summary:'',keyPoints:['K'],sourceContent:'source',cards:[{question:'Q',answer:'A',format:'multiple_choice',choices:['A','B','C','D'],difficulty:1}]});
+  const set=(await store.loadAppData(a.userId)).sets[0],card=set.cards[0],sessionId='delayed-'+mutation,key=randomUUID();
+  await startStudySession(a.userId,sessionId,[card.id]);
+  const body={setId:set.id,cardId:card.id,sessionId,question:'why?',contentRevision:card.contentRevision};
+  const beforeFetch=globalThis.fetch,beforeKey=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='mock-only';let calls=0,expected;
+  const state=async()=>({reviews:(await c.execute({sql:'SELECT * FROM review_logs WHERE user_id=?',args:[a.userId]})).rows,sessions:(await c.execute({sql:'SELECT * FROM study_sessions WHERE user_id=?',args:[a.userId]})).rows,attempts:(await c.execute({sql:'SELECT * FROM attempts WHERE user_id=?',args:[a.userId]})).rows});
+  try{
+   globalThis.fetch=async()=>{
+    calls++;
+    if(mutation==='continue')await store.reviewCard(a.userId,card.id,'good',1,sessionId,{operationId:randomUUID(),expectedReviewCount:0,selectedChoice:'B',contentRevision:card.contentRevision,requireSession:true});
+    else await store.manageMaterial(a.userId,{action:mutation,cardId:card.id,question:'Edited Q',answer:'B',choices:card.choices});
+    expected=await state();
+    return Response.json({status:'completed',output:[{content:[{type:'output_text',text:'Explanation'}]}]});
+   };
+   const response=await chat(request(a,'/api/ai/chat',body,key));
+   assert.equal(response.status,mutation==='continue'?200:409);
+   if(mutation!=='continue')assert.equal((await response.json()).code,'AI_REQUEST_CANCELLED');
+   assert.deepEqual(await state(),expected,'AI may only persist chat and its own operation ledger');
+   const ledger=(await c.execute({sql:'SELECT state FROM ai_requests WHERE user_id=?',args:[a.userId]})).rows[0];
+   assert.equal(ledger.state,mutation==='continue'?'succeeded':'failed_final');
+   assert.equal((await c.execute({sql:'SELECT count(*) n FROM chat_messages WHERE user_id=?',args:[a.userId]})).rows[0].n,mutation==='continue'?2:0);
+   await chat(request(a,'/api/ai/chat',body,key));assert.equal(calls,1);
+   if(mutation==='continue'){
+    const d=await store.loadAppData(a.userId,[sessionId]);assert.equal(d.studySessions[0].results[0].response.selectedChoice,'B');assert.equal(d.studySessions[0].results[0].rating,'again');assert.equal(d.retention.streak,1);
+   }
+  }finally{globalThis.fetch=beforeFetch;if(beforeKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=beforeKey;}
+ }
 });
