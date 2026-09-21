@@ -111,6 +111,11 @@ try{
   await openReview(format);await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready")'));
   await click('.build-ready .build-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));
   assert.equal(await evaluate('!!document.querySelector(".card-ai-button,.mcq-ai-button,.inline-ai-panel,[data-activity-type]")'),false);
+  if(format==='multiple_choice') {
+   assert.equal(await evaluate('!!document.querySelector(".swipe-actions,.record-choice")'),false,'MCQ before answer mounts no Flashcard actions or reserved footer');
+  } else {
+   assert.equal(await evaluate('document.querySelectorAll(".swipe-actions button").length'),2,'Flashcard retains both memory rating actions');
+  }
   const activeId=await evaluate('reviewFixture.workspace().session.id');
   for(const width of [320,390,393,430,768]) {
    await cdp('Emulation.setDeviceMetricsOverride',{width,height:width===320?568:852,deviceScaleFactor:1,mobile:true});
@@ -137,6 +142,7 @@ try{
    const submitted=await evaluate('reviewFixture.writes.filter(w=>w.body?.action==="reviewCard").at(-1).body');assert.equal('rating' in submitted,false);assert.equal('correct' in submitted,false);assert.ok(submitted.selectedChoice);
   } else {
    await click('.flashcard-tap');await shot('free-flashcard-answer-393');
+   assert.equal(await evaluate('document.querySelectorAll(".swipe-actions button").length'),2,'Flashcard answer keeps both memory rating actions');
    assert.equal((await data()).reviews.length,reviewsBefore,'Reveal does not record a review');
    await click('.edit-study-button');await until(()=>evaluate('!!document.querySelector(".study-card-editor")'));
    await cdp('Emulation.setDeviceMetricsOverride',{width:393,height:450,deviceScaleFactor:1,mobile:true});

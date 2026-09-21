@@ -93,6 +93,16 @@ test("Free v1 resumes quiz-style multiple-choice feedback with scoped AI explana
   assert.equal((html.match(/class="flashcard /g) || []).length, 1);
 });
 
+test("multiple choice never mounts Flashcard rating controls before answering", () => {
+  const session = { ...EMPTY_SESSION, id: "lesson", setId: "s1", queue: ["c1"] };
+  const html = render(Study, { session, updateSession: noop, data, queue: session.queue, flipped: false, setFlipped: noop, sessionDone: false, sessionSetId: "s1", sessionId: "lesson", sessionTotal: 1, sessionMistakes: 0, startStudy: noop, setData: noop, backToSets: noop, goHome: noop, onPause: noop, now });
+  assert.ok(html.includes('class="study-choice-grid"'));
+  assert.ok(!html.includes('class="swipe-actions'));
+  assert.ok(!html.includes("まだ覚えていない"));
+  assert.ok(!html.includes("覚えていた"));
+  assert.ok(!html.includes('class="record-choice'));
+});
+
 
 test("five-card break offers continuing or stopping without marking the full lesson complete", () => {
   const session = { ...EMPTY_SESSION, id: "batch", setId: "s1", total: 8, queue: [], batchSize: 5, batchTotal: 5, batchDone: true, remaining: ["c6", "c7", "c8"] };

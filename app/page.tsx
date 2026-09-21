@@ -769,14 +769,14 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
           {!aiBusy && aiError && <div className="mcq-ai-error"><p className="inline-error" role="alert">{t(aiError)}</p><button type="button" className="secondary" onClick={openMcqExplanation}>{t("もう一度試す")}</button></div>}
         </section>
       )}
-      {(!introductory || flipped) && (card.format === "multiple_choice" && selectedChoice ? (
+      {card.format === "multiple_choice" ? selectedChoice && (
         <button className="primary wide record-choice" disabled={busy} onClick={() => submitVerdict(selectedChoice === card.answer ? "correct" : "incorrect")}>{selectedChoice === card.answer ? <IconLabel name="check">{t("選択結果を記録して次へ")}</IconLabel> : <IconLabel name="refresh">{t("選択結果を記録して次へ")}</IconLabel>}</button>
-      ) : (
+      ) : (!introductory || flipped) && (
         <div className="swipe-actions compact" aria-label={t("スワイプ操作の代替ボタン")}>
           <button className="incorrect" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("incorrect")}><AssetIcon name="chevron-left" size={20} /><span><strong>{t("まだ覚えていない")}</strong></span></button>
           <button className="correct" disabled={!flipped || busy || aiBusy} onClick={() => submitVerdict("correct")}><span><strong>{t("覚えていた")}</strong></span><AssetIcon name="chevron-right" size={20} /></button>
         </div>
-      ))}
+      )}
 
       {flipped && !introductory && <details key={`source:${card.id}`} className="source-details"><summary><IconLabel name="document">{t("元の文章を確認")}</IconLabel></summary><p>{set.sourceKind === "topic" ? "Topic (generated using general knowledge): " : set.sourceKind === "mixed" ? "Source material and topic inputs: " : ""}{set.sourceContent}</p></details>}
       {error && <p className="inline-error" role="alert">{t(error)}</p>}
