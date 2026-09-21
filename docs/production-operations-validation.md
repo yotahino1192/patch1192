@@ -1,5 +1,7 @@
 # Production operations validation — 2026-09-21
 
+Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+
 Branch: `codex/patch-production-readiness`; isolated worktree `/private/tmp/patch-production-readiness`. Base and remotely reconfirmed Dev: `716d298d8361d217eb1c16ec898a1958861a91bc`. No merge/push/deploy, production DB/provider operations or Apple account operations performed.
 
 ## Executed results

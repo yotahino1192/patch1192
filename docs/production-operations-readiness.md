@@ -1,6 +1,8 @@
 # Production / TestFlight operations readiness
 
-Baseline: Dev `716d298d8361d217eb1c16ec898a1958861a91bc`. This branch is release operations only. No live service, production DB, scheduler, Apple, deploy, merge or push operation is included. See [validation record](production-operations-validation.md) for executed checks and [owner inputs](release-owner-inputs.md) for unresolved values.
+Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+
+Original operations baseline: Dev `716d298d8361d217eb1c16ec898a1958861a91bc`. Current integration baseline: Dev `d9e304f980711f7c9859b156b89efce4d36cd063`, which already includes CLI2 operations and CLI1 UI. This follow-up updates release documentation only; no live service, production DB, scheduler, Apple or deployment action is included. See [validation record](production-operations-validation.md) for historical executed checks and [owner inputs](release-owner-inputs.md) for unresolved values.
 
 ## Configuration contract
 
@@ -57,7 +59,7 @@ Use `/api/health` for process availability and `/api/ready` for bounded DB readi
 
 On Dev baseline, `unknown` and expired `dispatching` never return to reserved or automatically dispatch again. They retain concurrency and maximum cost reservations. Reusing the key returns unknown/in-progress; a new key can still be blocked by the owner's active operation. Cancel of already dispatched work also retains reservation until reconciliation. Unknown is intentionally capable of blocking further generation.
 
-Read-only audit of Add Material fix `ab8192cc72318cb7f5c44ca6cf109a7020a804f4`: adds specific previous-unresolved diagnostics and a **file-DB development-only** `resolve-local-unknown` command with owner/stopped-worker/uncertain-outcome acknowledgements. It retains max cost; production still requires provider-final evidence. That fix is **not present in Dev 716d298** and is not imported here. It must receive its own integration/regression review; do not claim its user-facing recovery is shipped by this operations branch. No active UI branch was changed.
+Add Material fix `ab8192cc72318cb7f5c44ca6cf109a7020a804f4` is now included in Dev `d9e304f` through CLI1 integration. It adds previous-unresolved diagnostics and a **file-DB development-only** `resolve-local-unknown` command with owner/stopped-worker/uncertain-outcome acknowledgements. It retains max cost; production still requires provider-final evidence. This CLI2 update preserves that implementation unchanged. The earlier Dev `716d298` audit predates its integration; no active feature branch is modified here.
 
 Safe operator procedure on baseline (future remote actions require separate authorization):
 

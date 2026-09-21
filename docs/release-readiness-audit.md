@@ -1,5 +1,7 @@
 # Patch release readiness — 2026-09-20
 
+Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+
 Current comparison baseline: latest fetched Dev `cb2a0f2`, isolated branch `codex/patch-release-preparation`. Originally audited on `d382da8`; release-only changes were subsequently replayed onto Dev to exclude nine inherited UI commits. See [Dev compatibility review](release-dev-compatibility.md). This is an audit of committed code, not deployed services or another session's uncommitted Add Material work. No Apple account, production secret, production DB, deployment, push or merge was used. UI/domain/schema/migrations were not changed.
 
 **Internal TestFlight: blocked. App Store submission: blocked.** The preparation and local build evidence below do not establish production readiness. Read the [runbook](testflight-release-runbook.md), [metadata/reviewer plan](app-store-metadata-draft.md), [device QA](physical-device-release-qa.md) and [asset inventory](store-asset-inventory.md).

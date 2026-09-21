@@ -1,5 +1,7 @@
 # TestFlight → App Store runbook
 
+Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+
 Prepared 2026-09-20. All account/signing/upload actions below are **future actions**. No authorization to execute account operations, deploy, push or merge is implied by this runbook. Dependency/blocker IDs refer to [release readiness](release-readiness-audit.md). Use a separately integrated, reviewed candidate after the active UI work is complete; never build an archive from a moving worktree.
 
 | Step | Owner | Action and acceptance / dependency |

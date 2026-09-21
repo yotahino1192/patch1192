@@ -1,5 +1,7 @@
 # App Store metadata draft — not approved for publication
 
+Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+
 Scope: current Dev cb2a0f2 plus release preparation; see release-dev-compatibility.md. Add Material / Review / Ready UI is still changing elsewhere. Verify all wording against the final integrated build. **Yota final product/legal decisions** are marked below; no production URLs, mail addresses or credentials have been invented.
 
 | Field | Draft / action |
@@ -23,7 +25,7 @@ Initial Free v1 / TestFlight scope: Topic/Text/PDF input, **Flashcards and Multi
 
 **Implemented learning workflow:** 教材の文章を使ってカードを作成し、内容を確認して保存。保存したカードで学習し、途中からの再開や日々の復習に取り組めます。
 
-**AI features:** AIによるカード生成や、学習中の質問への回答を利用できます。AIへデータを送信する前に内容と送信先を確認して許可でき、設定から停止できます。AIの生成内容には誤りが含まれることがあるため、元の教材と照らし合わせてください。
+**AI features:** AIによるカード生成を利用できます。AIへデータを送信する前に内容と送信先を確認して許可でき、設定から停止できます。AIの生成内容には誤りが含まれることがあるため、元の教材と照らし合わせてください。学習中のAI Tutorや自動AI振り返りは初期Free v1の提供機能として記載しません。
 
 **Optional final paragraph, only after signed-device QA:** 学習状況を確認するWidgetと、端末内の学習リマインダーを利用できます。
 

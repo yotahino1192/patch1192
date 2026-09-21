@@ -1,5 +1,7 @@
 # Release values / Yota input checklist
 
+Current scope and integration status: [Free v1 release scope](free-v1-release-scope.md). Its full deferred list applies to QA, screenshots, metadata and blockers. Short topic input remains an unresolved CLI3 contract at Dev `d9e304f`; older baseline/test observations below are historical, not proof of that feature or current production readiness.
+
 No invented identities, addresses, regions, retention promises or business claims. `lib/public-pages/config.ts` remains draft with all 19 fields null. Classification is preparation, not legal advice or publication approval.
 
 | Class | Values / facts | Next action |
