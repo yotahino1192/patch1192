@@ -9,7 +9,7 @@ import { widgetState } from "../lib/retention";
 import { isLongTermDue } from "../lib/long-term-review";
 import { AvailableLessons } from "../features/my-lesson/available-lessons";
 import { LessonPreview } from "./lesson-preview";
-import { DailyReviewRail } from "./daily-review";
+import { StreakCard } from "./streak-card";
 import { useLanguage } from "./language";
 import { Mascot } from "./mascot";
 import { PatchIcon } from "./patch-ui";
@@ -61,7 +61,7 @@ export function Home({ data, now, startStudy, setScreen, selectSet, resumeDraft,
       <button className="patch-text-button" disabled={sampleBusy} onClick={async () => { setSampleBusy(true); setSampleError(""); try { await onSample(); } catch (error) { setSampleError(error instanceof Error ? error.message : t("サンプルを準備できませんでした。")); } finally { setSampleBusy(false); } }}>{t(sampleBusy ? "準備しています…" : "サンプルで学習 · 3枚")}</button>
       {sampleError && <p role="alert" className="inline-error">{t(sampleError)}</p>}
     </section> : <>
-      <DailyReviewRail data={data} now={now} onStudy={startStudy} />
+      <section className="daily-review-rail" aria-label={t("連続学習記録")}><StreakCard data={data} now={now} /></section>
       <section className="patch-learning" aria-label={t("今日の学習")}>
         {recentSets.length > 0 && <><h2 className="patch-section-label">{t("最近学んだ教材")}</h2><div className="patch-recent-path">
           <svg className="patch-path-curve" viewBox={`0 0 100 ${recentSets.length * 68 + 20}`} preserveAspectRatio="none" aria-hidden="true"><path d={[

@@ -165,11 +165,11 @@ function Shell({ screen, setScreen, children, title, buildStep = 1 }: {
   }, [screen]);
   return (
     <div className={`app-shell ${screen === 'import' ? 'build-shell' : screen === "home" ? "patch-home-shell" : screen !== "study" ? "patch-main-shell" : ""} ${screen === "study" ? "is-studying" : ""}`}>
-      {screen !== "study" && screen !== 'import' && <header className={`topbar${screen === "home" ? " topbar-home" : ""}`}>
-        {title && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
+      {screen !== "study" && screen !== 'import' && <header className={`topbar${screen === "home" ? " topbar-home" : screen === "sets" ? " topbar-library" : ""}`}>
+        {title && screen !== "sets" && <IconButton label={t("ホームへ戻る")} onClick={() => setScreen("home")}><span className="home-shortcut-emoji" aria-hidden="true">🏠</span></IconButton>}
         {title && <h1 className="screen-title">{t(title)}</h1>}
         <button type="button" className="settings-button" aria-label={t("設定")} aria-haspopup="dialog" onClick={() => settingsRef.current?.showModal()}>
-          {screen === "home" ? <PatchIcon name="profile" size={27} /> : <AssetIcon name="settings" size={24} />}
+          {screen === "home" || screen === "sets" ? <PatchIcon name="profile" size={27} /> : <AssetIcon name="settings" size={24} />}
         </button>
       </header>}
       {screen !== "study" && <SettingsDialog dialogRef={settingsRef} />}
@@ -1041,9 +1041,9 @@ function App() {
     }} resumeDraft={draft || importDraft.text || importDraft.attachments.length ? () => setScreen(importDraft.build ? 'import' : draft ? "generate" : "import") : undefined} />;
   else if (screen === "import") content = savedMaterial ? <PatchReady saved={savedMaterial} onHome={() => { setSavedMaterial(null); setScreen('home'); }} onStart={async () => { if (!await startStudy(savedMaterial.setId, undefined, undefined, savedMaterial.cardIds)) throw new Error('Lesson could not start'); setSavedMaterial(null); }} /> : <ImportScreen importDraft={importDraft} setImportDraft={setImportDraft} onGenerate={() => generation.run()} generationRunning={generation.isRunning()} data={data} destination={destination} setDestination={setDestination} patchesError={loadingError} onRetryPatches={reload} reviewLocked={materialSave.saving || !!workspace.pendingMaterialSave} review={<BuildReview data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} importDraft={importDraft} onSave={() => materialSave.save(data)} saving={materialSave.saving} pendingSave={!!workspace.pendingMaterialSave} error={materialSave.error} />} />;
   else if (screen === "generate") { content = <Generate data={data} destination={destination} setDestination={setDestination} draft={draft} setDraft={setDraft} onSave={saveDraft} onRegenerate={regenerate} />; title = "カードの確認"; }
-  else if (screen === "sets") { content = <SetLibrary data={data} folderId={folderId} openSetId={setDetailOpen ? selectedSetId : null} onFolder={(id) => { setFolderId(id); setSetDetailOpen(false); }} onSet={(id, cardId) => { setSelectedSetId(id); setFocusedCardId(cardId || null); setSetDetailOpen(true); }} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} onAdd={() => { setDestination(folderId ? `folder:${folderId}` : "root"); setScreen("import"); }}>
+  else if (screen === "sets") { content = <SetLibrary data={data} now={now} folderId={folderId} openSetId={setDetailOpen ? selectedSetId : null} onFolder={(id) => { setFolderId(id); setSetDetailOpen(false); }} onSet={(id, cardId) => { setSelectedSetId(id); setFocusedCardId(cardId || null); setSetDetailOpen(true); }} onStudy={startStudy} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} onAdd={() => { setDestination(folderId ? `folder:${folderId}` : "root"); setScreen("import"); }}>
       <SetDetail key={selectedSetId} focusedCardId={focusedCardId} data={data} selectedSetId={selectedSetId} selectSet={setSelectedSetId} startStudy={startStudy} now={now} onData={(updated) => { setData(updated); setWorkspace((w) => reconcileWorkspace(w, updated)); }} />
-    </SetLibrary>; title = "カードセット"; }
+    </SetLibrary>; title = "Patches"; }
   else if (screen === "study") content = studyContent;
   else content = <Records data={data} now={now} startStudy={(id) => { if (id) setSelectedSetId(id); setSetDetailOpen(true); setScreen("sets"); }} />;
   const shell = <Shell screen={screen} setScreen={navigate} title={title} buildStep={savedMaterial ? 'ready' : normalizeBuildDraft(importDraft.build, destination).step}>{saveError && <p className="workspace-save-error" role="alert">{t("このブラウザーに途中の内容を保存できません。再読み込みすると下書きや学習の続きが失われる場合があります。")}</p>}{loadingError && <p role="alert">{loadingError}</p>}{content}</Shell>;

@@ -35,9 +35,9 @@ const set = { id: "s1", title: "テスト教材", folderId: null, category: "テ
 const data = { sets: [set], folders: [], reviews: [], chatMessages: [], dailyReview: { day: "2026-09-09", cardIds: ["c1"], completedCardIds: [], completed: false, achievedDays: [], streak: 0 } };
 const render = (component, props, language = "ja") => renderToStaticMarkup(React.createElement(LanguageProvider, { initialLanguage: language }, React.createElement(component, props)));
 
-test("home keeps paused lessons below the collapsed ToDo without a second review panel", () => {
+test("home keeps Streak and paused learning without review-management UI", () => {
   const html = render(Home, { data, now, startStudy: noop, setScreen: noop, selectSet: noop, onSample: noop, onResume: noop, resumableSessions: [{ ...EMPTY_SESSION, id: "lesson", setId: "s1", queue: ["c1"] }] });
-  assert.ok(html.includes("今日のToDo"));
+  assert.ok(!html.includes("今日のToDo"));
   assert.ok(html.indexOf('class="daily-review-rail"') < html.indexOf('class="home-resume-list"'));
   assert.ok(!html.includes('class="home-study-start"'));
   assert.ok(html.includes("続きから学習 · 残り1枚"));
