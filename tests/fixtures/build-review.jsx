@@ -2,6 +2,7 @@
 import { createRoot } from 'react-dom/client';
 import Patch from '../../app/page';
 import { configureNativeAuth } from '../../lib/auth-platform';
+import { configureRetention } from '../../lib/retention-platform';
 import { writeAccountWorkspace, readAccountWorkspace } from '../../lib/account-storage';
 import { EMPTY_WORKSPACE } from '../../lib/workspace';
 import { normalizeBuildDraft } from '../../lib/build-draft';
@@ -9,16 +10,29 @@ import '../../app/globals.css';
 import '../../mobile/fonts.css';
 const config = await (await fetch('/__build_review_identity')).json();
 const originalFetch = window.fetch.bind(window);
-const fixture = window.reviewFixture = { writes: [], aiCalls: 0, failSave: false, loseSave: false, holdSave: false, failStart: false };
+const fixture = window.reviewFixture = { writes: [], aiCalls: 0, aiRequests: [], failSave: false, loseSave: false, holdSave: false, failStart: false };
+const links=[];
+configureRetention({activate:async()=>{},clear:async()=>{},publish:async()=>{},permission:async()=>({granted:false}),links:async()=>({links:links.splice(0)})});
+fixture.resumeLink=()=>links.push({url:'patch://continue',owner:config.identity.userId,at:Date.now()});
 window.fetch = async (path, options) => {
   const url=String(path), body=typeof options?.body==='string'?JSON.parse(options.body):null;
   if(options?.method==='POST')fixture.writes.push({url,body});
   if(url.includes('/api/ai/'))fixture.aiCalls++;
+  if(url.startsWith('/api/privacy/consents') && fixture.consentUnavailable)return Response.json({error:'Consent unavailable'},{status:503});
   // Opt-in transport fixture: production generation hook, real save/study APIs.
   // The authenticated generation route/provider contract is covered in free-v1-learning.test.mjs.
   if(url==='/api/ai/cards' && fixture.mockGeneration) {
     const format=body.style==='4択問題'?'multiple_choice':'qa';
     return Response.json({title:'Generated '+(body.inputKind||'source'),category:'Biology',summary:'Photosynthesis basics',keyPoints:['Light and water'],...(body.inputKind==='topic'?{sourceKind:'topic'}:{}),cards:[1,2].map(i=>({question:'What powers photosynthesis? '+i,answer:'Sunlight',choices:format==='multiple_choice'?['Sunlight','Wind','Sound','Gravity']:[],format,difficulty:1}))});
+  }
+  if(url==='/api/ai/chat') {
+    fixture.aiRequests.push({body,key:new Headers(options.headers).get('Idempotency-Key')});
+    const mode=fixture.explanationMode;
+    if(mode==='loading')await new Promise(resolve=>fixture.releaseExplanation=resolve);
+    if(mode==='network')throw new TypeError('Fixture network failure');
+    if(mode==='unknown')return Response.json({code:'AI_REQUEST_UNKNOWN'},{status:503});
+    if(mode==='provider')return Response.json({code:'AI_PROVIDER_FAILED'},{status:502});
+    return Response.json({answer:'The correct choice follows directly from the source: higher borrowing costs reduce spending and demand.'});
   }
   if(url==='/api/retention' && body?.action==='start' && fixture.failStart)return Response.json({error:'Test start failure'},{status:503});
   const saving=url==='/api/data' && ['saveSet','addCardsToSet'].includes(body?.action);

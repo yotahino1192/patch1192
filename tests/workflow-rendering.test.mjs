@@ -74,7 +74,7 @@ test("saved import content and attachment text render after returning", () => {
   for (const text of ["書きかけの文章", "講義.txt", "Accepted for processing"]) assert.ok(html.includes(text));
 });
 
-test("Free v1 resumes multiple-choice feedback while keeping deferred AI UI hidden", () => {
+test("Free v1 resumes quiz-style multiple-choice feedback with scoped AI explanation", () => {
   const session = { ...EMPTY_SESSION, id: "lesson", setId: "s1", queue: ["c1"], flipped: true, selectedChoice: "B", aiOpen: true, aiCompose: true, aiInput: "どうして？" };
   const html = render(Study, { session, updateSession: noop, data, queue: session.queue, flipped: true, setFlipped: noop, setQueue: noop, sessionDone: false, setSessionDone: noop, sessionSetId: "s1", sessionId: "lesson", sessionTotal: 1, sessionMistakes: 0, setSessionMistakes: noop, startStudy: noop, setData: noop, backToSets: noop, goHome: noop, now });
   assert.ok(html.includes("選択結果を記録して次へ"));
@@ -83,8 +83,24 @@ test("Free v1 resumes multiple-choice feedback while keeping deferred AI UI hidd
   assert.ok(html.includes('aria-pressed="true"'));
   assert.ok(html.includes('choice-correct'));
   assert.ok(!html.includes('card-ai-button'));
+  assert.ok(html.includes('mcq-ai-button'));
+  assert.ok(html.includes('mcq-ai-explanation'));
+  assert.ok(html.includes('mcq-question'));
+  assert.ok(!html.includes('class="swipe-actions'));
+  assert.ok(!html.includes('study-question-context'));
+  assert.ok(!html.includes('correct-check'));
   assert.ok(html.includes("中断する"));
   assert.equal((html.match(/class="flashcard /g) || []).length, 1);
+});
+
+test("multiple choice never mounts Flashcard rating controls before answering", () => {
+  const session = { ...EMPTY_SESSION, id: "lesson", setId: "s1", queue: ["c1"] };
+  const html = render(Study, { session, updateSession: noop, data, queue: session.queue, flipped: false, setFlipped: noop, sessionDone: false, sessionSetId: "s1", sessionId: "lesson", sessionTotal: 1, sessionMistakes: 0, startStudy: noop, setData: noop, backToSets: noop, goHome: noop, onPause: noop, now });
+  assert.ok(html.includes('class="study-choice-grid"'));
+  assert.ok(!html.includes('class="swipe-actions'));
+  assert.ok(!html.includes("まだ覚えていない"));
+  assert.ok(!html.includes("覚えていた"));
+  assert.ok(!html.includes('class="record-choice'));
 });
 
 
