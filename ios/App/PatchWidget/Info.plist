@@ -16,6 +16,13 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Fonts/NunitoSans-Bold.ttf</string>
+		<string>Fonts/MPLUSRounded1c-Bold.ttf</string>
+		<string>Fonts/Inter-Regular.ttf</string>
+		<string>Fonts/NotoSansJP-Regular.ttf</string>
+	</array>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
