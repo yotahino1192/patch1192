@@ -22,10 +22,10 @@ test('unknown and in-progress preserve key without automatic retry; storage fail
  }finally {if(original)Object.defineProperty(globalThis,'sessionStorage',original);else delete globalThis.sessionStorage;}
 });
 
-test('confirmed terminal response permits a later explicit action with a new key',async()=>{
+for (const finalCode of ['AI_REQUEST_FINAL', 'AI_INVALID_GENERATED_CONTENT']) test(`${finalCode}: confirmed terminal response permits a later explicit action with a new key`,async()=>{
  const original=Object.getOwnPropertyDescriptor(globalThis,'sessionStorage');Object.defineProperty(globalThis,'sessionStorage',{value:storage(),configurable:true});
  try {const opts={method:'POST',headers:{'X-Patch-Account':'a'},body:'{}'},seen=[];
- for(let i=0;i<2;i++) await sendAi(async(_u,init)=>{seen.push(init.headers.get('Idempotency-Key'));return Response.json({code:'AI_REQUEST_FINAL'},{status:409});},'/api/ai/chat',opts);
+ for(let i=0;i<2;i++) await sendAi(async(_u,init)=>{seen.push(init.headers.get('Idempotency-Key'));return Response.json({code:finalCode},{status:409});},'/api/ai/chat',opts);
  assert.notEqual(seen[0],seen[1]);assert.equal(seen.length,2);
  }finally {if(original)Object.defineProperty(globalThis,'sessionStorage',original);else delete globalThis.sessionStorage;}
 });

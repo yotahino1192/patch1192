@@ -1,3 +1,4 @@
+import { validateProviderMcq } from './ai/mcq-contract.ts';
 import { validGeneratedMaterial } from './material-validation.ts';
 import { execution, inputUpperBound, limits, AiError, ProviderError } from './ai/execution.ts';
 import type { CardFormat, GeneratedMaterial } from "./types";
@@ -98,8 +99,8 @@ ${input.focus ? '入力JSONのsourceが唯一の資料です。focusは取り上
 質問は一意に答えられ、回答だけを見ても意味が通るようにしてください。
 情報量は「${input.detail}」、学習形式は「${input.style}」です。
 ${isLessonSummary ? "AIとの学習対話を要約し、新しく学んだ内容だけをカード候補にしてください。" : `教材の長さ・独立した論点数・重複を分析し、${minCards}〜${maxCards}枚の範囲で必要十分なカード枚数をあなたが決めてください。`}
-一問一答ではanswerを書き、choicesを空配列にしてください。4択問題では重複のない4つのchoicesと、正解の位置を0〜3のcorrectChoiceIndexで返してください。4択問題ではanswerを返さないでください。
-自分で解説では、questionを説明テーマ、answerを模範解説または確認ポイントとし、choicesは空配列にしてください。
+${format === 'multiple_choice' ? `4択問題だけを生成してください。各問題のchoicesは必ず4個の文字列です。正解は1個、誤答は3個で、空文字や空白だけの選択肢は禁止です。前後の空白を除去した後も4個すべて異なる内容にしてください。同じ答えを空白や表記だけ変えて複数の選択肢にしないでください。
+choicesの配列順を決めた後、正解の位置を0始まりの整数correctChoiceIndexで指定してください。最初=0、2番目=1、3番目=2、最後=3です。answerフィールドや選択肢番号の接頭辞は出力しないでください。出力前に各問題の選択肢数・空白・重複・正解位置を確認し、同じ応答内で修正してください。` : format === 'qa' ? '一問一答ではanswerを書き、choicesを空配列にしてください。' : '自分で解説では、questionを説明テーマ、answerを模範解説または確認ポイントとし、choicesは空配列にしてください。'}
 難易度は1（基礎）〜3（思考）の整数です。タイトルとカテゴリーも入力内容から簡潔に付けてください。`,
     input: input.focus ? JSON.stringify({ source: input.text, focus: input.focus }) : input.text,
     text: {
@@ -131,14 +132,14 @@ ${isLessonSummary ? "AIとの学習対話を要約し、新しく学んだ内容
                 required: format === "multiple_choice" ? ["question", "difficulty", "format", "choices", "correctChoiceIndex"] : ["question", "answer", "difficulty", "format", "choices"],
                 properties: {
                   question: { type: "string" },
-                  ...(format === "multiple_choice" ? { correctChoiceIndex: { type: "integer", minimum: 0, maximum: 3 } } : { answer: { type: "string" } }),
+                  ...(format === "multiple_choice" ? { correctChoiceIndex: { type: "integer", enum: [0, 1, 2, 3], description: "Zero-based position of the single correct choice in the final choices array." } } : { answer: { type: "string" } }),
                   difficulty: { type: "integer", minimum: 1, maximum: 3 },
                   format: { type: "string", enum: [format] },
                   choices: {
                     type: "array",
                     minItems: choiceCount,
                     maxItems: choiceCount,
-                    items: { type: "string" },
+                    items: { type: "string", ...(format === "multiple_choice" ? { pattern: "\\S", description: "A nonblank answer option, distinct from the other three after trimming surrounding whitespace." } : {}) },
                   },
                 },
               },
@@ -156,18 +157,16 @@ ${isLessonSummary ? "AIとの学習対話を要約し、新しく学んだ内容
   type ProviderMaterial = Omit<GeneratedMaterial, 'cards'> & { cards: ProviderCard[] };
   let parsed: ProviderMaterial;
   try { parsed = JSON.parse(output) as ProviderMaterial; }
-  catch { throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'parse', providerCode: 'invalid_json' }); }
-  if (!parsed || !Array.isArray(parsed.cards) || parsed.cards.length === 0) throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_cards' });
+  catch { throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'parse', providerCode: 'invalid_json', validationStage: 'response_json', validationCode: 'malformed_json' }); }
+  if (!parsed || !Array.isArray(parsed.cards) || parsed.cards.length === 0) throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_cards', validationStage: 'material', validationCode: 'cards_shape' });
   if (format === "multiple_choice") {
-    if (parsed.cards.some((card) => !card || !Array.isArray(card.choices) || card.choices.length !== 4 || card.choices.some(choice => typeof choice !== 'string' || !choice.trim()) || new Set(card.choices.map(choice => choice.trim())).size !== 4 || !Number.isInteger(card.correctChoiceIndex) || card.correctChoiceIndex! < 0 || card.correctChoiceIndex! > 3)) {
-      throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_choices' });
-    }
-    parsed = { ...parsed, cards: parsed.cards.map(({ correctChoiceIndex, ...card }) => {
-      const choices = card.choices.map(choice => choice.trim());
-      return { ...card, choices, answer: choices[correctChoiceIndex!] };
+    parsed = { ...parsed, cards: parsed.cards.map((card, itemIndex) => {
+      const checked = validateProviderMcq(card, itemIndex);
+      if (!checked.ok) throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_choices', ...checked.diagnostic });
+      return { question: card.question, difficulty: card.difficulty, format: card.format, choices: checked.choices, answer: checked.choices[checked.correctChoiceIndex] };
     }) };
   }
-  if (!validGeneratedMaterial(parsed, format, maxCards)) throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_material' });
+  if (!validGeneratedMaterial(parsed, format, maxCards)) throw new ProviderError(false, { ...execution.getStore()?.provider, category: 'validation', providerCode: 'invalid_material', validationStage: 'material', validationCode: 'material_shape' });
   return { ...parsed, ...(input.inputKind === 'topic' ? { sourceKind: 'topic' as const } : {}) };
   };
 }

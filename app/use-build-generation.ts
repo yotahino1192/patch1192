@@ -49,9 +49,9 @@ export function useBuildGeneration(getWorkspace: () => Workspace, setWorkspace: 
       if (!current()) return;
       const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
       const kind = error && typeof error === 'object' && 'kind' in error ? String(error.kind) : error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : error instanceof TypeError ? 'network' : '';
-      const terminal = ['AI_REQUEST_CANCELLED', 'AI_REQUEST_FINAL', 'AI_RESULT_EXPIRED', 'AI_PROVIDER_FAILED', 'AI_NOT_CONFIGURED', 'AI_PRE_DISPATCH_FAILED'].includes(code);
+      const terminal = ['AI_REQUEST_CANCELLED', 'AI_REQUEST_FINAL', 'AI_RESULT_EXPIRED', 'AI_PROVIDER_FAILED', 'AI_INVALID_GENERATED_CONTENT', 'AI_NOT_CONFIGURED', 'AI_PRE_DISPATCH_FAILED'].includes(code);
       setWorkspace(w => ({ ...w, importDraft: { ...w.importDraft, build: { ...normalizeBuildDraft(w.importDraft.build), step: 'preparing', generation: {
-        status: 'failed', key: terminal ? undefined : key, fingerprint,
+        status: 'failed', outcome: terminal ? 'final' : 'unconfirmed', key: terminal ? undefined : key, fingerprint,
         error: buildGenerationError(code, kind),
       } } } }));
     } finally { inFlight.current = false; if (active.current) setRunning(false); }

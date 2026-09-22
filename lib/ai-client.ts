@@ -39,7 +39,7 @@ export async function sendAi(transport: ApiTransport, url: string, options: Requ
   if (!response.ok) {
     try {
       const body = await response.clone().json();
-      terminal = ['AI_REQUEST_CANCELLED', 'AI_REQUEST_FINAL', 'AI_RESULT_EXPIRED', 'AI_PROVIDER_FAILED', 'AI_NOT_CONFIGURED', 'AI_PRE_DISPATCH_FAILED'].includes(body && typeof body === 'object' && 'code' in body ? String(body.code) : '');
+      terminal = ['AI_REQUEST_CANCELLED', 'AI_REQUEST_FINAL', 'AI_RESULT_EXPIRED', 'AI_PROVIDER_FAILED', 'AI_INVALID_GENERATED_CONTENT', 'AI_NOT_CONFIGURED', 'AI_PRE_DISPATCH_FAILED'].includes(body && typeof body === 'object' && 'code' in body ? String(body.code) : '');
     } catch { /* An unreadable response is uncertain. */ }
   }
   if (!options.signal?.aborted && (terminal || complete || [400, 404, 413, 415, 422, 429].includes(response.status))) storage.removeItem(storageKey);

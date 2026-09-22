@@ -7,7 +7,7 @@ export type BuildDraft = {
   existingPatchId: string;
   coverage: 'whole' | 'focus';
   focus: string;
-  generation: { status: 'idle' | 'running' | 'failed' | 'succeeded'; key?: string; fingerprint?: string; error?: string };
+  generation: { outcome?: 'final' | 'unconfirmed'; status: 'idle' | 'running' | 'failed' | 'succeeded'; key?: string; fingerprint?: string; error?: string };
 };
 export function normalizeBuildDraft(value?: unknown, destination = 'root'): BuildDraft {
   const v = value && typeof value === 'object' ? value as Partial<BuildDraft> : {};
@@ -17,7 +17,7 @@ export function normalizeBuildDraft(value?: unknown, destination = 'root'): Buil
     destinationMode: v.destinationMode === 'existing' || (!v.destinationMode && destination.startsWith('set:')) ? 'existing' : 'new',
     existingPatchId: typeof v.existingPatchId === 'string' ? v.existingPatchId : destination.startsWith('set:') ? destination.slice(4) : '',
     coverage: v.coverage === 'focus' ? 'focus' : 'whole', focus: typeof v.focus === 'string' ? v.focus : '',
-    generation: g && ['idle', 'running', 'failed', 'succeeded'].includes(g.status) ? { status: g.status, key: typeof g.key === 'string' ? g.key : undefined, fingerprint: typeof g.fingerprint === 'string' ? g.fingerprint : undefined, error: typeof g.error === 'string' ? g.error : undefined } : { status: 'idle' },
+    generation: g && ['idle', 'running', 'failed', 'succeeded'].includes(g.status) ? { status: g.status, outcome: g.outcome === 'final' ? 'final' : g.outcome === 'unconfirmed' ? 'unconfirmed' : undefined, key: typeof g.key === 'string' ? g.key : undefined, fingerprint: typeof g.fingerprint === 'string' ? g.fingerprint : undefined, error: typeof g.error === 'string' ? g.error : undefined } : { status: 'idle' },
   };
 }
 export function materialSource(draft: ImportDraft) {

@@ -131,6 +131,7 @@ export async function runAi<T>(db: Db, userId: string, endpoint: Endpoint, key: 
     if (state === 'unknown') throw new AiError('AI_UNKNOWN');
     if (!dispatched && e instanceof InputError) throw e;
     if (!dispatched && e instanceof Error && e.message === 'CARD_NOT_FOUND') throw new AiError('CARD_NOT_FOUND', 404);
+    if (state === 'failed_final' && endpoint === 'cards' && e instanceof ProviderError && ['validation', 'parse'].includes(e.diagnostic.category || '') && ['invalid_choices', 'invalid_cards', 'invalid_material', 'invalid_json'].includes(e.diagnostic.providerCode || '')) throw new AiError('AI_INVALID_GENERATED_CONTENT');
     throw e instanceof AiError ? e : new AiError(state === 'failed_pre_dispatch' ? 'AI_PRE_DISPATCH_FAILED' : 'AI_PROVIDER_FAILED');
   }
 }

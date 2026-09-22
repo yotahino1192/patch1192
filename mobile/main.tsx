@@ -6,6 +6,7 @@ import { configureNativeAuth } from "../lib/auth-platform";
 import { createNativeAuth } from "./native-auth";
 import Patch from "../app/page";
 import { configureApi } from "../lib/api-client";
+import { nativeHttpTimeouts } from "./http-timeouts";
 import "../app/globals.css";
 import "./fonts.css";
 
@@ -27,8 +28,7 @@ if (Capacitor.isNativePlatform()) {
       data: options.body == null ? undefined : JSON.parse(options.body),
       responseType: "json",
       disableRedirects: true, // Never forward the API bearer credential to a redirect target.
-      connectTimeout: 15000,
-      readTimeout: 65000,
+      ...nativeHttpTimeouts(Capacitor.getPlatform(), url, options.method),
     });
     return new Response(typeof result.data === "string" ? result.data : JSON.stringify(result.data), {
       status: result.status,

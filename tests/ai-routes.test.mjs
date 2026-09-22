@@ -152,3 +152,40 @@ test('delayed explanations never change grades; edits and deletion cancel instea
   }finally{globalThis.fetch=beforeFetch;if(beforeKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=beforeKey;}
  }
 });
+
+test('MCQ invalid content -> same-key check -> explicit new generation -> save -> study preserves ledger and answer', async () => {
+ const { POST: dataPost } = await import('../app/api/data/route.ts');
+ const a = await account('user_mcq_contract_recovery'), key = randomUUID();
+ const body = { text: 'Synthetic recall and practice material. '.repeat(4), style: '4択問題' };
+ const choice = { question: 'What supports memory?', choices: ['Reading', 'Rest', 'Recall', 'Noise'], correctChoiceIndex: 2, format: 'multiple_choice', difficulty: 1 };
+ const envelope = cards => ({ title: 'Learning', category: 'C', summary: '', keyPoints: ['Recall supports memory.'], cards });
+ await mock(JSON.stringify(envelope([{ ...choice, choices: [' Reading ', 'Reading', 'Recall', 'Noise'] }])), async calls => {
+  const bad = await cards(request(a, '/api/ai/cards', body, key));
+  assert.equal(bad.status, 503); assert.equal((await bad.json()).code, 'AI_INVALID_GENERATED_CONTENT');
+  const before = (await c.execute({ sql: 'SELECT state,cost_micros FROM ai_requests WHERE user_id=?', args: [a.userId] })).rows;
+  assert.deepEqual(before, [{ state: 'failed_final', cost_micros: 3600 }]);
+  for (let i = 0; i < 2; i++) {
+   const check = await cards(request(a, '/api/ai/cards', body, key));
+   assert.equal(check.status, 409); assert.equal((await check.json()).code, 'AI_REQUEST_FINAL');
+  }
+  assert.equal(calls(), 1);
+  assert.deepEqual((await c.execute({ sql: 'SELECT state,cost_micros FROM ai_requests WHERE user_id=?', args: [a.userId] })).rows, before);
+ });
+ await mock(JSON.stringify(envelope([{ ...choice, choices: choice.choices.map(v => ` ${v} `) }])), async calls => {
+  const generated = await cards(request(a, '/api/ai/cards', body, randomUUID())); assert.equal(generated.status, 200);
+  const result = await generated.json(); assert.equal(result.cards[0].answer, 'Recall');
+  const saved = await dataPost(request(a, '/api/data', { action: 'saveSet', operationId: randomUUID(), material: { ...result, sourceContent: body.text } }));
+  assert.equal(saved.status, 200); const savedBody = await saved.json();
+  const set = savedBody.data.sets.find(s => s.id === savedBody.setId), card = set.cards[0], sessionId = randomUUID();
+  assert.equal(card.format, 'multiple_choice'); assert.deepEqual(card.choices, choice.choices); assert.equal(card.answer, 'Recall');
+  await startStudySession(a.userId, sessionId, [card.id]);
+  const review = await dataPost(request(a, '/api/data', { action: 'reviewCard', cardId: card.id, sessionId, operationId: randomUUID(), expectedReviewCount: 0, responseMs: 500, selectedChoice: 'Recall', contentRevision: card.contentRevision }));
+  assert.equal(review.status, 200);
+  const studied = await store.loadAppData(a.userId, [sessionId]);
+  assert.equal(studied.studySessions[0].results[0].rating, 'good');
+  assert.equal(calls(), 1);
+ });
+ const ledger = (await c.execute({ sql: 'SELECT state,cost_micros FROM ai_requests WHERE user_id=? ORDER BY created_at,id', args: [a.userId] })).rows;
+ assert.equal(ledger.length, 2); assert.equal(ledger.reduce((n, row) => n + row.cost_micros, 0), 3641);
+ assert.deepEqual(ledger.map(row => row.state).sort(), ['failed_final', 'succeeded']);
+});

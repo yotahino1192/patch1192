@@ -137,7 +137,10 @@ try {
  // Existing official review qualification still supplies the completed-today Home.
  const plan=await post('/api/retention',{action:'start',id:'integration-legacy',cardIds:after.sets[0].cards.map(c=>c.id)});
  assert.equal(plan.qualifies,true);
- for(const cardId of plan.cardIds)await post('/api/data',{action:'reviewCard',cardId,rating:'good',responseMs:100,sessionId:plan.id,operationId:crypto.randomUUID(),expectedReviewCount:0});
+ for(const cardId of plan.cardIds){
+  const card=after.sets[0].cards.find(c=>c.id===cardId);assert.ok(card?.contentRevision);
+  await post('/api/data',{action:'reviewCard',cardId,rating:'good',responseMs:100,sessionId:plan.id,operationId:crypto.randomUUID(),expectedReviewCount:card.reviewCount,contentRevision:card.contentRevision});
+ }
  const earned=await data();assert.equal(earned.retention.completed,true);assert.equal(earned.retention.streak,1);
  const next=await command('createLesson',{patchId:patch.id,targetMinutes:5,activityIds:[standalone.id]});
  await reload();await home();assert.equal(await evaluate('!!document.querySelector(".patch-home-completed")'),true);
