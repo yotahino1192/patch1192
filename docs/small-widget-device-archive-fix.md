@@ -2,7 +2,7 @@
 
 ## Observed failure and evidence
 
-The user reported the old Small gallery card and a black Home Screen tile on an iPhone 11 Pro. This is a failed physical-device visual verification, regardless of earlier ImageRenderer checks.
+The user reported the old Small gallery card and a black Home Screen tile on an iPhone 11 Pro. The initial physical-device visual verification failed, regardless of earlier ImageRenderer checks. The user subsequently confirmed that checkpoint `4aa6225` passes on the physical iPhone.
 
 The 00:54 Xcode Debug product was built from the Small Widget worktree. Its embedded extension contains the current Small view symbols, all five compiled catalog assets, four UIAppFonts resources, and the correct `com.patch.learning.widget` identifier / `group.com.patch.learning.retention` entitlement. The active extension process was inside the installed App bundle. An old extension binary was not the cause.
 
@@ -32,7 +32,7 @@ Placeholder, snapshot and timeline entry creation, refresh scheduling, state res
 - Native Swift RetentionSnapshot tests: passed.
 - Full unit suite: 331 passed, 0 failed, including the integrated PDF/MCQ/timeout coverage.
 - Final device install (01:14:51 JST) and app launch (01:15:56 JST) succeeded without uninstalling the app or deleting its data. A transient iOS signature/trust launch rejection cleared on retry with no signing change; app launch succeeded.
-- Post-fix WidgetKit invocation and physical visual acceptance: pending the user opening the gallery / showing the widget. Absence of logs while the extension has not been invoked is not a runtime pass.
+- Physical-device acceptance: the user confirmed checkpoint `4aa6225` on the actual iPhone: Small displays correctly without a black screen, the new design and final illustration are visible, streak/message alignment is correct, the App Icon is correct, and adding from the Widget gallery works normally. This is user-confirmed visual acceptance, not a claim of a separately captured post-fix runtime log.
 
 Final embedded extension artifact SHA-256 (for matching subsequent diagnostics):
 
@@ -40,10 +40,10 @@ Final embedded extension artifact SHA-256 (for matching subsequent diagnostics):
 - `PatchWidget.debug.dylib`: `277441d68c542587fb7b08bf3d0273f7376d00506b413cb24c7b279c04ceee09`
 - `Assets.car`: `79d9daf8dafdda94bc5a26d71e3f28d8c474215611e94ca94b22ce29ec7e962c`
 
-## Minimum device follow-up
+## If a stale preview recurs
 
 Open Patch once, then open Add Widget → Patch and add Small. If an existing tile or gallery still shows an old cached preview, remove only that widget, close/reopen the gallery and add it again. Do not uninstall the app or reset the phone as a first step. If black/old output persists, collect the new provider marker `small-widget-archive-v1` and WidgetKit errors before escalating cache recovery.
 
-The user must confirm the final icon, no internal Patch title, flame + streak, short copy, large illustration and alignment. This report does not claim visual success.
+Physical-device acceptance is complete for the checks explicitly reported by the user above.
 
-Xcode project: `/private/tmp/patch-small-widget-design/ios/App/App.xcodeproj`; Scheme App, Run Debug, connected iPhone, existing personal team for App and PatchWidget. No merge into Dev/main/Production.
+Xcode project: `/private/tmp/patch-small-widget-design/ios/App/App.xcodeproj`; Scheme App, Run Debug, connected iPhone, existing personal team for App and PatchWidget. Dev integration is authorized after final regression. No changes to main or Production.
