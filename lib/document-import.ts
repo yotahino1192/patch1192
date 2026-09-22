@@ -77,12 +77,25 @@ export async function extractDocument(file: File, options: { workerSrc?: string 
     let length = 0;
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const text = content.items.map((item) => "str" in item ? item.str + (item.hasEOL ? "\n" : " ") : "").join("");
-      length += text.length;
-      if (length > MAX_SOURCE_LENGTH) throw new Error("資料の文章が30,000文字を超えています。必要な部分だけを分けて取り込んでください。");
-      pages.push(text);
-      page.cleanup();
+      // PDF.js 6 getTextContent uses ReadableStream async iteration, which is
+      // absent in older Safari/WKWebView even in its legacy build. Read the
+      // same text stream through the supported reader API; no global polyfill.
+      const reader: ReadableStreamDefaultReader<Awaited<ReturnType<typeof page.getTextContent>>> = page.streamTextContent().getReader();
+      let text = "";
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const chunk = value.items.map((item) => "str" in item ? item.str + (item.hasEOL ? "\n" : " ") : "").join("");
+          length += chunk.length;
+          if (length > MAX_SOURCE_LENGTH) throw new Error("資料の文章が30,000文字を超えています。必要な部分だけを分けて取り込んでください。");
+          text += chunk;
+        }
+        pages.push(text);
+      } finally {
+        reader.releaseLock();
+        page.cleanup();
+      }
     }
     return checkedText(pages.join("\n\n"));
   } catch (error) {

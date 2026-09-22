@@ -124,3 +124,18 @@ test('operation cancellation fences delayed admission and in-flight commit witho
  const row=(await c.execute("SELECT state,result_json,cost_micros FROM ai_requests WHERE user_id='a'")).rows[0];assert.equal(row.state,'failed_final');assert.equal(row.result_json,null);assert.ok(row.cost_micros>0);
  await rejects(runAi(db,'a','chat',flight,{},()=>assert.fail('replay dispatch')),'AI_REQUEST_CANCELLED');
 }));
+
+test('known invalid MCQ remains final; same-key Retry never redispatches or needs unknown resolution', () => fixture(async (db, c) => {
+  const k = key(); let calls = 0;
+  const send = async () => {
+    calls++; await execution.getStore().dispatch();
+    throw new ProviderError(false, { category: 'validation', providerCode: 'invalid_choices', providerStatus: 200, providerRequestId: 'req_synthetic' });
+  };
+  await rejects(runAi(db, 'a', 'cards', k, { style: '4択問題' }, send), 'AI_PROVIDER_FAILED');
+  const before = (await c.execute('SELECT state,cost_micros,result_json FROM ai_requests')).rows[0];
+  assert.equal(before.state, 'failed_final'); assert.equal(before.cost_micros, 3600); assert.equal(before.result_json, null);
+  await rejects(runAi(db, 'a', 'cards', k, { style: '4択問題' }, send), 'AI_REQUEST_FINAL');
+  assert.equal(calls, 1);
+  assert.equal((await c.execute("SELECT count(*) n FROM ai_requests WHERE state IN ('unknown','reserved','dispatching')")).rows[0].n, 0);
+  assert.deepEqual((await c.execute('SELECT state,cost_micros,result_json FROM ai_requests')).rows[0], before);
+}));

@@ -50,6 +50,18 @@ test('PDF extracts embedded text and reports documents with no readable text', a
   await assert.rejects(extractDocument(pdfFile(''), pdfOptions), /文章を読み取れません/);
 });
 
+test('PDF text extraction works without ReadableStream async iteration (Safari/WKWebView)', async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(ReadableStream.prototype, Symbol.asyncIterator);
+  try {
+    delete ReadableStream.prototype[Symbol.asyncIterator];
+    assert.equal(await extractDocument(pdfFile('Safe PDF regression text'), pdfOptions), 'Safe PDF regression text');
+    await assert.rejects(extractDocument(new File(['not a PDF'], 'broken.pdf'), pdfOptions));
+    await assert.rejects(extractDocument(pdfFile(''), pdfOptions), /文章を読み取れません/);
+  } finally {
+    if (descriptor) Object.defineProperty(ReadableStream.prototype, Symbol.asyncIterator, descriptor);
+  }
+});
+
 test('PowerPoint respects reordered slides from its presentation manifest', () => {
   const xml = (text) => `<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:r><a:t>${text}</a:t></a:r></a:p>`;
   const files = {
@@ -58,4 +70,17 @@ test('PowerPoint respects reordered slides from its presentation manifest', () =
     'ppt/_rels/presentation.xml.rels':'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Target="slides/slide1.xml"/><Relationship Id="r2" Target="slides/slide2.xml"/></Relationships>'
   };
   assert.equal(extractOfficeText(zip(files),'pptx'),'First\nSecond');
+});
+
+test('all advertised formats produce usable fixture text and reject malformed/empty files', async () => {
+  const { documentFixtures, fixtureText, normalizedText } = await import('./fixtures/document-files.mjs');
+  for (const [extension, bytes] of Object.entries(documentFixtures)) {
+    assert.equal(normalizedText(await extractDocument(new File([bytes], 'safe.' + extension), pdfOptions)), fixtureText);
+    await assert.rejects(extractDocument(new File([['pdf', 'docx', 'pptx'].includes(extension) ? 'broken document' : ''], 'broken.' + extension), pdfOptions));
+    await assert.rejects(extractDocument({ name: 'large.' + extension, size: MAX_DOCUMENT_BYTES + 1 }, pdfOptions), /10MB/);
+  }
+  // The advertised limit is binary 10 MiB, inclusive, and independent of extracted length.
+  const padding = new Uint8Array(MAX_DOCUMENT_BYTES).fill(32);
+  padding.set(new TextEncoder().encode(fixtureText));
+  assert.equal(await extractDocument(new File([padding], 'boundary.txt')), fixtureText);
 });
