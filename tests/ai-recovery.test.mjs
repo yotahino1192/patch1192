@@ -54,6 +54,8 @@ test('generation distinguishes consent, unresolved, provider and generic failure
   assert.match(buildGenerationError('AI_CONSENT_REQUIRED'), /consent is required/);
   assert.match(buildGenerationError('AI_PREVIOUS_UNRESOLVED'), /administrator must resolve/);
   assert.equal(buildGenerationError('AI_UNKNOWN'), buildGenerationError('AI_PREVIOUS_UNRESOLVED'));
+  assert.match(buildGenerationError('AI_INVALID_GENERATED_CONTENT'), /returned study content that could not be used/);
+  assert.doesNotMatch(buildGenerationError('AI_INVALID_GENERATED_CONTENT'), /could not be confirmed|AI_INVALID/);
   assert.match(buildGenerationError('AI_PROVIDER_FAILED'), /AI service could not/);
   assert.match(buildGenerationError(''), /check the request safely/);
   assert.match(buildGenerationError('', 'timeout'), /connection was interrupted/);

@@ -131,11 +131,24 @@ test('known invalid MCQ remains final; same-key Retry never redispatches or need
     calls++; await execution.getStore().dispatch();
     throw new ProviderError(false, { category: 'validation', providerCode: 'invalid_choices', providerStatus: 200, providerRequestId: 'req_synthetic' });
   };
-  await rejects(runAi(db, 'a', 'cards', k, { style: '4択問題' }, send), 'AI_PROVIDER_FAILED');
+  await rejects(runAi(db, 'a', 'cards', k, { style: '4択問題' }, send), 'AI_INVALID_GENERATED_CONTENT');
   const before = (await c.execute('SELECT state,cost_micros,result_json FROM ai_requests')).rows[0];
   assert.equal(before.state, 'failed_final'); assert.equal(before.cost_micros, 3600); assert.equal(before.result_json, null);
   await rejects(runAi(db, 'a', 'cards', k, { style: '4択問題' }, send), 'AI_REQUEST_FINAL');
   assert.equal(calls, 1);
   assert.equal((await c.execute("SELECT count(*) n FROM ai_requests WHERE state IN ('unknown','reserved','dispatching')")).rows[0].n, 0);
   assert.deepEqual((await c.execute('SELECT state,cost_micros,result_json FROM ai_requests')).rows[0], before);
+}));
+
+test('only known returned-content errors receive the terminal content code', () => fixture(async (db, c) => {
+  const k = key();
+  await rejects(runAi(db, 'a', 'cards', k, {}, async () => {
+    await execution.getStore().dispatch();
+    throw new ProviderError(false, { category: 'provider', providerStatus: 400, providerCode: 'invalid_choices' });
+  }), 'AI_PROVIDER_FAILED');
+  await rejects(runAi(db, 'b', 'cards', key(), {}, async () => {
+    await execution.getStore().dispatch();
+    throw new ProviderError(true, { category: 'parse', providerStatus: 200, providerCode: 'invalid_json' });
+  }), 'AI_UNKNOWN');
+  assert.deepEqual((await c.execute('SELECT state,cost_micros FROM ai_requests ORDER BY user_id')).rows, [{ state: 'failed_final', cost_micros: 3600 }, { state: 'unknown', cost_micros: 3600 }]);
 }));

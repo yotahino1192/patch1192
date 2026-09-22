@@ -109,8 +109,8 @@ export function ImportScreen({ data, destination, setDestination, importDraft, s
       {!destinationValid && <p className="build-error" role="alert">Choose an available Patch in Step 1.</p>}
     </section>}
     {step === 'preparing' && <section className="build-preparing">
-      <Mascot pose="finding" /><h1 ref={heading} tabIndex={-1}>{generationRunning ? 'Preparing your Patch...' : 'Let’s finish your Patch'}</h1>
-      {generationRunning ? <div role="status"><p>This may take a moment.</p><span className="build-dots" aria-hidden="true"><i /><i /><i /></span></div> : <div><p role="alert">{build.generation.error || 'Your material is saved. Retry to check your interrupted request.'}</p><button type="button" className="build-primary" onClick={generate}>Retry</button><button type="button" className="build-return" onClick={() => update({ step: 3 })}>Back to Customize learning</button></div>}
+      <Mascot pose="finding" /><h1 ref={heading} tabIndex={-1}>{generationRunning ? 'Preparing your Patch...' : build.generation.outcome === 'final' ? 'Generation didn’t finish' : 'Let’s finish your Patch'}</h1>
+      {generationRunning ? <div role="status"><p>This may take a moment.</p><span className="build-dots" aria-hidden="true"><i /><i /><i /></span></div> : <div><p role="alert">{build.generation.error || 'Your material is saved. Retry to check your interrupted request.'}</p><button type="button" className="build-primary" onClick={generate}>{build.generation.outcome === 'final' ? 'Generate again' : 'Retry'}</button><button type="button" className="build-return" onClick={() => update({ step: 3 })}>Back to Customize learning</button></div>}
     </section>}
     {step === 'review' && review}
     {typeof step === 'number' && <div className="build-actions"><button type="button" className="build-primary" disabled={step === 1 ? !destinationValid : step === 2 ? !!invalid : !!invalid || focusInvalid || !destinationValid || !formatValid || generationRunning} onClick={() => step === 3 ? generate() : update({ step: step === 1 ? 2 : 3 })}>{step === 3 ? 'Generate Patch' : 'Continue'}</button></div>}
