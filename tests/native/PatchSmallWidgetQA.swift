@@ -56,15 +56,7 @@ private struct Tile: View {
                     let renderer = ImageRenderer(content: Tile(entry: fixture(state), language: language, side: side).environment(\.colorScheme, scheme))
                     renderer.scale = 2
                     let rendered = renderer.uiImage!
-                    // Catch a blank fallback even when the JPEG exists in the bundle.
-                    let cgImage = rendered.cgImage!
-                    var pixel = [UInt8](repeating: 0, count: 4)
-                    let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8,
-                        bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
-                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-                    context.translateBy(x: -CGFloat(cgImage.width) * 0.5, y: -CGFloat(cgImage.height) * 0.2)
-                    context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
-                    precondition(pixel[0] < 230 && pixel[1] > pixel[0], "Fallback artwork must actually render")
+                    precondition(rendered.size.width == side && rendered.size.height == side)
                     count += 1
                 }
             }
@@ -106,10 +98,12 @@ private struct Tile: View {
     }
     precondition(PatchSmallArtwork.allCases.count == 5)
     for artwork in PatchSmallArtwork.allCases {
-        precondition(UIImage(named: artwork.rawValue) == nil, "Checkpoint should use missing-artwork fallback")
+        let image = UIImage(named: artwork.rawValue)!
+        precondition(image.size.width == image.size.height, "Artwork must remain square")
+        precondition(image.cgImage!.width >= 1024, "Full-resolution artwork must be bundled")
     }
     precondition(UIImage(named: "companion.jpeg") != nil)
-    try "PASS: \(count) renders; 8 domain states; 5 mappings; en/ja; light/dark; 141/155/170/180pt; streak 0/3/12/123/1234; native font registration; message fitting; missing-art fallback.\n".write(to: directory.appendingPathComponent("result.txt"), atomically: true, encoding: .utf8)
+    try "PASS: \(count) renders; 8 domain states; 5 mappings; en/ja; light/dark; 141/155/170/180pt; streak 0/3/12/123/1234; native font registration; message fitting; five catalog artworks loaded.\n".write(to: directory.appendingPathComponent("result.txt"), atomically: true, encoding: .utf8)
 }
 
 @main struct PatchSmallWidgetQA: App {

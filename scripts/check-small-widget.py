@@ -37,6 +37,10 @@ def run(*args, **kwargs):
     return subprocess.run(args, check=True, text=True, **kwargs)
 
 SDK = run('xcrun', '--sdk', 'iphonesimulator', '--show-sdk-path', capture_output=True).stdout.strip()
+# Compile the same dedicated catalog as the extension; never substitute loose PNGs.
+run('xcrun', 'actool', str(WIDGET / 'Assets.xcassets'), '--compile', str(APP),
+    '--platform', 'iphonesimulator', '--minimum-deployment-target', '17.0',
+    '--target-device', 'iphone', '--target-device', 'ipad')
 run('xcrun', 'swiftc', '-sdk', SDK, '-target', 'arm64-apple-ios17.0-simulator',
     '-module-cache-path', str(OUTPUT / 'modules'), str(OUTPUT / 'WidgetViews.swift'),
     str(ROOT / 'ios/App/Shared/RetentionSnapshot.swift'),
