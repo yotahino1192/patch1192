@@ -47,3 +47,17 @@ Open Patch once, then open Add Widget → Patch and add Small. If an existing ti
 Physical-device acceptance is complete for the checks explicitly reported by the user above.
 
 Xcode project: `/private/tmp/patch-small-widget-design/ios/App/App.xcodeproj`; Scheme App, Run Debug, connected iPhone, existing personal team for App and PatchWidget. Dev integration is authorized after final regression. No changes to main or Production.
+
+## Final Dev integration regression (2026-09-23)
+
+Fetched `origin/Dev` immediately before integration: `184f221d8a7f5b3147952d8429d30c2204094ffc`. It is already an ancestor of the Widget branch; no additional source merge or conflict resolution was needed. Product source remains identical to physical-verified checkpoint `4aa6225`.
+
+- `PATCH_ENV=development npm test`: Web build and artifact seal passed; 331/331 tests passed, 0 skipped.
+- `scripts/check-small-widget.py`: 128 renders passed, including archive bitmap bounds and missing-font/image fallbacks. Native Swift RetentionSnapshot tests passed.
+- `PATCH_ENV=development npm run ios:sync:local`: Development mobile build/seal and Capacitor sync passed.
+- `App` scheme Debug builds: generic iOS Simulator and signed generic iOS both passed, including PatchWidget. Deep/strict signature verification passed.
+- Built extension contains all five catalog assets and all four registered fonts. App target selects AppIcon; its source bytes match the physical-verified final icon. All five PNGs match the supplied originals.
+- App and Widget signed App Group remains `group.com.patch.learning.retention`. Medium view comparison is identical to Dev apart from the already verified shared companion resource-loader fix. PDF/MCQ/iOS-timeout source is identical to latest Dev.
+- Personal Development signing is excluded from shared commits and preserved in the local stash named `widget-personal-signing-before-dev-integration` and a private patch backup. Existing local Development environment symlink is retained. Device builds used a command-line team override; no personal signing setting was added to the project.
+
+Merge scope is Dev only. No deployment, main update, or Production database operation is part of this integration.

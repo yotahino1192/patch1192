@@ -87,3 +87,9 @@ QAハーネスは実際のSmall View部品をSwiftUI ImageRendererで描画す�
 このQAでは代表的な16pt余白を再現している。5状態の見た目はSimulator上で確認。実機のホーム画面はユーザー操作待ちのため未確認で、Tintedモードも未確認。実装はシステムのWidget余白を維持している。最終5画像を含む日英light/darkの一覧で、上部の可読性と画像の収まりを確認した。画像のスケール・位置・Viewコードの変更は不要だった。COMPLETE / URGENTの下端の顔のクロップは支給画像の構図どおり。
 
 背景・余白APIの根拠: [Apple: Bring widgets to new places](https://developer.apple.com/videos/play/wwdc2023/10027/)。
+
+## 実機検証・Dev統合（2026-09-23 更新）
+
+上記の初期QA後、実機で画像のWidgetKit保存サイズ超過を検出し、`4aa6225` で表示用bitmapを最大600×600pxに制限。原本5枚は維持し、フォント代替とcompanionの共有読み込み修正を追加した。ユーザーが同チェックポイントで黒画面解消、新デザイン、イラスト、streak＋短文、最終App Icon、ギャラリーからの正常追加を実機確認済み。
+
+最終回帰・診断根拠は [実機修正記録](../../../docs/small-widget-device-archive-fix.md) を参照。Mediumの配置・色・文字・寸法は維持し、共有画像読み込みのみ修正している。
