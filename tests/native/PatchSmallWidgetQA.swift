@@ -103,7 +103,15 @@ private struct Tile: View {
         precondition(image.cgImage!.width >= 1024, "Full-resolution artwork must be bundled")
     }
     precondition(UIImage(named: "companion.jpeg") != nil)
-    try "PASS: \(count) renders; 8 domain states; 5 mappings; en/ja; light/dark; 141/155/170/180pt; streak 0/3/12/123/1234; native font registration; message fitting; five catalog artworks loaded.\n".write(to: directory.appendingPathComponent("result.txt"), atomically: true, encoding: .utf8)
+    for name in PatchSmallArtwork.allCases.map(\.rawValue) + ["companion.jpeg"] {
+        let bitmap = PatchWidgetResources.image(named: name)!.cgImage!
+        precondition(bitmap.width <= 600 && bitmap.height <= 600, "Widget archive bitmap too large: \(name)")
+        precondition(bitmap.width * bitmap.height < 1_001_127, "Exceeds observed physical-device archive budget")
+    }
+    precondition(PatchWidgetResources.image(named: "missing-widget-qa-image") == nil)
+    precondition(PatchWidgetResources.font(named: "missing-widget-qa-font", size: 14) == .system(size: 14, weight: .regular, design: .default))
+    precondition(PatchWidgetResources.font(named: "missing-widget-qa-font", size: 20, isNumber: true) == .system(size: 20, weight: .bold, design: .rounded))
+    try "PASS: \(count) renders; 8 domain states; 5 mappings; en/ja; light/dark; 141/155/170/180pt; streak 0/3/12/123/1234; native font registration; message fitting; five original catalog artworks loaded; all six archive bitmaps bounded; missing-resource fallbacks.\n".write(to: directory.appendingPathComponent("result.txt"), atomically: true, encoding: .utf8)
 }
 
 @main struct PatchSmallWidgetQA: App {

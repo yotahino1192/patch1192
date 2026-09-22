@@ -1,12 +1,20 @@
 import SwiftUI
 import WidgetKit
 import UIKit
+import OSLog
 
 struct PatchEntry: TimelineEntry { let date: Date; let snapshot: RetentionSnapshot? }
 struct PatchProvider: TimelineProvider {
-    func placeholder(in context: Context) -> PatchEntry { PatchEntry(date: Date(), snapshot: nil) }
-    func getSnapshot(in context: Context, completion: @escaping (PatchEntry) -> Void) { completion(PatchEntry(date: Date(), snapshot: RetentionStore.read())) }
+    func placeholder(in context: Context) -> PatchEntry {
+        PatchWidgetResources.audit(path: "placeholder")
+        return PatchEntry(date: Date(), snapshot: nil)
+    }
+    func getSnapshot(in context: Context, completion: @escaping (PatchEntry) -> Void) {
+        PatchWidgetResources.audit(path: "snapshot")
+        completion(PatchEntry(date: Date(), snapshot: RetentionStore.read()))
+    }
     func getTimeline(in context: Context, completion: @escaping (Timeline<PatchEntry>) -> Void) {
+        PatchWidgetResources.audit(path: "timeline")
         let now = Date(), snapshot = RetentionStore.read()
         var dates = [now]
         if let s = snapshot {
@@ -53,7 +61,9 @@ struct PatchWidgetView: View {
                 }
             }
             Spacer(minLength: 0)
-            Image("companion.jpeg").resizable().scaledToFit().frame(width: family == .systemMedium ? 64 : 36).clipShape(RoundedRectangle(cornerRadius: 12)).accessibilityLabel("Patchキャラクター")
+            if let companion = PatchWidgetResources.image(named: "companion.jpeg") {
+                Image(uiImage: companion).resizable().scaledToFit().frame(width: family == .systemMedium ? 64 : 36).clipShape(RoundedRectangle(cornerRadius: 12)).accessibilityLabel("Patchキャラクター")
+            }
         }
         .foregroundStyle(urgent ? Color(red: 0.45, green: 0.02, blue: 0.08) : Color(red: 0.04, green: 0.25, blue: 0.18))
         .containerBackground(urgent ? Color(red: 1, green: 0.83, blue: 0.85) : Color(red: 0.77, green: 0.96, blue: 0.87), for: .widget)
@@ -141,14 +151,14 @@ struct PatchSmallHeader: View {
                     .font(.system(size: 16, weight: .bold))
                     .accessibilityHidden(true)
                 Text(presentation.streakText)
-                    .font(.custom(presentation.numberFont, fixedSize: 20))
+                    .font(PatchWidgetResources.font(named: presentation.numberFont, size: 20, isNumber: true))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(presentation.streakAccessibilityLabel)
             Text(presentation.message)
-                .font(.custom(presentation.messageFont, fixedSize: 14))
+                .font(PatchWidgetResources.font(named: presentation.messageFont, size: 14))
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .multilineTextAlignment(.center)
@@ -164,7 +174,7 @@ struct PatchSmallArtworkBackground: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .top) {
-                if let image = UIImage(named: artwork.rawValue, in: .main, compatibleWith: nil) {
+                if let image = PatchWidgetResources.image(named: artwork.rawValue) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -178,7 +188,7 @@ struct PatchSmallArtworkBackground: View {
                 } else {
                     // Reuse the unmodified, white-backed companion. No stand-in final artwork.
                     Color.white
-                    if let companion = UIImage(named: "companion.jpeg", in: .main, compatibleWith: nil) {
+                    if let companion = PatchWidgetResources.image(named: "companion.jpeg") {
                         Image(uiImage: companion)
                             .resizable()
                             .scaledToFit()
@@ -192,6 +202,64 @@ struct PatchSmallArtworkBackground: View {
         }
         .accessibilityHidden(true)
     }
+}
+
+// WidgetKit archives the bitmap, not its SwiftUI frame. Keep original assets in the
+// catalog, but hand the remote renderer a bounded bitmap (including the fallback).
+enum PatchWidgetResources {
+    static let maximumImagePixels: CGFloat = 600
+    private static let images = NSCache<NSString, UIImage>()
+
+    static func image(named name: String) -> UIImage? {
+        if let cached = images.object(forKey: name as NSString) { return cached }
+        guard let source = UIImage(named: name, in: .main, compatibleWith: nil),
+              source.size.width > 0, source.size.height > 0 else { return nil }
+        let ratio = min(1, maximumImagePixels / max(source.size.width, source.size.height))
+        let size = CGSize(width: source.size.width * ratio, height: source.size.height * ratio)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1 // Explicit pixels, independent of the device's 2x/3x display scale.
+        format.preferredRange = .standard
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            source.draw(in: CGRect(origin: .zero, size: size))
+        }
+        images.setObject(image, forKey: name as NSString)
+        #if DEBUG
+        let logger = Logger(subsystem: "com.patch.learning.widget", category: "resources")
+        logger.notice("archive image \(name, privacy: .public)=\(image.cgImage?.width ?? 0)x\(image.cgImage?.height ?? 0)")
+        #endif
+        return image
+    }
+
+    static func font(named name: String, size: CGFloat, isNumber: Bool = false) -> Font {
+        guard UIFont(name: name, size: size) != nil else {
+            return .system(size: size, weight: isNumber ? .bold : .regular,
+                           design: isNumber ? .rounded : .default)
+        }
+        return .custom(name, fixedSize: size)
+    }
+
+    static func audit(path: String) {
+        #if DEBUG
+        let logger = Logger(subsystem: "com.patch.learning.widget", category: "resources")
+        logger.notice("small-widget-archive-v1 provider=\(path, privacy: .public)")
+        _ = resourceAudit
+        #endif
+    }
+
+    #if DEBUG
+    private static let resourceAudit: Void = {
+        let logger = Logger(subsystem: "com.patch.learning.widget", category: "resources")
+        for name in ["RoundedMplus1c-Bold", "NunitoSans-Bold", "NotoSansJPThin-Regular", "Inter-Regular"] {
+            let resolved = UIFont(name: name, size: 14)?.fontName ?? "system-fallback"
+            logger.notice("font \(name, privacy: .public)=\(resolved, privacy: .public)")
+        }
+        for name in PatchSmallArtwork.allCases.map(\.rawValue) + ["companion.jpeg"] {
+            // Check bundle lookup without eagerly drawing every state into memory.
+            let available = UIImage(named: name, in: .main, compatibleWith: nil) != nil
+            logger.notice("resource \(name, privacy: .public) available=\(available)")
+        }
+    }()
+    #endif
 }
 
 @main struct PatchWidget: Widget {
