@@ -25,6 +25,8 @@ R20000000000000000000004 = {isa = PBXBuildFile; fileRef = R100000000000000000000
 R20000000000000000000005 = {isa = PBXBuildFile; fileRef = R10000000000000000000004; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 R20000000000000000000006 = {isa = PBXBuildFile; fileRef = R10000000000000000000005; };
 R20000000000000000000007 = {isa = PBXBuildFile; fileRef = R10000000000000000000006; };
+W20000000000000000000001 = {isa = PBXBuildFile; fileRef = W10000000000000000000001; };
+W20000000000000000000002 = {isa = PBXBuildFile; fileRef = W10000000000000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,6 +49,8 @@ R10000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourceco
 R10000000000000000000004 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = PatchWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 R10000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = PatchWidget/companion.jpeg; sourceTree = SOURCE_ROOT; };
 R10000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = text.xml; path = App/PrivacyInfo.xcprivacy; sourceTree = SOURCE_ROOT; };
+W10000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = PatchWidget/Assets.xcassets; sourceTree = SOURCE_ROOT; };
+W10000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = folder; path = PatchWidget/Fonts; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,7 +101,7 @@ R30000000000000000000006 = {isa = PBXTargetDependency; target = R300000000000000
                 A20000000000000000000004 /* PatchAuthPlugin.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
-R10000000000000000000001, R10000000000000000000002, R10000000000000000000003,
+R10000000000000000000001, R10000000000000000000002, R10000000000000000000003, W10000000000000000000001, W10000000000000000000002,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -185,7 +189,7 @@ R30000000000000000000001 = {isa = PBXNativeTarget; buildConfigurationList = R400
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-R30000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (R20000000000000000000006,); runOnlyForDeploymentPostprocessing = 0; };
+R30000000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (R20000000000000000000006, W20000000000000000000001, W20000000000000000000002,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
