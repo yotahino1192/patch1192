@@ -1,4 +1,5 @@
 "use client";
+import { useLanguage } from "./language";
 import { useEffect, useId, useRef, useState } from "react";
 import { legalDocuments, legalKinds, type LegalKind } from "../lib/public-pages/content";
 import { DocumentBody, PublicationNotice } from "./public-pages/document-body";
@@ -26,7 +27,8 @@ export function LegalContent({kind}:{kind:LegalKind}) {
  return <section ref={container} className="legal-content"><h2 style={{fontSize:"var(--text-heading, 20px)",lineHeight:1.5}}>{document.title}</h2><p>{document.intro}</p><PublicationNotice/><DocumentBody kind={current} headingLevel={3} anchorPrefix={prefix} onNavigate={navigate}/></section>;
 }
 export function LegalLinks({kinds=["privacy","support","terms"]}:{kinds?:LegalKind[]}={}) {
+ const { t } = useLanguage();
  const [kind,setKind]=useState<LegalKind|null>(null);
  const id=useId();
- return <div className="legal-links">{kinds.map(k=><button type="button" key={k} aria-expanded={kind===k} aria-controls={`${id}-${k}`} onClick={()=>setKind(kind===k?null:k)}>{k==="privacy"?"Privacy Policy":k==="support"?"Support":"Terms"}</button>)}{kinds.map(k=><div id={`${id}-${k}`} key={k} hidden={kind!==k} style={{width:"100%"}}>{kind===k&&<LegalContent kind={k}/>}</div>)}</div>;
+ return <div className="legal-links">{kinds.map(k=><button type="button" key={k} aria-expanded={kind===k} aria-controls={`${id}-${k}`} onClick={()=>setKind(kind===k?null:k)}>{t(k==="privacy"?"プライバシーポリシー":k==="support"?"サポート":"利用規約")}</button>)}{kinds.map(k=><div id={`${id}-${k}`} key={k} hidden={kind!==k} style={{width:"100%"}}>{kind===k&&<LegalContent kind={k}/>}</div>)}</div>;
 }

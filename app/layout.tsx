@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Sans_JP, M_PLUS_Rounded_1c, Nunito_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -6,6 +6,10 @@ const inter = Inter({ subsets: ["latin"], weight: ["400", "700"], variable: "--f
 const noto = Noto_Sans_JP({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-noto-jp", display: "swap" });
 const rounded = M_PLUS_Rounded_1c({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-rounded-jp", display: "swap" });
 const nunito = Nunito_Sans({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-nunito", display: "swap" });
+
+export const viewport: Viewport = {
+  width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#ffffff", colorScheme: "light",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3001"),
