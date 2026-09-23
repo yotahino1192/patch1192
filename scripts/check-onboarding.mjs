@@ -1,4 +1,5 @@
 import { createClient } from '@libsql/client';
+import { materialDataTransport } from '../lib/material-data-client.ts';
 import { migrate } from './infra/migrations.mjs';
 // Run after npm run build. Real UI + authenticated APIs, isolated browser/DB and test-only SDK entry.
 import {createServer} from 'vite';
@@ -34,7 +35,8 @@ try {
  const waitText=text=>until(()=>evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`));
  const clickText=async text=>{await evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)});if(!b||b.disabled)throw Error('Button unavailable: '+${JSON.stringify(text)});b.click()})()`);await delay(100);};
  const click=async selector=>{await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);await delay(100);};
- const data=async()=>await (await fetch(origin+'/api/data',{headers:authHeaders('user_onboarding',identity.userId)})).json();
+ const api=materialDataTransport((path,options)=>fetch(origin+path,{...options,headers:authHeaders('user_onboarding',identity.userId,{'content-type':'application/json'})}));
+ const data=async()=>await (await api('/api/data')).json();
  const noOverflow=async()=>assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);
  const responsive=async(name)=>{for(const width of [320,768,390]){await cdp('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true});await noOverflow();}if(process.env.ONBOARDING_SCREENSHOT){const shot=await cdp('Page.captureScreenshot',{format:'png'});await writeFile(process.env.ONBOARDING_SCREENSHOT.replace('.png',`-${name}.png`),Buffer.from(shot.data,'base64'));}};
  await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
@@ -68,7 +70,7 @@ try {
  await clickText('ホームへ');await until(()=>evaluate("!!document.querySelector('.patch-home')"));assert.equal((await data()).profile.onboardingCompleted,true);
  await reload();await until(()=>evaluate("!!document.querySelector('.patch-home')"));assert.equal(await evaluate("document.body.innerText.includes('なんとお呼びすればいいですか？')"),false);await noOverflow();
  // Same React shell, real authenticated API, native Retention bridge mocked at its boundary.
- const post=async(path,body)=>{const r=await fetch(origin+path,{method:'POST',headers:authHeaders('user_onboarding',identity.userId,{'content-type':'application/json'}),body:JSON.stringify(body)});assert.equal(r.status,200);return r.json();};
+ const post=async(path,body)=>{const r=await api(path,{method:'POST',body:JSON.stringify(body)});assert.equal(r.status,200);return r.json();};
  const created=await post('/api/data',{action:'saveSet',material:{title:'Retention browser set',category:'Test',summary:'',keyPoints:[],sourceContent:'Source',cards:Array.from({length:8},(_,i)=>({question:'Retention question '+i,answer:'Retention answer '+i,format:'qa',choices:[],difficulty:2}))}});
  const set=created.data.sets.find(s=>s.id===created.setId);
  // The frozen Free v1 Home CTA opens Patches without creating a Study Session.
