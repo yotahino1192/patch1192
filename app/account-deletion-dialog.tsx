@@ -1,8 +1,10 @@
 "use client";
+import { useLanguage } from "./language";
 import {useState} from "react";
 import {useAccount} from "./account-context";
 import {apiFetch} from "../lib/api-client";
 export function AccountDeletion({close}:{close:()=>void}) {
+ const { t } = useLanguage();
  const account=useAccount()!;
  const [stage,setStage]=useState<"explain"|"code"|"confirm"|"accepted">("explain"),[code,setCode]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const [challenge,setChallenge]=useState("");
@@ -32,5 +34,5 @@ export function AccountDeletion({close}:{close:()=>void}) {
    }
   }catch(e){setError(e instanceof Error?e.message:"削除処理を確認できません。受付済みの削除はサーバーで継続します。");}finally{setBusy(false);}
  };
- return <section className="account-deletion" aria-labelledby="delete-title"><h3 id="delete-title">アカウントを削除</h3><p>教材・カード・学習履歴・AI会話・プロフィールと、この端末の下書きを削除します。受付後は取り消せません。他端末も次回接続時に利用できなくなります。</p><p>送信済みAIデータやオフライン端末は即時消去できない場合があります。バックアップ等の保持期間は公開準備中です。</p>{stage==="code"&&<label>メールの確認コード<input autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value)}/></label>}{stage==="confirm"&&<p>本人確認を行いました。このアカウントの削除を確定しますか？</p>}{error&&<p role="alert">{error}</p>}<button className="danger" disabled={busy||stage==="accepted"} onClick={()=>void run()}>{busy?"処理中…":stage==="explain"?"本人確認コードを送る":stage==="code"?"確認する":stage==="accepted"?"削除受付済み":"アカウントを削除する"}</button><button disabled={busy} onClick={close}>閉じる</button></section>;
+ return <section className="account-deletion" aria-labelledby="delete-title"><h3 id="delete-title">{t("アカウントを削除")}</h3><p>{t("教材・カード・学習履歴・AI会話・プロフィールと、この端末の下書きを削除します。受付後は取り消せません。他端末も次回接続時に利用できなくなります。")}</p><p>{t("送信済みAIデータやオフライン端末は即時消去できない場合があります。バックアップ等の保持期間は公開準備中です。")}</p>{stage==="code"&&<label>{t("メールの確認コード")}<input autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value)}/></label>}{stage==="confirm"&&<p>{t("本人確認を行いました。このアカウントの削除を確定しますか？")}</p>}{error&&<p role="alert">{t(error)}</p>}<button className="danger" disabled={busy||stage==="accepted"} onClick={()=>void run()}>{t(busy?"処理中…":stage==="explain"?"本人確認コードを送る":stage==="code"?"確認する":stage==="accepted"?"削除受付済み":"アカウントを削除する")}</button><button disabled={busy} onClick={close}>{t("閉じる")}</button></section>;
 }

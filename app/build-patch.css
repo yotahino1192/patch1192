@@ -81,11 +81,6 @@
 .build-actions { position: sticky; bottom: 0; margin-top: auto; padding-top: 24px; background: #fff; padding-bottom: max(4px, env(safe-area-inset-bottom)); z-index: 2; }
 .build-primary { display: block; width: 100%; min-height: 50px; padding: 12px 16px; color: #fff; background: var(--patch-evergreen); border: 1px solid var(--patch-evergreen); border-radius: 8px; font-weight: 700 !important; }
 .build-flow .build-primary:disabled { background: var(--patch-blue-gray); border-color: var(--patch-blue-gray); color: #fff; opacity: 1; }
-.build-step-1 { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
-.build-step-1 .build-actions { bottom: calc(78px + env(safe-area-inset-bottom)); }
-.build-shell .bottom-nav { width: min(100%, 520px); height: calc(76px + env(safe-area-inset-bottom)); padding: 6px 10px max(6px, env(safe-area-inset-bottom)); grid-template-columns: repeat(4, 1fr); border: 1px solid #dce4ef; background: #fff; color: #647c9d; box-shadow: none; }
-.build-shell .bottom-nav button { min-height: 56px; border-radius: 8px; font-size: 11px; color: #647c9d; gap: 3px; }
-.build-shell .bottom-nav button.active { background: var(--patch-mint-base); color: var(--patch-evergreen); }
 .build-preparing { text-align: center; padding: 90px 8px 28px; }
 .build-preparing > .patch-mascot { width: 245px; max-width: 85%; margin: 0 auto 32px; }
 .build-preparing h1 { font-size: 25px; letter-spacing: -.5px; margin-bottom: 16px; }

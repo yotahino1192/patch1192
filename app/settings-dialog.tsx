@@ -25,13 +25,13 @@ export function SettingsDialog({ dialogRef }: { dialogRef: RefObject<HTMLDialogE
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) event.currentTarget.close();
   }}>
     <div className="settings-heading"><h2 id={titleId}>{t("設定")}</h2><button type="button" className="settings-close" aria-label={t("設定を閉じる")} onClick={() => dialogRef.current?.close()}><AssetIcon name="close" size={20} /></button></div>
-    <p>Preferences</p><fieldset className="settings-language"><legend>{t("言語")}</legend>
+    <p>{t("環境設定")}</p><fieldset className="settings-language"><legend>{t("言語")}</legend>
       <button type="button" aria-pressed={language === "ja"} onClick={() => setLanguage("ja")}><span lang="ja"><span aria-hidden="true">🇯🇵</span> 日本語</span>{language === "ja" && <AssetIcon name="check" size={22} />}</button>
       <button type="button" aria-pressed={language === "en"} onClick={() => setLanguage("en")}><span lang="en"><span aria-hidden="true">🇺🇸</span> English</span>{language === "en" && <AssetIcon name="check" size={22} />}</button>
     </fieldset>
-    {account && <div className="settings-account"><h3>Account</h3><p>{account.email || "Email：認証情報を確認中"}</p><p>ログアウトすると、この端末の未保存の下書きは削除されます。</p><button onClick={() => void account.logout()}>ログアウト</button><button className="danger" onClick={()=>setDeleting(!deleting)}>Delete Account</button>{deleting&&<AccountDeletion close={()=>setDeleting(false)}/>}</div>}
-    {privacy&&<section><h3>Privacy</h3><LegalLinks kinds={["privacy"]}/><p>AI Data Sharing</p><button onClick={()=>void change("granted")}>説明を確認して許可</button><button onClick={()=>void change("revoked")}>AI送信を停止</button><button onClick={()=>void privacy.refresh().then(c=>setMessage(`AI Data Sharing: ${c.state}`)).catch(()=>setMessage("確認できません。"))}>現在の状態を確認</button>{message&&<p role="status">{message}</p>}</section>}
+    {account && <div className="settings-account"><h3>{t("アカウント")}</h3><p>{account.email || t("メール：認証情報を確認中")}</p><p>{t("ログアウトすると、この端末の未保存の下書きは削除されます。")}</p><button onClick={() => void account.logout()}>{t("ログアウト")}</button><button className="danger" onClick={()=>setDeleting(!deleting)}>{t("アカウントを削除")}</button>{deleting&&<AccountDeletion close={()=>setDeleting(false)}/>}</div>}
+    {privacy&&<section><h3>{t("プライバシー")}</h3><LegalLinks kinds={["privacy"]}/><p>{t("AIデータ共有")}</p><button onClick={()=>void change("granted")}>{t("説明を確認して許可")}</button><button onClick={()=>void change("revoked")}>{t("AI送信を停止")}</button><button onClick={()=>void privacy.refresh().then(c=>setMessage(c.state === "granted" ? "AIデータ共有：許可済み" : c.state === "revoked" ? "AIデータ共有：停止中" : "AIデータ共有：未許可")).catch(()=>setMessage("確認できません。"))}>{t("現在の状態を確認")}</button>{message&&<p role="status">{t(message)}</p>}</section>}
     <RetentionSettings />
-    <section><h3>About</h3><LegalLinks kinds={["support","terms"]}/><p>App Version: {appVersion}</p></section>
+    <section><h3>{t("このアプリについて")}</h3><LegalLinks kinds={["support","terms"]}/><p>{t("アプリのバージョン：{0}", appVersion)}</p></section>
   </dialog>;
 }

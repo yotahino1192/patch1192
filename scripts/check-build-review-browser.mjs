@@ -53,9 +53,9 @@ try{
  await shot('prompt08-flashcard-390');
  assert.equal(await evaluate('!!document.querySelector(".build-preview-answer")'),false);
  await click('.build-reveal');assert.match(await evaluate('document.querySelector(".build-preview-answer").textContent'),/reducing spending/);
- await click('[aria-label="Next preview"]');assert.equal(await evaluate('!!document.querySelector(".build-preview-answer")'),false);
- assert.equal(await evaluate('document.querySelector(".build-preview-navigation span").textContent'),'2 of 2');
- await click('[aria-label="Previous preview"]');
+ await click('.build-preview-navigation button:last-child');assert.equal(await evaluate('!!document.querySelector(".build-preview-answer")'),false);
+ assert.equal(await evaluate('document.querySelector(".build-preview-navigation span").textContent'),'2枚中2枚目');
+ await click('.build-preview-navigation button:first-child');
  assert.equal(await evaluate('document.querySelectorAll(".build-outcomes button,.build-review-preferences button").length'),0);
  assert.deepEqual(await progress(),before,'Preview creates no Attempt, review, Retention or Streak writes');
  assert.equal((await saveWrites()).length,0);assert.equal(await evaluate('reviewFixture.aiCalls'),0);
@@ -63,16 +63,16 @@ try{
  const outcomeTop=await evaluate('document.querySelector(".build-outcomes").getBoundingClientRect().top+scrollY');
  await click('.dropdown-trigger');await shot('prompt11-dropdown-390');
  assert.equal(await evaluate('document.querySelector(".build-outcomes").getBoundingClientRect().top+scrollY'),outcomeTop,'Dropdown overlays content');
- assert.match(await evaluate('document.querySelector(".dropdown-options").textContent'),/Create a new Patch.*Existing Patches.*Existing Economics/);
+ assert.match(await evaluate('document.querySelector(".dropdown-options").textContent'),/新しいパッチを作成.*既存のパッチ.*Existing Economics/);
  await click('.dropdown-options [role=option]:last-child');
- assert.equal(await evaluate('document.querySelector(".build-review .build-primary").textContent'),'Add to Patch');assert.equal(await evaluate('!!document.querySelector("#build-patch-name")'),false);
+ assert.equal(await evaluate('document.querySelector(".build-review .build-primary").textContent'),'パッチに追加');assert.equal(await evaluate('!!document.querySelector("#build-patch-name")'),false);
  await click('.dropdown-trigger');await click('.dropdown-options [role=option]:first-child');assert.equal(await evaluate('document.querySelector("#build-patch-name").value'),'My edited Patch');
  await click('.dropdown-trigger');await evaluate('document.querySelector(".dropdown-trigger").focus()');await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await cdp('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});assert.equal(await evaluate('!!document.querySelector(".dropdown-options")'),false);
  await click('.build-back');assert.equal(await evaluate('reviewFixture.workspace().draft.title'),'My edited Patch');await click('.build-primary');await until(()=>evaluate('!!document.querySelector(".build-review")'));assert.equal(await evaluate('reviewFixture.aiCalls'),0);
  await evaluate('reviewFixture.failSave=true');await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-review [role=alert]")'));assert.equal(await evaluate('!!document.querySelector(".build-ready")'),false);assert.equal((await data()).sets.length,1);
  await fill('#build-patch-name','Saved Economics');await evaluate('reviewFixture.failSave=false;reviewFixture.holdSave=true;reviewFixture.loseSave=true');
  await click('.build-review .build-primary');await until(()=>evaluate('!!reviewFixture.releaseSave'));await click('.build-review .build-primary');assert.equal((await saveWrites()).length,2,'Rapid repeated save is blocked');
- await evaluate('reviewFixture.holdSave=false;reviewFixture.releaseSave()');await until(()=>evaluate('document.querySelector(".build-review .build-primary")?.textContent==="Retry save"'));
+ await evaluate('reviewFixture.holdSave=false;reviewFixture.releaseSave()');await until(()=>evaluate('document.querySelector(".build-review .build-primary")?.textContent==="保存を再試行"'));
  assert.equal((await data()).sets.length,2,'Commit succeeded before simulated response loss');assert.equal(await evaluate('!!document.querySelector(".build-ready")'),false);
  const operation=(await saveWrites()).at(-1).body.operationId;
  await cdp('Page.reload');await until(()=>evaluate('!!document.querySelector(".patch-home")'));await click('.bottom-nav button:nth-child(3)');await until(()=>evaluate('!!document.querySelector(".build-review")'));
@@ -81,12 +81,12 @@ try{
  assert.equal(await evaluate('reviewFixture.workspace().draft'),null);await shot('prompt10-ready-390');
  await click('.build-ready-home');await until(()=>evaluate('!!document.querySelector(".patch-home")'));await click('.bottom-nav button:nth-child(3)');assert.equal(await evaluate('reviewFixture.workspace().importDraft.text'),'');assert.equal(await evaluate('!!document.querySelector(".build-destinations")'),true);
  await openReview('multiple_choice',true);await shot('prompt08-choice-390');assert.equal(await evaluate('document.querySelectorAll(".build-preview-options li").length'),4);
- const choiceBefore=await progress();await click('.build-reveal');await click('[aria-label="Next preview"]');assert.deepEqual(await progress(),choiceBefore);
+ const choiceBefore=await progress();await click('.build-reveal');await click('.build-preview-navigation button:last-child');assert.deepEqual(await progress(),choiceBefore);
  assert.match(await evaluate('document.querySelector(".build-review-focus").textContent'),/How interest rates affect inflation/);
  await click('.dropdown-trigger');await evaluate(`Array.from(document.querySelectorAll('.dropdown-options [role=option]')).find(e=>e.textContent.includes('Existing Economics')).click()`);
  const oldCard=seeded.data.sets.find(s=>s.id===seeded.setId).cards[0];
  await click('.build-review .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready")'));
- assert.equal(await evaluate('document.querySelector(".build-ready h1").textContent'),'Your Patch is updated.');await shot('prompt10-updated-390');
+ assert.equal(await evaluate('document.querySelector(".build-ready h1").textContent'),'パッチを更新しました。');await shot('prompt10-updated-390');
  const appended=(await data()).sets.find(s=>s.id===seeded.setId);assert.equal(appended.title,original.title);assert.equal(appended.cards.length,3);assert.deepEqual(appended.cards.find(c=>c.id===oldCard.id),oldCard);
  await evaluate('reviewFixture.failStart=true');await click('.build-ready .build-primary');await until(()=>evaluate('!!document.querySelector(".build-ready [role=alert]")'));assert.equal(await evaluate('!!document.querySelector(".build-ready")'),true);
  await evaluate('reviewFixture.failStart=false');await click('.build-ready .build-primary');await until(()=>evaluate('!!document.querySelector(".study-page")'));
@@ -103,7 +103,7 @@ try{
  assert.equal(await evaluate('document.documentElement.scrollWidth<=innerWidth'),true);await shot('review-larger-text-390');
  await openReview();await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:450,deviceScaleFactor:1,mobile:true});await evaluate('document.querySelector("#build-patch-name").focus()');
  assert.equal(await evaluate('(()=>{const r=document.querySelector("#build-patch-name").getBoundingClientRect();return r.top>=0&&r.bottom<innerHeight})()'),true);
- await openReview('qa',false,true);assert.equal(await evaluate('document.querySelector(".build-review .build-primary").disabled'),true);assert.match(await evaluate('document.querySelector(".build-review [role=alert]").textContent'),/outcomes/);
+ await openReview('qa',false,true);assert.equal(await evaluate('document.querySelector(".build-review .build-primary").disabled'),true);assert.match(await evaluate('document.querySelector(".build-review [role=alert]").textContent'),/学習内容/);
  assert.equal(await evaluate('reviewFixture.aiCalls'),0);assert.deepEqual(errors,[]);
  // Free v1 uses the actual card session and real review/Retention routes.
  await cdp('Emulation.setDeviceMetricsOverride',{width:393,height:852,deviceScaleFactor:1,mobile:true});
@@ -140,7 +140,7 @@ try{
    assert.deepEqual(await evaluate(`[...document.querySelectorAll('.study-page *')].filter(e=>e.children.length===0&&e.textContent.trim()&&getComputedStyle(e).display!=='none').map(e=>({text:e.textContent,role:getComputedStyle(e).fontSize+'/'+getComputedStyle(e).fontWeight})).filter(e=>!['20px/700','16px/700','14px/400'].includes(e.role))`),[],'Study weight and size pairs match the approved roles');
    await cdp('DOM.enable');await cdp('CSS.enable');await evaluate('document.fonts.ready');
    const fontDocument=await cdp('DOM.getDocument');
-   for(const [selector,expected] of [['.choice-feedback p',['Inter','Noto Sans JP']],['.mcq-question strong',['Nunito Sans']],['.record-choice .icon-label > span:last-child',['M PLUS Rounded 1c']]]) {
+   for(const [selector,expected] of [['.choice-feedback p',['Noto Sans JP']],['.mcq-question strong',['M PLUS Rounded 1c']],['.record-choice .icon-label > span:last-child',['M PLUS Rounded 1c']]]) {
     const {nodeId}=await cdp('DOM.querySelector',{nodeId:fontDocument.root.nodeId,selector});
     const {fonts}=await cdp('CSS.getPlatformFontsForNode',{nodeId});
     for(const family of expected)assert.ok(fonts.some(font=>(font.familyName.startsWith(family)||(family==='M PLUS Rounded 1c'&&font.familyName.startsWith('Rounded Mplus 1c')))&&font.isCustomFont&&font.glyphCount>0),JSON.stringify({selector,expected,fonts}));
@@ -266,10 +266,10 @@ try{
   await evaluate('reviewFixture.reset()');await cdp('Page.reload');await until(()=>evaluate('!!document.querySelector(".patch-home")'));
   await evaluate('reviewFixture.mockGeneration=true');
   await click('.bottom-nav button:nth-child(3)');await until(()=>evaluate('!!document.querySelector(".build-destinations")'));await click('.build-primary');
-  if(input==='topic')await evaluate(`(()=>{const e=document.querySelector('[aria-label="Input type"]');e.value='topic';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  if(input==='topic')await evaluate(`(()=>{const e=document.querySelector('.build-material select');e.value='topic';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   if(input==='pdf') {
    const dom=await cdp('DOM.getDocument');const {nodeId}=await cdp('DOM.querySelector',{nodeId:dom.root.nodeId,selector:'input[type=file]'});await cdp('DOM.setFileInputFiles',{nodeId,files:[pdfFile]});
-   await until(()=>evaluate('!!document.querySelector(".build-files") && !document.querySelector(".build-files").textContent.includes("Checking file")'));
+   await until(()=>evaluate('!!document.querySelector(".build-files") && !document.querySelector(".build-files").textContent.includes("ファイルを確認中")'));
    assert.equal(await evaluate('reviewFixture.workspace().importDraft.attachments[0]?.status'),'accepted',await evaluate('JSON.stringify(reviewFixture.workspace().importDraft.attachments[0])'));
   } else await evaluate(`(()=>{const e=document.querySelector('.build-text textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,${JSON.stringify(input==='topic'?'Photosynthesis':sourceText)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await delay(80);assert.equal(await evaluate('document.querySelector(".build-primary").disabled'),false);
@@ -313,7 +313,7 @@ try{
    await evaluate('reviewFixture.reset()');await cdp('Page.reload');await until(()=>evaluate('!!document.querySelector(".patch-home")'));
    assert.equal(await evaluate('!!reviewFixture.mockGeneration'),false);
    await click('.bottom-nav button:nth-child(3)');await until(()=>evaluate('!!document.querySelector(".build-destinations")'));await click('.build-primary');
-   await evaluate(`(()=>{const e=document.querySelector('[aria-label="Input type"]');e.value='topic';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+   await evaluate(`(()=>{const e=document.querySelector('.build-material select');e.value='topic';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
    await evaluate(`(()=>{const e=document.querySelector('.build-text textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'Photosynthesis');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
    await delay(80);await click('.build-primary');await click(format==='qa'?'.build-format label:first-child':'.build-format label:last-child');
    await click('.build-primary');

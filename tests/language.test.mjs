@@ -66,3 +66,47 @@ test("daily review has an accessible incomplete day and closed task panel in bot
     assert.ok(!html.includes('class="daily-todo-content"'));
   }
 });
+
+const { ImportScreen } = await import('../app/build-patch.tsx');
+const { BuildReview, PatchReady } = await import('../app/build-review.tsx');
+const { localizeBuildError } = await import('../app/build-copy.ts');
+const { buildGenerationError } = await import('../lib/build-generation-error.ts');
+
+test('Free v1 Add Material, Review and Ready follow locale while preserving exact user content', () => {
+  const noop = () => {};
+  const draft = { title: 'New Patch / 私の教材', keyPoints: ['Source material / 元資料'], cards: [{ ...set.cards[0], draftId: 'd1', selected: true }] };
+  for (const language of ['ja', 'en']) {
+    const importDraft = { text: 'Topic / 私が入力した文章', attachments: [{ id: 'a1', name: 'New Patch.txt', text: '添付の本文', status: 'accepted' }], detail: '標準', style: '一問一答', build: { step: 2 } };
+    const add = render(language, React.createElement(ImportScreen, { data: { sets: [set] }, destination: 'root', setDestination: noop, importDraft, setImportDraft: noop, onGenerate: noop }));
+    assert.ok(add.includes(language === 'ja' ? '何を学びたいですか？' : 'What do you want to learn?'));
+    assert.ok(add.includes(language === 'ja' ? '処理の準備ができました' : 'Accepted for processing'));
+    assert.ok(add.includes('Topic / 私が入力した文章'));
+    assert.ok(add.includes('New Patch.txt'));
+    const review = render(language, React.createElement(BuildReview, { draft, importDraft, data: { sets: [set] }, destination: 'root', setDestination: noop, setDraft: noop, onSave: noop, saving: false, pendingSave: false, error: 'Enter a Patch name of 1–120 characters.' }));
+    assert.ok(review.includes(language === 'ja' ? 'パッチ名を1〜120文字で入力してください。' : 'Enter a Patch name of 1–120 characters.'));
+    for (const text of [draft.title, draft.keyPoints[0], set.cards[0].question]) assert.ok(review.includes(text));
+    const ready = render(language, React.createElement(PatchReady, { saved: { title: draft.title, appended: false }, onStart: noop, onHome: noop }));
+    assert.ok(ready.includes(language === 'ja' ? 'パッチができました。' : 'Your Patch is ready.'));
+    assert.ok(ready.includes(draft.title));
+  }
+});
+
+test('legacy generation errors translate at presentation without changing error contracts', () => {
+  for (const code of ['AI_CONSENT_REQUIRED','AI_UNKNOWN','AI_IN_PROGRESS','AI_INPUT_TOO_LARGE','AI_RATE_LIMIT','AI_REQUEST_FINAL','AI_INVALID_GENERATED_CONTENT','AI_PROVIDER_FAILED','AI_NOT_CONFIGURED','UNAUTHORIZED','OTHER']) {
+    const message = buildGenerationError(code);
+    assert.equal(localizeBuildError(message, key => translate('en', key)), message);
+    assert.match(localizeBuildError(message, key => translate('ja', key)), /[ぁ-龯]/);
+  }
+});
+
+const { SettingsDialog } = await import('../app/settings-dialog.tsx');
+const { AccountContext } = await import('../app/account-context.tsx');
+test('Settings uses the chosen system language and preserves account identity', () => {
+  const account = { email: 'learner@example.test', logout() {}, scope: { request() {} } };
+  for (const language of ['ja', 'en']) {
+    const html = render(language, React.createElement(AccountContext.Provider, { value: account }, React.createElement(SettingsDialog, { dialogRef: React.createRef() })));
+    for (const text of language === 'ja' ? ['環境設定', 'アカウントを削除', 'このアプリについて'] : ['Preferences', 'Delete Account', 'About']) assert.ok(html.includes(text));
+    assert.ok(html.includes(account.email));
+    assert.ok(!html.includes(language === 'ja' ? '>Preferences<' : 'ログアウトすると、この端末'));
+  }
+});

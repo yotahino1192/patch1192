@@ -71,7 +71,7 @@ test("set viewing has one card list and offers study before the list", () => {
 
 test("saved import content and attachment text render after returning", () => {
   const html = render(ImportScreen, { data, destination: "root", setDestination: noop, onGenerate: noop, setImportDraft: noop, importDraft: { build: { step: 2 }, text: "書きかけの文章", detail: "標準", style: "一問一答", attachments: [{ id: "f1", name: "講義.txt", text: "添付の本文" }] } });
-  for (const text of ["書きかけの文章", "講義.txt", "Accepted for processing"]) assert.ok(html.includes(text));
+  for (const text of ["書きかけの文章", "講義.txt", "処理の準備ができました"]) assert.ok(html.includes(text));
 });
 
 test("Free v1 resumes quiz-style multiple-choice feedback with scoped AI explanation", () => {
