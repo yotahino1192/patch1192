@@ -1,3 +1,4 @@
+import { materialDataTransport } from '../lib/material-data-client.ts';
 // Real App, authenticated data/Retention routes and isolated SQLite.
 // AI is disabled by default; PATCH_LIVE_AI_QA=1 opts into one topic call per format.
 import assert from 'node:assert/strict';
@@ -27,9 +28,10 @@ try{
  await until(async()=>(await fetch(origin)).ok);
  const identity=await(await fetch(origin+'/api/auth/session',{headers:headers('user_review')})).json();
  const auth=()=>headers('user_review',identity.userId,{'content-type':'application/json'});
- const data=async()=>await(await fetch(origin+'/api/data',{headers:auth()})).json();
+ const api=materialDataTransport((path,options)=>fetch(origin+path,{...options,headers:auth()}));
+ const data=async()=>await(await api('/api/data')).json();
  const original={title:'Existing Economics',category:'Test',summary:'',keyPoints:['Existing learning'],sourceContent:'Original source',cards:[{question:'Original question',answer:'Original answer',format:'qa',choices:[],difficulty:1}]};
- const seeded=await(await fetch(origin+'/api/data',{method:'POST',headers:auth(),body:JSON.stringify({action:'saveSet',material:original})})).json();
+ const seeded=await(await api('/api/data',{method:'POST',body:JSON.stringify({action:'saveSet',material:original})})).json();
  await grantAi(db,identity.userId);
  assert.equal(seeded.data.profile.onboardingCompleted,true);
  vite=await createServer({configFile:false,root,cacheDir:join(dir,'cache'),plugins:[react(),{name:'review-test-identity',configureServer(s){s.middlewares.use('/__build_review_identity',(_req,res)=>{res.setHeader('content-type','application/json');res.setHeader('cache-control','no-store');res.end(JSON.stringify({identity,token:token('user_review',{exp:Math.floor(Date.now()/1000)+1200})}));});}}],define:{'process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY':'""'},server:{host:'127.0.0.1',port,strictPort:true,fs:{allow:[root,realpathSync('node_modules')]},proxy:{'/api':{target:origin}}}});await vite.listen();
@@ -48,6 +50,24 @@ try{
  const progress=async()=>{const d=await data();const retention={...d.retention};delete retention.generatedAt;delete retention.expiresAt;return {reviews:d.reviews,retention,counts:(await db.execute("SELECT (SELECT count(*) FROM attempts) AS attempts,(SELECT count(*) FROM review_logs) AS reviews")).rows[0]};};
  await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
  await cdp('Page.navigate',{url:`http://127.0.0.1:${port}/tests/fixtures/build-review.html`});await until(()=>evaluate('!!document.querySelector(".patch-home")'));
+ // Full source loads only on expansion, with retry and shared cache on narrow/wide layouts.
+ assert.equal(await evaluate('reviewFixture.materialReads.length'),0);
+ await click('.bottom-nav button:nth-child(2)');await until(()=>evaluate('!!document.querySelector(".library-set-open")'));
+ await click('.library-set-open');await click('.set-view-toolbar button');await until(()=>evaluate('!!document.querySelector(".material-manager")'));
+ assert.equal(await evaluate('document.querySelector(".material-manager").textContent.includes("Original source")'),false);
+ await evaluate('reviewFixture.failMaterialSource=true');await click('.material-manager > .source-details summary');
+ await until(()=>evaluate('!!document.querySelector(".material-manager > .source-details [role=alert]")'));
+ await evaluate('reviewFixture.failMaterialSource=false');await click('.material-manager > .source-details button');
+ await until(()=>evaluate('document.querySelector(".material-manager > .source-details").textContent.includes("Original source")'));
+ await click('.managed-card .source-details summary');
+ await until(()=>evaluate('document.querySelector(".managed-card .source-details").textContent.includes("Original source")'));
+ assert.equal(await evaluate('reviewFixture.materialReads.length'),2,'one failed request + one successful request, shared across source disclosures');
+ await cdp('Emulation.setDeviceMetricsOverride',{width:1024,height:900,deviceScaleFactor:1,mobile:false});
+ await click('.material-manager > .source-details summary');await click('.material-manager > .source-details summary');
+ await until(()=>evaluate('document.querySelector(".material-manager > .source-details").textContent.includes("Original source")'));
+ assert.equal(await evaluate('reviewFixture.materialReads.length'),2);
+ await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+ await click('.bottom-nav button:first-child');await until(()=>evaluate('!!document.querySelector(".patch-home")'));
  if(!liveAi && process.env.PATCH_CORE_ONLY !== '1') {
  await openReview();const before=await progress();
  await shot('prompt08-flashcard-390');

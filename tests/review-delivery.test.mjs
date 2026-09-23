@@ -1,3 +1,4 @@
+import { materialDataHandlers } from './material-api-fixture.mjs';
 import { migrate } from '../scripts/infra/migrations.mjs';
 import { headers as authHeaders } from './auth-fixture.mjs';
 import assert from 'node:assert/strict';
@@ -80,7 +81,7 @@ test('lost incorrect-answer response rotates the queue exactly once on recovery'
   assert.deepEqual(reconcileSession(restored,data),restored);
 });
 
-const { POST, GET } = await import('../app/api/data/route.ts');
+const { POST, GET } = await materialDataHandlers();
 const { resolveInternalUser } = await import('../db/auth-store.ts');
 const owner = await resolveInternalUser(process.env.CLERK_ISSUER, 'user_delivery');
 const headers = (extra = {}) => authHeaders('user_delivery', owner, extra);
@@ -95,7 +96,7 @@ test('API response failure after commit can be retried without another write', a
     ...db,
     transaction: async (action) => { const result = await db.transaction(action); failRead = true; return result; },
     prepare(sql, args) {
-      if (failRead && sql.startsWith('SELECT * FROM card_sets')) { failRead = false; throw new Error('simulated response read failure'); }
+      if (failRead && sql.startsWith('SELECT COALESCE(MAX(rowid)')) { failRead = false; throw new Error('simulated response read failure'); }
       return db.prepare(sql,args);
     },
   };

@@ -2,6 +2,7 @@
 
 import { useApiFetch } from "./account-context";
 
+import { MaterialSource } from './material-source';
 import { useLanguage } from "./language";
 
 import { useState } from "react";
@@ -35,7 +36,7 @@ export function MaterialManager({ set, onData }: { set: CardSet; onData: (data: 
       <label>{t("セット名")}<input value={title} maxLength={120} required onChange={(e) => setTitle(e.target.value)} /></label>
       <button className="primary" disabled={busy || !title.trim() || title === set.title}>{t("名前を保存")}</button>
     </form>
-    <details className="source-details"><summary>{t("元の文章を確認")}</summary><p>{set.sourceContent}</p></details>
+    <MaterialSource set={set} label={t("元の文章を確認")} />
     <div className="manager-tabs">{["学習中", "アーカイブ", "削除済み"].map((tabName) => <button key={tabName} aria-pressed={tab === tabName} onClick={() => { setTab(tabName); setEditing(null); }}>{t(tabName)}</button>)}</div>
     {error && <p role="alert" className="inline-error">{t(error)}</p>}
     {deletedId && <div className="undo-notice" role="status">{t("カードを削除しました。")}<button disabled={busy} onClick={async () => { if (await run({ action: deletedId.archived ? "archiveCard" : "restoreCard", cardId: deletedId.id })) setDeletedId(null); }}>{t("取り消す")}</button></div>}
@@ -51,7 +52,7 @@ export function MaterialManager({ set, onData }: { set: CardSet; onData: (data: 
         {!["アーカイブ", "削除済み"].includes(card.status) && <button disabled={busy} onClick={() => run({ action: "archiveCard", cardId: card.id })}>{t("アーカイブ")}</button>}
         {["アーカイブ", "削除済み"].includes(card.status) && <button disabled={busy} onClick={() => run({ action: "restoreCard", cardId: card.id })}>{t("学習に戻す")}</button>}
         {card.status !== "削除済み" && <button disabled={busy} onClick={async () => { if (await run({ action: "deleteCard", cardId: card.id })) setDeletedId({ id: card.id, archived: card.status === "アーカイブ" }); }}>{t("削除")}</button>}
-      </div><details className="source-details"><summary>{t("このカードの元の文章")}</summary><p>{set.sourceContent}</p></details></>}
+      </div><MaterialSource set={set} label={t("このカードの元の文章")} /></>}
     </article>)}
   </section>;
 }

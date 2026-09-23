@@ -10,12 +10,13 @@ import '../../app/globals.css';
 import '../../mobile/fonts.css';
 const config = await (await fetch('/__build_review_identity')).json();
 const originalFetch = window.fetch.bind(window);
-const fixture = window.reviewFixture = { writes: [], aiCalls: 0, aiRequests: [], failSave: false, loseSave: false, holdSave: false, failStart: false };
+const fixture = window.reviewFixture = { writes: [], materialReads: [], aiCalls: 0, aiRequests: [], failSave: false, loseSave: false, holdSave: false, failStart: false };
 const links=[];
 configureRetention({activate:async()=>{},clear:async()=>{},publish:async()=>{},permission:async()=>({granted:false}),links:async()=>({links:links.splice(0)})});
 fixture.resumeLink=()=>links.push({url:'patch://continue',owner:config.identity.userId,at:Date.now()});
 window.fetch = async (path, options) => {
   const url=String(path), body=typeof options?.body==='string'?JSON.parse(options.body):null;
+  if(url.startsWith('/api/materials')) { fixture.materialReads.push(url); if(fixture.failMaterialSource && url.includes('resource=source'))return Response.json({code:'MATERIALS_UNAVAILABLE'},{status:503}); }
   if(options?.method==='POST')fixture.writes.push({url,body});
   if(url.includes('/api/ai/'))fixture.aiCalls++;
   if(url.startsWith('/api/privacy/consents') && fixture.consentUnavailable)return Response.json({error:'Consent unavailable'},{status:503});

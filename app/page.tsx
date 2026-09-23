@@ -33,6 +33,7 @@ import { Home } from "./home-screen";
 import { LessonCompletion } from "./lesson-completion";
 import { PatchIcon, type PatchIconName } from "./patch-ui";
 import { ReviewCelebration } from "./study-effects";
+import { MaterialSource } from './material-source';
 import { MaterialManager } from "./material-manager";
 import { SettingsDialog } from "./settings-dialog";
 import { StudyCardEditor } from "./study-card-editor";
@@ -801,7 +802,7 @@ function Study({ ensureDurable, session, updateSession, data, queue, flipped, se
         </div>
       )}
 
-      {flipped && !introductory && <details key={`source:${card.id}`} className="source-details"><summary><IconLabel name="document">{t("元の文章を確認")}</IconLabel></summary><p>{set.sourceKind === "topic" ? t("トピック（一般知識を使って生成）：") : set.sourceKind === "mixed" ? t("元の教材と入力したトピック：") : ""}{set.sourceContent}</p></details>}
+      {flipped && !introductory && <MaterialSource key={`source:${card.id}`} set={set} label={<IconLabel name="document">{t("元の文章を確認")}</IconLabel>} prefix={set.sourceKind === "topic" ? t("トピック（一般知識を使って生成）：") : set.sourceKind === "mixed" ? t("元の教材と入力したトピック：") : ""} />}
       {error && <p className="inline-error" role="alert">{t(error)}</p>}
     </div>
   );
