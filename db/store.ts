@@ -68,7 +68,7 @@ export async function loadAppData(userId: string, sessionIds: string[] = [], tim
   const recordStart = new Date(new Date(start).getTime() - 6 * 86_400_000).toISOString();
   const [setResult, cardResult, reviewResult, chatResult, folderResult, activityResult] = await Promise.all([
     includeMaterials ? db.prepare("SELECT p.*, s.content AS source_content, s.input_kind FROM card_sets p LEFT JOIN sources s ON s.id=p.source_id AND s.user_id=p.user_id WHERE p.user_id = ? ORDER BY p.updated_at DESC,p.id").bind(userId).all() : { results: [] },
-    includeMaterials ? db.prepare("SELECT * FROM cards WHERE user_id = ? ORDER BY created_at ASC,id").bind(userId).all() : { results: [] },
+    includeMaterials ? db.prepare("SELECT * FROM cards WHERE user_id = ? ORDER BY created_at ASC,rowid").bind(userId).all() : { results: [] },
     db.prepare("SELECT * FROM review_logs WHERE user_id = ? ORDER BY reviewed_at DESC, rowid DESC LIMIT 500").bind(userId).all(),
     db.prepare("SELECT * FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 500").bind(userId).all(),
     includeMaterials ? db.prepare("SELECT id, parent_id, name FROM folders WHERE user_id = ? ORDER BY name, id").bind(userId).all() : { results: [] },

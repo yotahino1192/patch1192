@@ -6,7 +6,7 @@ import { createClient } from '@libsql/client';
 import { createDatabase } from '../db/client.ts';
 import { migrate } from '../scripts/infra/migrations.mjs';
 import { headers, issuer, origin } from './auth-fixture.mjs';
-import { materialDataTransport, readMaterialText } from '../lib/material-data-client.ts';
+import { assembleAppData, materialDataTransport, readMaterialText } from '../lib/material-data-client.ts';
 import { MATERIAL_PAGE_BYTES, MATERIAL_MAX_PAGE_SIZE } from '../lib/material-data.ts';
 
 const c = createClient({ url: ':memory:' }); await migrate(c);
@@ -103,6 +103,23 @@ test('count/byte pagination: stable keysets survive rename, insertion and deleti
   await store.saveGeneratedSet(heavy.userId, material({ summary: '\u0001'.repeat(10000), cards: Array.from({ length: 10 }, () => big) }));
   const page = await loadMaterialPage(heavy.userId, 'cards'); assert.ok(page.items.length < 10); assert.ok(page.nextCursor); assert.ok(Buffer.byteLength(JSON.stringify(page)) < MATERIAL_PAGE_BYTES);
   assert.equal((await drain(heavy, 'cards', '200')).length, 10);
+});
+
+test('equal-timestamp card batches retain generation order across pages and non-idempotent save receipts', async () => {
+  const u = await user(), cards = [material().cards[0], { question: 'Second', answer: 'B', format: 'multiple_choice', choices: ['A','B','C','D'], difficulty: 1 }];
+  const setId = await store.saveGeneratedSet(u.userId, material({ cards }));
+  const rows = (await loadMaterialPage(u.userId, 'cards')).items;
+  for (let i = 0; i < rows.length; i++) await c.execute({ sql: 'UPDATE cards SET id=?,created_at=? WHERE id=? AND user_id=?', args: [i ? 'order_a' : 'order_z', '2026-09-23T00:00:00.000Z', rows[i].id, u.userId] });
+  const expected = ['order_z','order_a'];
+  assert.deepEqual((await store.loadAppData(u.userId)).sets[0].cards.map(card => card.id), expected);
+  const raw = transport(u), page = await (await raw('/api/data')).json();
+  page.collections.cards = await loadMaterialPage(u.userId, 'cards', null, '1');
+  assert.ok(page.collections.cards.nextCursor);
+  const assembled = await assembleAppData(raw, page);
+  assert.deepEqual(assembled.sets.find(set => set.id === setId).cards.map(card => card.id), expected);
+  const receipt = await (await raw('/api/data', { method: 'POST', body: JSON.stringify({ action: 'saveSet', material: material({ cards }) }) })).json();
+  const inserted = (await c.execute({ sql: 'SELECT id FROM cards WHERE set_id=? AND user_id=? ORDER BY rowid', args: [receipt.setId,u.userId] })).rows.map(row => row.id);
+  assert.deepEqual(receipt.cardIds, inserted);
 });
 
 test('detail chunks round-trip Unicode and appended text without truncation; missing/deleted/cross-account targets and mixed revisions fail safely', async () => {

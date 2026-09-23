@@ -75,5 +75,5 @@ export async function loadMaterialText(userId: string, id: string, field: 'sourc
 }
 
 export async function materialCardIds(userId: string, setId: string): Promise<string[]> {
-  return (await database().prepare('SELECT id FROM cards WHERE user_id=? AND set_id=? ORDER BY created_at,id').bind(userId, setId).all<{id:string}>()).results.map(row => row.id);
+  return (await database().prepare('SELECT id FROM cards WHERE user_id=? AND set_id=? ORDER BY created_at,rowid').bind(userId, setId).all<{id:string}>()).results.map(row => row.id);
 }

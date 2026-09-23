@@ -22,7 +22,9 @@ export async function assembleAppData(request: ApiTransport, page: AppDataPage, 
     collect<Folder>(request, 'folders', page.collections.folders, options),
   ]);
   const bySet = new Map<string, Card[]>();
-  cards.sort((a, b) => compare(a.createdAt, b.createdAt) || compare(a.id, b.id));
+  // Pages arrive in insertion (rowid) order. Stable sort keeps a generated
+  // batch's original order when all its cards share the same timestamp.
+  cards.sort((a, b) => compare(a.createdAt, b.createdAt));
   for (const card of cards) { const group = bySet.get(card.setId) || []; group.push(card); bySet.set(card.setId, group); }
   const sets = summaries.sort((a, b) => compare(b.updatedAt, a.updatedAt) || compare(a.id, b.id)).map(set => ({ ...set, cards: bySet.get(set.id) || [] }));
   folders.sort((a, b) => compare(a.name, b.name) || compare(a.id, b.id));
