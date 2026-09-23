@@ -1,3 +1,4 @@
+import { materialDataHandlers } from './material-api-fixture.mjs';
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
@@ -13,7 +14,7 @@ const c=createClient({url:':memory:'});await migrate(c);const db=createDatabase(
 registerHooks({resolve(s,ctx,next){if(['./client','../db/client','../../../../db/client'].includes(s))return {url:'data:text/javascript,export function database(){return globalThis.__freeDb} export async function initializeDatabase(){await globalThis.__freeDb.initialize()}',shortCircuit:true};if(s.startsWith('.')&&!/\.[a-z]+$/.test(s))return next(new URL(s+'.ts',ctx.parentURL).href,ctx);return next(s,ctx);}});
 const store=await import('../db/store.ts');
 const {resolveInternalUser}=await import('../db/auth-store.ts');
-const {POST,GET}=await import('../app/api/data/route.ts');
+const {POST,GET}=await materialDataHandlers();
 const {POST:retention}=await import('../app/api/retention/route.ts');
 const {POST:generate}=await import('../app/api/ai/cards/route.ts');
 const {continueLearning}=await import('../lib/continue-learning.ts');
@@ -115,7 +116,7 @@ test('final transaction rolls back atomically; committed response loss/retry and
  await c.execute("CREATE TEMP TRIGGER fail_complete BEFORE UPDATE OF completed_at ON study_sessions WHEN NEW.completed_at IS NOT NULL BEGIN SELECT RAISE(ABORT,'failure'); END");
  assert.equal((await send(u,p)).status,500);await c.execute('DROP TRIGGER fail_complete');
  let d=await data(u,s.id);assert.equal(d.reviews.length,0);assert.equal(d.sets[0].cards[0].reviewCount,0);assert.equal(d.retention.streak,0);
- let lose=false;globalThis.__freeDb={...db,transaction:async fn=>{const result=await db.transaction(fn);lose=true;return result;},prepare(sql,args){if(lose&&sql.startsWith('SELECT * FROM card_sets')){lose=false;throw Error('response lost');}return db.prepare(sql,args);}};
+ let lose=false;globalThis.__freeDb={...db,transaction:async fn=>{const result=await db.transaction(fn);lose=true;return result;},prepare(sql,args){if(lose&&sql.startsWith('SELECT COALESCE(MAX(rowid)')){lose=false;throw Error('response lost');}return db.prepare(sql,args);}};
  try{assert.equal((await send(u,p)).status,500);}finally{globalThis.__freeDb=db;}
  const replay=await (await send(u,p)).json();assert.equal(replay.data.reviews.length,1);assert.equal(replay.data.retention.streak,1);
  const undo=await send(u,{action:'undoReview',sessionId:s.id,reviewId:replay.reviewId});assert.equal(undo.status,200);

@@ -3,7 +3,8 @@ import { observeRoute } from "../../../lib/reliability/server";
 import { logEvent } from '../../../lib/safe-log';
 import { requireAuth, authErrorResponse } from "../../../lib/auth-server";
 import { InputError, readJsonObject, validId, boundedText } from "../../../lib/api-input";
-import { updateOnboarding, organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, loadAppData, reviewCard, undoReview, saveGeneratedSet, materialOperationCardIds } from "../../../db/store";
+import { updateOnboarding, organizeSets, manageMaterial, seedIfEmpty, addCardsToSet, reviewCard, undoReview, saveGeneratedSet, materialOperationCardIds } from "../../../db/store";
+import { loadAppDataPage as loadAppData, materialCardIds } from '../../../db/materials';
 import type { BinaryReviewRating, GeneratedMaterial } from "../../../lib/types";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,7 @@ async function handleGET(request: Request): Promise<Response> {
   } catch (error) {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;
+    if (error instanceof InputError) return json({ code: error.message }, error.status);
     logEvent('api_failed', { endpoint: 'data', status: 500 });
     return json({ error: "学習データを読み込めませんでした。" }, 500);
   }
@@ -78,7 +80,7 @@ async function handlePOST(request: Request): Promise<Response> {
         folderId: material.folderId ? String(material.folderId) : null,
       }, typeof body.operationId === 'string' ? body.operationId : undefined);
       const data = await loadAppData(userId);
-      const cardIds = typeof body.operationId === 'string' ? await materialOperationCardIds(userId, body.operationId) : data.sets.find(set => set.id === setId)?.cards.map(card => card.id) || [];
+      const cardIds = typeof body.operationId === 'string' ? await materialOperationCardIds(userId, body.operationId) : await materialCardIds(userId, setId);
       return json({ setId, cardIds, data });
     }
     if (body.action === "addCardsToSet") {

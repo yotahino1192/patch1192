@@ -52,47 +52,32 @@ npm run db:import-local
 
 ## Vercelからデプロイ
 
-1. Tursoでホスト型libSQLデータベースを作成し、接続URLと認証トークンを取得します。
-2. Vercelの「Add New → Project」で `yotahino1192/patch1192` をImportします。
-3. Framework Presetは **Next.js**、Root Directoryはリポジトリのルートです。
-   ビルドコマンドは `npm run build`、Output Directoryはデフォルトのままにします。
-4. 以下の環境変数をVercelのProject Settings → Environment Variablesに設定します。
-   利用するProduction/Preview環境それぞれに設定してください。
-5. Deployします。Productionへの自動昇格は有効にせず、[Production運用手順](docs/production-infrastructure.md)に従ってbackup・migration検証後にreleaseしてください。
+[Production hosting確認・環境変数一覧](docs/production-hosting-phase-20260923.md)を参照してください。現在project/domainはDashboard確認待ちで、削除worker起動にも未解決事項があります。教材応答サイズは[ページ取得と本文detail分離](docs/materials-response-bounds-20260923.md)で修正しました。この手順はdeploy承認ではありません。
 
-| 環境変数 | 必須 | 値 |
-| --- | --- | --- |
-| `TURSO_DATABASE_URL` | Vercelで必須 | `libsql://...` など、Tursoが発行する接続URL |
-| `TURSO_AUTH_TOKEN` | 認証付きDBで必須 | 上記DBの読み書き用トークン |
-| `OPENAI_API_KEY` | AI機能に必須 | OpenAIのAPIキー |
-| `OPENAI_CARD_MODEL` | 任意 | カード生成モデル。未設定は `gpt-5-nano` |
-| `OPENAI_CHAT_MODEL` | 任意 | AI解説モデル。未設定は `gpt-5-nano` |
+構成案は **Next.js / Node 22.x / repository root / `npm ci` / `npm run build` / 既定Output Directory** です。現scannerはGit metadataを要求するため、承認したcommitのGit連携buildを使います。Importやpushもdeployを起こし得るため、実行前に対象projectと自動deploy条件を確認してください。
 
-秘密情報に `NEXT_PUBLIC_` は付けないでください。`.env` をGitHubに追加する必要はありません。
-Vercelでは `file:` のDBは使用できません。PATCH_ENV=productionでは環境変数とallowlistが未設定の場合buildが失敗します。DB schemaはrequestから更新せず、npm run db:migrateで明示的に準備してください。
-APIはNode.jsで動作し、実行時間上限は60秒に設定しています。
-PDFのWorkerと日本語文字マップはprebuild/predevで同じ依存パッケージからコピーされます。
+ProductionはClerk live設定、remote Turso、OpenAI key、両モデル名、AI有効/無効、削除worker secret、確定したoriginとallowlistが必須です。AI無効時も現validatorはOpenAI keyを要求します。秘密情報に `NEXT_PUBLIC_` は付けず、Development秘密値を再利用しないでください。Previewは独立したstaging設定が必要です。
+
+Vercelでは `file:` DBは使用できません。環境変数とallowlistが未設定の場合buildが失敗します。DB schemaはrequestから更新せず、[Production運用手順](docs/production-infrastructure.md)に従って明示的に準備・検証します。
+APIはNode.jsで動作し、AI・data・削除workerの実行時間上限は60秒です。PDFのWorkerと日本語文字マップはprebuild/predevでコピーされ、文書抽出は端末側で行います。
 
 ### データ・アクセスの扱い
 
-既存仕様を保ち、この版にはログインや利用者別データ分離を追加していません。
-利用者は同じ教材・記録を共有し、AI利用は設定したAPIキーに課金されます。
-限定利用する場合はVercel側のDeployment Protectionなどでアクセス範囲を設定してください。
 APIはClerk認証と内部user IDによる所有権確認を使用します。`loop-owner`への自動割当はありません。
+AI利用はserverに設定したAPIキーに課金されます。nativeが使用するProduction domainにはVercelログインを要求しない設定が必要です。Deployment Protectionの適用範囲はAPIのClerk認証とは別に確認してください。
 
 ## データベースと確認
 
 - スキーマ: `db/schema.ts`
 - マイグレーション: `drizzle/*.sql`
-- 接続・自動マイグレーション: `db/client.ts`
+- 接続・スキーマ検証: `db/client.ts`
 - 保存と復習の処理: `db/store.ts`
 - `npm run db:generate`: スキーマ変更時のSQL生成
 - `npm test`: 本番ビルドと自動テスト
 - `npm run check`: Node 22で型検査・Lint・自動テスト・本番ビルド
 - `npm run test:unit`: 自動テストのみ
 
-初回接続時、SQLをトランザクション内で順に適用します。適用履歴は `_loop_migrations` に保存します。
-既存のCloudflareローカルDBをコピーした場合も、既に存在するテーブルや列は維持します。
+初回利用前に `npm run db:migrate` で明示的に準備します。request中に自動migrationは実施しません。既存DBの採用・履歴検証は[DB運用手順](docs/production-infrastructure.md)に従ってください。
 
 参考: [VercelのNext.js対応](https://vercel.com/docs/frameworks/full-stack/nextjs) · [Turso TypeScriptクライアント](https://docs.turso.tech/sdk/ts/reference)
 

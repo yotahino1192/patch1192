@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  // Development identifier: replace with your registered ID before distribution.
+  // Registered App ID; shared by Debug and Release (environment is in the sealed bundle).
   appId: "com.patch.learning",
   appName: "Patch",
   webDir: "dist/mobile",

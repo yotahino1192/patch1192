@@ -1,3 +1,4 @@
+import { materialDataHandlers } from './material-api-fixture.mjs';
 import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
 import { registerHooks } from 'node:module';
@@ -19,7 +20,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 const store = await import('../db/store.ts');
-const { POST } = await import('../app/api/data/route.ts');
+const { POST } = await materialDataHandlers();
 const { GET: session } = await import('../app/api/auth/session/route.ts');
 const material = { title: 'Memory', category: 'Learning', summary: '', keyPoints: ['Recall supports memory'], sourceContent: 'Recall supports memory. Practice helps retrieval.', cards: [{ question: 'What supports memory?', answer: 'Recall', choices: [], format: 'qa', difficulty: 1 }] };
 const draft = { ...material, cards: material.cards.map((c, i) => ({ ...c, selected: true, draftId: String(i) })) };
@@ -47,7 +48,7 @@ test('append retry is atomic and preserves name, prior cards, source and learnin
   const a = await (await send(who, payload)).json(); const b = await (await send(who, payload)).json();
   assert.deepEqual(a.cardIds,b.cardIds); assert.equal(b.cardIds.length,1); assert.equal(b.setId,setId);
   const set = b.data.sets[0]; assert.equal(set.title,material.title); assert.equal(set.cards.length,2);
-  assert.equal(set.sourceContent.split('New source').length,2);
+  assert.equal(set.sourceContent,undefined); const {loadMaterialText}=await import('../db/materials.ts');assert.equal((await loadMaterialText(who.userId,set.id,'source')).content.split('New source').length,2);
   assert.deepEqual(set.cards.find(c => c.id === before.sets[0].cards[0].id),before.sets[0].cards[0]);
   assert.deepEqual(b.data.reviews,before.reviews); assert.equal(b.data.retention.streak,before.retention.streak); assert.equal(b.data.retention.session,before.retention.session);
   await store.manageMaterial(who.userId,{action:'deleteCard',cardId:b.cardIds[0]});

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AppData } from '../lib/types';
 import { GOALS, INTEREST_GROUPS, recommend } from '../lib/onboarding';
 import { useLanguage } from './language';
+import { MaterialKeyPoints } from './material-source';
 import { AssetIcon } from './asset-icon';
 
 export function Onboarding({data,onData,onStart,onFinish,study}: {data: AppData; onData:(data:AppData)=>void;onStart:()=>void;onFinish:()=>void;study:ReactNode}) {
@@ -56,7 +57,7 @@ export function Onboarding({data,onData,onStart,onFinish,study}: {data: AppData;
         <button className="primary wide" disabled={busy||!GOALS.includes(goal)} onClick={()=>save({step:'goal',learningGoal:goal},'recommend')}>{t('次へ')}</button>
       </> : step==='recommend' ? <>
         <p className="muted">{t('まずは気になるものから始めてみましょう。')}</p><div className="onboarding-options">{recommendations.map(({preset,reason})=><button key={preset.id} className="onboarding-preset" disabled={busy} onClick={()=>save({step:'select',presetId:preset.id},'intro')}><strong>{t(preset.title)}</strong><span>{t(preset.summary)}</span><small>{t('約5分')} · {preset.cards.length}{t('枚')} · {t('入門')}</small><span className="onboarding-reason">{t(reason)}</span></button>)}</div>
-      </> : selected ? <section className="onboarding-intro"><p>{t(selected.summary)}</p><p className="muted">{t('約5分')} · {selected.cards.length}{t('枚')} · {t('入門')}</p><h2>{t('このセットで分かること')}</h2><ul>{selected.keyPoints.map(point=><li key={point}>{t(point)}</li>)}</ul><button className="primary wide" onClick={onStart}>{t('まず3枚やってみる')}</button><p className="muted onboarding-time">{t('約2分で終わります')}</p></section> : null}
+      </> : selected ? <section className="onboarding-intro"><p>{t(selected.summary)}</p><p className="muted">{t('約5分')} · {selected.cards.length}{t('枚')} · {t('入門')}</p><h2>{t('このセットで分かること')}</h2><MaterialKeyPoints set={selected} /><button className="primary wide" onClick={onStart}>{t('まず3枚やってみる')}</button><p className="muted onboarding-time">{t('約2分で終わります')}</p></section> : null}
       {busy && <p role="status">{t('保存しています…')}</p>}{error && <p className="inline-error" role="alert">{t(error)}</p>}
     </main>}
   </div>;

@@ -28,14 +28,15 @@ export type Folder = {
 };
 
 export type CardSet = {
+  sourceUpdatedAt?: string;
   sourceKind?: "source" | "topic" | "mixed";
   folderId: string | null;
   id: string;
   title: string;
   category: string;
   summary: string;
-  keyPoints: string[];
-  sourceContent: string;
+  keyPoints?: string[];
+  sourceContent?: string;
   createdAt: string;
   updatedAt: string;
   lastStudiedAt: string | null;

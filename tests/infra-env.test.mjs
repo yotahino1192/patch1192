@@ -14,11 +14,29 @@ const target = { apiOrigins: [origin], webOrigins: [origin], clerkIssuers: ['htt
 const policy = { version: 1, production: target, staging: target };
 function valid() { return { AI_ENABLED: 'true', ACCOUNT_DELETION_WORKER_SECRET: randomBytes(32).toString('base64url'), PATCH_ENV: 'production', PATCH_API_ORIGIN: origin, VERCEL_PROJECT_PRODUCTION_URL: new URL(origin).host, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk, CLERK_ISSUER: 'https://' + host, CLERK_SECRET_KEY: 'sk_' + 'live_' + randomBytes(20).toString('hex'), TURSO_DATABASE_URL: target.databaseUrls[0], TURSO_AUTH_TOKEN: 'eyJ' + randomBytes(16).toString('base64url') + '.' + randomBytes(24).toString('base64url') + '.' + randomBytes(32).toString('base64url'), OPENAI_API_KEY: 'sk-' + randomBytes(24).toString('hex'), OPENAI_CARD_MODEL: 'gpt-5-nano', OPENAI_CHAT_MODEL: 'gpt-5-nano', AUTH_ALLOWED_ORIGINS: origin }; }
 test('development explicit configuration passes without secrets; missing environment fails', () => { assert.equal(validateServer({ PATCH_ENV: 'development' }, policy).env, 'development'); assert.throws(() => validateServer({}, policy), /PATCH_ENV/); });
+test('Vercel deployment identity cannot silently downgrade production or share production with previews', () => {
+    for (const PATCH_ENV of ['development', 'staging'])
+        assert.throws(() => validateServer({ ...valid(), PATCH_ENV, VERCEL_ENV: 'production' }, policy), /VERCEL_ENV_MISMATCH/);
+    for (const PATCH_ENV of ['development', 'production'])
+        assert.throws(() => validateServer({ ...valid(), PATCH_ENV, VERCEL_ENV: 'preview' }, policy), /VERCEL_ENV_MISMATCH/);
+    assert.equal(validateServer({ ...valid(), VERCEL_ENV: 'production' }, policy).env, 'production');
+    assert.equal(validateServer({ ...valid(), PATCH_ENV: 'staging', VERCEL_ENV: 'preview' }, policy).env, 'staging');
+    assert.equal(validateServer({ PATCH_ENV: 'development', NODE_ENV: 'production' }, policy).env, 'development');
+    assert.equal(validateServer({ PATCH_ENV: 'development', VERCEL_ENV: 'development' }, policy).env, 'development');
+});
 test('remote environment requires a separate worker secret', () => {
     for (const PATCH_ENV of ['staging', 'production']) for (const secret of [undefined, '', 'a'.repeat(64), 'changeme'.repeat(8)])
         assert.throws(() => validateServer({ ...valid(), PATCH_ENV, ACCOUNT_DELETION_WORKER_SECRET: secret }, policy), /ACCOUNT_DELETION_WORKER_SECRET/);
 });
 test('production and staging validate with matched allowlisted endpoints', () => { assert.equal(validateServer(valid(), policy).env, 'production'); assert.equal(validateServer({ ...valid(), PATCH_ENV: 'staging' }, policy).env, 'staging'); });
+test('every required production server value fails closed when missing, including AI key during a stop', () => {
+    for (const name of Object.keys(valid())) {
+        const input = valid();
+        delete input[name];
+        assert.throws(() => validateServer(input, policy), undefined, name);
+    }
+    assert.throws(() => validateServer({ ...valid(), AI_ENABLED: 'false', OPENAI_API_KEY: undefined }, policy), /OPENAI_API_KEY/);
+});
 test('production rejects test Clerk, mismatched issuer, dummy AI and unauthorized model', () => { const e = valid(); for (const change of [{ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk.replace('live', 'test') }, { CLERK_ISSUER: 'https://another.patch-release.dev' }, { OPENAI_API_KEY: 'dummy' }, { OPENAI_CHAT_MODEL: 'expensive-model' }, { CLERK_JWT_KEY: 'public-key' }, { AUTH_ALLOWED_ORIGINS: 'https://evil.tld' }])
     assert.throws(() => validateServer({ ...e, ...change }, policy)); });
 test('production rejects local, private, reserved and unallowlisted API origins', () => { for (const url of ['http://app.patch-release.dev', 'https://localhost', 'https://127.0.0.1', 'https://2130706433', 'https://10.0.0.1', 'https://172.16.0.1', 'https://192.168.1.1', 'https://[::1]', 'https://[::ffff:127.0.0.1]', 'https://example.invalid', 'https://example.com', 'https://api.example.com', 'https://host.test', 'https://unapproved.tld', 'https://*.patch-release.dev', 'https://app..patch-release.dev', 'https://_app.patch-release.dev'])

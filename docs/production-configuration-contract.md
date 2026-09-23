@@ -4,6 +4,8 @@ Entry point: [master runbook](testflight-go-live-runbook.md). All values below a
 
 ## Reviewed public policy and variable names
 
+2026-09-23 guard update: Vercel `VERCEL_ENV=production` requires `PATCH_ENV=production`; `VERCEL_ENV=preview` requires isolated `PATCH_ENV=staging`. Enable Vercel System Environment Variables; do not override this provider identity. Set `NODE_ENV=production` before invoking local Production npm commands so root pre/postbuild CLI scripts load the Production env files too. Public mobile values belong only in `mobile/.env.production.local`. See the [current Japanese inventory](testflight-production-readiness-20260923.md) and secret-free [server](../config/production.env.example) / [mobile](../config/mobile-production.env.example) templates.
+
 Edit `config/release-policy.json` on a reviewed candidate. `production.apiOrigins`, `webOrigins`, `clerkIssuers`, `databaseUrls`, `databaseId`, `models` must describe the actual services. Keep staging DB/Clerk instance/credentials distinct; compare actual service identities, not only display names (offline checks cannot prove account isolation).
 
 | Location | Exact variable | Contract / source |

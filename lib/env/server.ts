@@ -6,6 +6,11 @@ import { ConfigError, environment, rejectUnsafeFlags, safeOrigin, validatePublic
 export function readPolicy(): ReleasePolicy { return JSON.parse(readFileSync(resolve(process.cwd(), 'config/release-policy.json'), 'utf8')) as ReleasePolicy; }
 export function validateServer(input: EnvInput, policy: ReleasePolicy = readPolicy()) {
     const env = environment(input);
+    // A hosted target must not become Development merely by copying a local env file.
+    // NODE_ENV cannot express this: local Next builds also use production compilation.
+    if ((input.VERCEL_ENV === 'production' && env !== 'production') ||
+        (input.VERCEL_ENV === 'preview' && env !== 'staging'))
+        throw new ConfigError('VERCEL_ENV_MISMATCH');
     rejectUnsafeFlags(input, env);
     if (input.AI_ENABLED !== undefined && !['true', 'false'].includes(input.AI_ENABLED)) throw new ConfigError('AI_ENABLED');
     const publicConfig = validatePublic(input, policy);

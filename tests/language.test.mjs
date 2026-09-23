@@ -38,7 +38,7 @@ test("material manager has English controls while retaining the original cards",
   const html = render("en", React.createElement(MaterialManager, { set, onData() {} }));
   for (const label of ["Manage material", "Save name", "Active", "Archived", "Deleted", "Edit", "Delete"]) assert.ok(html.includes(label), label);
   assert.ok(html.includes("日本語の質問"));
-  assert.ok(html.includes("日本語の元資料"));
+  assert.ok(!html.includes("日本語の元資料"), "Source stays out of the initial document until expanded");
   assert.ok(!html.includes("教材を管理"));
   const ja = render("ja", React.createElement(MaterialManager, { set, onData() {} }));
   assert.ok(ja.includes("教材を管理"));

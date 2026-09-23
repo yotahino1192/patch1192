@@ -1,3 +1,4 @@
+import { materialDataTransport } from '../lib/material-data-client.ts';
 import { createClient } from '@libsql/client';
 import { migrate } from './infra/migrations.mjs';
 // Run after npm run build. Real UI + authenticated APIs, isolated browser/DB and test-only SDK entry.
@@ -29,7 +30,8 @@ try {
  const command=async(action,input)=>{const r=await fetch(origin+'/api/domain',{method:'POST',headers:authHeaders('user_lesson_A',identities.A.userId,{'content-type':'application/json'}),body:JSON.stringify({action,input})});assert.equal(r.status,200, r.status===200?'':await r.text());return r.json();};
  const query=async(resource,id)=>{const r=await fetch(origin+'/api/domain?'+new URLSearchParams({resource,id}),{headers:authHeaders('user_lesson_A',identities.A.userId)});assert.equal(r.status,200, r.status===200?'':await r.text());return r.json();};
  const post=async(path,body,who='A')=>{const r=await fetch(origin+path,{method:'POST',headers:authHeaders('user_lesson_'+who,identities[who].userId,{'content-type':'application/json'}),body:JSON.stringify(body)});assert.equal(r.status,200, r.status===200?'':await r.text());return r.json();};
- const data=async()=>await(await fetch(origin+'/api/data',{headers:authHeaders('user_lesson_A',identities.A.userId)})).json();
+ const api=materialDataTransport((path,options)=>fetch(origin+path,{...options,headers:authHeaders('user_lesson_A',identities.A.userId)}));
+ const data=async()=>await(await api('/api/data')).json();
  // Existing-user fixture: creating material before the first profile read follows the existing onboarding policy.
  for(const who of ['A','B'])await post('/api/data',{action:'saveSet',material:{title:'Existing card material',category:'Test',summary:'Existing Continue Learning',keyPoints:[],sourceContent:'Existing source',cards:Array.from({length:8},(_,i)=>({question:'Legacy question '+i,answer:'Legacy answer',format:'qa',choices:[],difficulty:2}))}},who);
  assert.equal((await data()).profile.onboardingCompleted,true);

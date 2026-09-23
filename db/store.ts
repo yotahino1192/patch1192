@@ -60,18 +60,18 @@ export async function seedIfEmpty(userId: string, language: "ja" | "en" = "ja"):
   });
 }
 
-export async function loadAppData(userId: string, sessionIds: string[] = [], timezone?:string): Promise<AppData> {
+export async function loadAppData(userId: string, sessionIds: string[] = [], timezone?:string, includeMaterials = true): Promise<AppData> {
   await ensureDatabase();
   const profile = await loadProfile(userId);
   const db = database();
   const { start, end } = studyDayBounds(new Date());
   const recordStart = new Date(new Date(start).getTime() - 6 * 86_400_000).toISOString();
   const [setResult, cardResult, reviewResult, chatResult, folderResult, activityResult] = await Promise.all([
-    db.prepare("SELECT * FROM card_sets WHERE user_id = ? ORDER BY updated_at DESC").bind(userId).all(),
-    db.prepare("SELECT * FROM cards WHERE user_id = ? ORDER BY created_at ASC").bind(userId).all(),
+    includeMaterials ? db.prepare("SELECT p.*, s.content AS source_content, s.input_kind FROM card_sets p LEFT JOIN sources s ON s.id=p.source_id AND s.user_id=p.user_id WHERE p.user_id = ? ORDER BY p.updated_at DESC,p.id").bind(userId).all() : { results: [] },
+    includeMaterials ? db.prepare("SELECT * FROM cards WHERE user_id = ? ORDER BY created_at ASC,id").bind(userId).all() : { results: [] },
     db.prepare("SELECT * FROM review_logs WHERE user_id = ? ORDER BY reviewed_at DESC, rowid DESC LIMIT 500").bind(userId).all(),
     db.prepare("SELECT * FROM chat_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 500").bind(userId).all(),
-    db.prepare("SELECT id, parent_id, name FROM folders WHERE user_id = ? ORDER BY name, id").bind(userId).all(),
+    includeMaterials ? db.prepare("SELECT id, parent_id, name FROM folders WHERE user_id = ? ORDER BY name, id").bind(userId).all() : { results: [] },
     // Count each successfully recalled card once per Tokyo day, beyond the log page limit.
     db.prepare("SELECT date(reviewed_at, '+9 hours') AS day, COUNT(DISTINCT card_id) AS cards FROM review_logs WHERE user_id = ? AND undone_at IS NULL AND rating IN ('good', 'easy') AND reviewed_at >= ? AND reviewed_at < ? GROUP BY day").bind(userId, recordStart, end).all(),
   ]);
@@ -84,20 +84,14 @@ export async function loadAppData(userId: string, sessionIds: string[] = [], tim
     category: String(row.category),
     summary: String(row.summary),
     keyPoints: parseJsonArray(row.key_points),
-    sourceContent: "",
+    sourceContent: String(row.source_content || ""),
+    sourceKind: (row.input_kind || "source") as CardSet['sourceKind'],
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     lastStudiedAt: row.last_studied_at ? String(row.last_studied_at) : null,
     nextReviewAt: row.next_review_at ? String(row.next_review_at) : null,
     cards: cards.filter((card) => card.setId === String(row.id)),
   }));
-
-  for (const set of sets) {
-    const source = await db.prepare("SELECT content, input_kind FROM sources WHERE user_id = ? AND id = (SELECT source_id FROM card_sets WHERE id = ? AND user_id = ?)")
-      .bind(userId, set.id, userId).first<{ content: string; input_kind: "source" | "topic" | "mixed" }>();
-    set.sourceContent = source?.content || "";
-    set.sourceKind = source?.input_kind || "source";
-  }
 
   const requestedSessions = [...new Set([...sessionIds, ...(!profile.onboardingCompleted && profile.initialSessionId ? [profile.initialSessionId] : [])])];
   const sessionRows = requestedSessions.length ? (await db.prepare(`SELECT * FROM review_logs WHERE user_id = ? AND session_id IN (${requestedSessions.map(() => "?").join(",")}) ORDER BY rowid ASC`).bind(userId, ...requestedSessions).all()).results : [];
@@ -128,7 +122,7 @@ export async function loadAppData(userId: string, sessionIds: string[] = [], tim
   return { ...await loadStudyViews(userId, requestedSessions), retention: await retentionSnapshot(userId,timezone), profile, undoneOperationIds: sessionRows.filter((row) => row.undone_at && row.operation_id).map((row) => String(row.operation_id)), sets, reviews, ...(requestedSessions.length ? { sessionReviews } : {}), chatMessages, folders, recordActivity: (activityResult.results || []).map((row) => ({ day: String(row.day), cards: Number(row.cards) })), undoneReviewIds: [...(reviewResult.results || []), ...sessionRows].filter((row) => row.undone_at).map((row) => String(row.id)), dailyReview: await loadDailyReview(userId) };
 }
 
-function mapCard(row: Record<string, unknown>): Card {
+export function mapCard(row: Record<string, unknown>): Card {
   return {
     id: String(row.id),
     setId: String(row.set_id),

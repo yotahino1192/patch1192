@@ -1,3 +1,4 @@
+import { materialDataHandlers } from './material-api-fixture.mjs';
 import { grantAi } from './ai-consent-fixture.mjs';
 import { migrate } from '../scripts/infra/migrations.mjs';
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ registerHooks({resolve(specifier, context, next) {
   if (specifier.startsWith('.') && !/\.[a-z]+$/.test(specifier)) return next(new URL(specifier+'.ts',context.parentURL).href,context);
   return next(specifier,context);
 }});
-const { GET, POST } = await import('../app/api/data/route.ts');
+const { GET, POST } = await materialDataHandlers();
 const { GET: SESSION } = await import('../app/api/auth/session/route.ts');
 const { POST: CHAT } = await import('../app/api/ai/chat/route.ts');
 const { POST: GENERATE } = await import('../app/api/ai/cards/route.ts');
@@ -70,7 +71,7 @@ test('A and B own isolated data; reload retains mapping; legacy is neither claim
     assert.equal(response.status,200);
     const data=(await response.json()).data;assert.equal(data.sets.length,1);assert.equal(data.sets[0].title,label);
     const reload=await (await GET(request(subject,owner.userId,undefined,{'x-user-id':'loop-owner'}))).json();
-    assert.equal(reload.sets[0].sourceContent,`private source ${label}`);assert.ok(!JSON.stringify(reload).includes('legacy'));
+    assert.equal(reload.sets[0].sourceContent,undefined); const {loadMaterialText}=await import('../db/materials.ts');assert.equal((await loadMaterialText(owner.userId,reload.sets[0].id,'source')).content,`private source ${label}`);assert.ok(!JSON.stringify(reload).includes('legacy'));
   }
   assert.equal((await db.prepare("SELECT count(*) n FROM auth_identities WHERE user_id='loop-owner'").first()).n,0);
   assert.equal((await store.loadAppData('loop-owner')).sets[0].title,'legacy');
@@ -134,7 +135,7 @@ test('a corrupt source relationship cannot leak another owner source into worksp
   const foreign=await db.prepare('SELECT id FROM sources WHERE user_id=?').bind(b.userId).first();
   await db.prepare('UPDATE card_sets SET source_id=? WHERE id=?').bind(foreign.id,aSet.id).run();
   try {
-    const data=await (await GET(request('user_A',a.userId))).json();assert.equal(data.sets[0].sourceContent,'');
+    const data=await (await GET(request('user_A',a.userId))).json();assert.equal(data.sets[0].sourceContent,undefined);const {loadMaterialText}=await import('../db/materials.ts');assert.equal((await loadMaterialText(a.userId,aSet.id,'source')).content,'');
     await assert.rejects(store.loadAiCardContext(a.userId,aSet.id,aSet.cards[0].id,'lesson'),/CARD_NOT_FOUND/);
   } finally {await db.prepare('UPDATE card_sets SET source_id=? WHERE id=?').bind(original.source_id,aSet.id).run();}
 });

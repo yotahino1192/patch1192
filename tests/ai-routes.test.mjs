@@ -1,3 +1,4 @@
+import { materialDataHandlers } from './material-api-fixture.mjs';
 import { grantAi } from './ai-consent-fixture.mjs';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -154,7 +155,7 @@ test('delayed explanations never change grades; edits and deletion cancel instea
 });
 
 test('MCQ invalid content -> same-key check -> explicit new generation -> save -> study preserves ledger and answer', async () => {
- const { POST: dataPost } = await import('../app/api/data/route.ts');
+ const { POST: dataPost } = await materialDataHandlers();
  const a = await account('user_mcq_contract_recovery'), key = randomUUID();
  const body = { text: 'Synthetic recall and practice material. '.repeat(4), style: '4択問題' };
  const choice = { question: 'What supports memory?', choices: ['Reading', 'Rest', 'Recall', 'Noise'], correctChoiceIndex: 2, format: 'multiple_choice', difficulty: 1 };
