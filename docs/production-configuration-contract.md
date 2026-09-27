@@ -1,6 +1,26 @@
 # Production configuration contract — 2026-09-21
 
-Entry point: [master runbook](testflight-go-live-runbook.md). All values below are **YOTA INPUT REQUIRED** or must be obtained from the chosen service. Empty policy/operations fields are intentional release blockers. No Production service is configured by these files. Never substitute synthetic test values into real policy or build environments.
+Entry point: [master runbook](testflight-go-live-runbook.md). The non-secret Production policy values confirmed on 2026-09-27 are recorded below. Credentials and remaining operational inputs must still be obtained from the chosen service/operator. Empty staging policy/operations fields are intentional release blockers. No Production service is configured by these files. Never substitute synthetic test values into real policy or build environments.
+
+## Confirmed Production policy — 2026-09-27
+
+Baseline: fetched `origin/Dev` = `7d4d32d3097b0e4959e473015ea98d32f853a7c1`. The operator supplied the domain, Clerk issuer and fresh Turso database details; this repository update does not independently verify DNS, TLS, credentials or hosted database state.
+
+| `production` field | Configured non-secret value | Repository contract |
+| --- | --- | --- |
+| `apiOrigins` | `["https://mepamo.com"]` | Array of canonical HTTPS API origins matched exactly against `PATCH_API_ORIGIN` (mobile: `PATCH_API_URL`); no path, trailing slash, query, wildcard or literal IP |
+| `webOrigins` | `["https://mepamo.com"]` | Array of permitted HTTPS Web origins; each `AUTH_ALLOWED_ORIGINS` entry and `https://` plus `VERCEL_PROJECT_PRODUCTION_URL` must belong to it |
+| `clerkIssuers` | `["https://clerk.mepamo.com"]` | Array of canonical HTTPS issuers; exact `CLERK_ISSUER` match and hostname equality with the decoded live publishable key are required |
+| `databaseUrls` | `["libsql://mepamo-production-yotahino1192.aws-ap-northeast-1.turso.io"]` | Exact hosted database URL allowlist for `TURSO_DATABASE_URL`; `libsql:`/`https:` only, no embedded credentials, query, fragment or non-root path |
+| `databaseId` | `mepamo-production` | Stable operator confirmation/backup identifier, using the confirmed Turso database name unchanged |
+
+`databaseId` is a nonempty string returned verbatim by `lib/env/server.ts`. `scripts/infra/cli.mjs` compares it literally with `--confirm-db` and, for Production writes, `--maintenance-confirmation`. `scripts/db-backup.mjs` stores it as backup manifest `dbIdentifier`. It is not a Turso UUID, token claim, URL-derived identifier or provider lookup key; the code performs no normalization or provider-ID verification. The URL is separately allowlisted. Thus the confirmed database name `mepamo-production` is the reviewed stable identifier, with no additional provider identifier required. Keep it stable for operator confirmations and backup provenance.
+
+The model allowlist remains `["gpt-5-nano"]`; staging remains unconfigured. No credentials or actual publishable key are stored here. The Production runtime/build environment must still supply matching live configuration. In particular, Vercel's actual production hostname must resolve to an allowed Web origin; the project name or an automatically assigned `vercel.app` hostname is not a substitute for `mepamo.com` in this policy.
+
+This change authorizes no remote migration, application traffic, deployment or external configuration. The fresh Production database still needs a separately authorized migration before use. Earlier readiness documents describing empty Production allowlists are historical snapshots superseded by this section for these five fields only.
+
+Offline validation on Node 22.23.2: all 35 `tests/infra-*.test.mjs` tests passed; schema-manifest and repository/client secret scans passed. A separate in-memory check loaded the actual policy and passed server/mobile validation with disposable synthetic credential strings, rejected nine invalid configurations, and confirmed staging remained empty. No real credentials, provider clients or hosted database connections were used in that policy check. These results establish internal configuration consistency, not live credential validity or a successful Production build/deployment.
 
 ## Reviewed public policy and variable names
 

@@ -1,5 +1,12 @@
 {
   "version": 1,
   "staging": { "apiOrigins": [], "webOrigins": [], "clerkIssuers": [], "databaseUrls": [], "databaseId": "", "models": ["gpt-5-nano"] },
-  "production": { "apiOrigins": [], "webOrigins": [], "clerkIssuers": [], "databaseUrls": [], "databaseId": "", "models": ["gpt-5-nano"] }
+  "production": {
+    "apiOrigins": ["https://mepamo.com"],
+    "webOrigins": ["https://mepamo.com"],
+    "clerkIssuers": ["https://clerk.mepamo.com"],
+    "databaseUrls": ["libsql://mepamo-production-yotahino1192.aws-ap-northeast-1.turso.io"],
+    "databaseId": "mepamo-production",
+    "models": ["gpt-5-nano"]
+  }
 }
