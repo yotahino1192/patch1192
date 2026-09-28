@@ -1,6 +1,6 @@
 # Production configuration contract — 2026-09-21
 
-Entry point: [master runbook](testflight-go-live-runbook.md). The non-secret Production policy values confirmed on 2026-09-27 are recorded below. Credentials and remaining operational inputs must still be obtained from the chosen service/operator. Empty staging policy/operations fields are intentional release blockers. No Production service is configured by these files. Never substitute synthetic test values into real policy or build environments.
+Entry point: [master runbook](testflight-go-live-runbook.md). The non-secret Production policy values confirmed on 2026-09-27 are recorded below. Credentials and remaining operational inputs must still be obtained from the chosen service/operator. Empty staging policy remains a blocker for staging. Incomplete operations fields block full TestFlight handoff; the [controlled owner-only Phase A procedure](controlled-production-validation.md) explicitly scopes live-evidence sequencing without changing validators. No Production service is configured by these files. Never substitute synthetic test values into real policy or build environments.
 
 ## Confirmed Production policy — 2026-09-27
 
@@ -18,7 +18,7 @@ Baseline: fetched `origin/Dev` = `7d4d32d3097b0e4959e473015ea98d32f853a7c1`. The
 
 The model allowlist remains `["gpt-5-nano"]`; staging remains unconfigured. No credentials or actual publishable key are stored here. The Production runtime/build environment must still supply matching live configuration. In particular, Vercel's actual production hostname must resolve to an allowed Web origin; the project name or an automatically assigned `vercel.app` hostname is not a substitute for `mepamo.com` in this policy.
 
-This change authorizes no remote migration, application traffic, deployment or external configuration. The fresh Production database still needs a separately authorized migration before use. Earlier readiness documents describing empty Production allowlists are historical snapshots superseded by this section for these five fields only.
+This change authorizes no remote migration, application traffic, deployment or external configuration. At that historical policy checkpoint the fresh database still needed migration. The later [owner bootstrap report](production-bootstrap-owner-evidence-20260928.md) records migration/validation/backup/restore completion; do not rerun migrations based on this historical paragraph. Earlier readiness documents describing empty Production allowlists are historical snapshots superseded by this section for these five fields only.
 
 Offline validation on Node 22.23.2: all 35 `tests/infra-*.test.mjs` tests passed; schema-manifest and repository/client secret scans passed. A separate in-memory check loaded the actual policy and passed server/mobile validation with disposable synthetic credential strings, rejected nine invalid configurations, and confirmed staging remained empty. No real credentials, provider clients or hosted database connections were used in that policy check. These results establish internal configuration consistency, not live credential validity or a successful Production build/deployment.
 
@@ -42,7 +42,7 @@ Edit `config/release-policy.json` on a reviewed candidate. `production.apiOrigin
 | Mobile build only | `PATCH_ENV`, `PATCH_API_URL`, `PATCH_CLERK_PUBLISHABLE_KEY`, `PATCH_CLERK_ISSUER` | Public Production API/key/issuer matching server. Use `mobile/.env.production.local` or an isolated build environment; never copy server env into mobile |
 | Backup/recovery operator only | `PATCH_BACKUP_KEY`, `PATCH_BACKUP_KEY_ID` | 32 random bytes encoded as exactly 64 hex characters and opaque key version; recover the original key for old backups. Key belongs in separate custody, never mobile/runtime/logs |
 
-No provider login or key validity is established by syntax checks. No env values are printed by these commands:
+No provider login or key validity is established by syntax checks. The following is the full Phase B sequence; Phase A uses the explicitly bounded procedure linked above. No env values are printed by these commands:
 
 ```sh
 npm run check:env
@@ -63,7 +63,7 @@ Use Node 22 and actual Production build environment only after values are suppli
 - GitHub variables: `WEB_HOST` → `VERCEL_PROJECT_PRODUCTION_URL`; `PATCH_API_ORIGIN` → server/mobile origin; `CLERK_PUBLISHABLE_KEY` → web/mobile public key; `CLERK_ISSUER` → both issuers; `AUTH_ALLOWED_ORIGINS`; `TURSO_DATABASE_URL`; `AI_ENABLED` (`true` or `false`). Models remain reviewed `gpt-5-nano` in workflow/policy; change together if approved.
 - GitHub secrets: `TURSO_VALIDATION_TOKEN` → `TURSO_AUTH_TOKEN`, `CLERK_SECRET_KEY`, `OPENAI_API_KEY`, **`ACCOUNT_DELETION_WORKER_SECRET`**. A validation token should have minimum required scope; CI never executes remote DB commands.
 - Runtime hosting needs its own environment injection; setting GitHub variables does not configure hosting. Backup keys stay with backup operators and are not required by this CI build.
-- Production-validation also runs `check:operations`; complete the reviewed opaque references below before declaring a release candidate ready. Ordinary development CI remains runnable while they are blank.
+- Production-validation is the unchanged Phase B release-candidate job, not an implicit deployment job. It also runs `check:operations`; complete the reviewed opaque references below before declaring a release candidate ready. Ordinary development CI remains runnable while they are blank.
 
 ## Operational handoff and alert destination path
 
@@ -103,3 +103,7 @@ Collector projection contract (all other keys dropped):
 | `operations_status` | `event`; numeric `ai.{unresolved,unknown_count,expired_dispatches,expired_reservations,oldest_ms}` and `deletion.{pending,retry_count,due,apple_blocked,oldest_ms}` only |
 
 Client diagnostic sink is currently no-op; these paths cover server/CLI operations, not an installed mobile crash service. No native crash provider/account is selected or required by invented scope.
+
+## Staged Production and deployment pause
+
+See [the exact Phase A/B procedure](controlled-production-validation.md) for `--prod --skip-domain`, protected unique-URL probes, separately authorized canonical promotion, and a supported manual Git disconnection before pushing Dev. Keep canonical API/web origins at `https://mepamo.com`; a generated deployment URL is not an additional allowed client/scheduler origin. Confirm the real system Production hostname, never spoof it. No Vercel config, environment, workflow or application guard is changed by this documentation checkpoint.

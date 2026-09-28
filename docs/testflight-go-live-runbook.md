@@ -10,7 +10,11 @@ Readiness checkpoint `d5ef61d` integrated with fetched `origin/Dev` **8ab9f4847c
 
 **Not yet cleared for TestFlight.** Real external values, service evidence, Apple access and device QA remain. This pass performs no deployment, Production DB operation or Apple account operation. Steps below are future operator actions; live mutations require authorization for their actual target. Do not weaken guards or insert fake values to turn checks green.
 
-## Exact future order
+## Phase A and Phase B
+
+The [controlled Production validation procedure](controlled-production-validation.md) defines the first owner-only backend deployment (A1 protected unique URL, A2 separately approved protected canonical-domain validation). Read its preflight, exact evidence deferrals, Git deployment pause and compatibility limits first. It does not authorize deployment now. Full `check:operations` success and final public documents remain mandatory for Phase B. Existing validators and protected release-candidate CI are unchanged.
+
+## Phase B — full TestFlight readiness order
 
 | Step | Action / owner | Acceptance |
 | --- | --- | --- |
@@ -47,7 +51,7 @@ xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
 
 Use new isolated DerivedData/SPM paths for each pass; first resolve packages from committed `Package.resolved` into that SPM path if not available. Don't mutate another session's caches. Simulator is compile coverage only. Empty Production config must fail `PATCH_ENV=production npm run check:release`; incomplete operational references must fail `npm run check:operations`.
 
-## Commands after actual values are supplied
+## Phase B commands after actual values are supplied
 
 For steps 3 and 7, use the [exact environment contract](production-configuration-contract.md); server/mobile receive their own variables. No secrets in argv or shell tracing. Run on committed HEAD; rebuild after any commit/config change.
 
