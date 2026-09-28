@@ -1,5 +1,7 @@
 # Patch — TestFlight go-live master runbook
 
+Current owner-confirmed Production state and remaining decisions (2026-09-28, Dev `0e69f2f5fb2d438d14e50a1c1f4f5914ac72a4d8`): [single owner questionnaire / field classification](release-owner-inputs.md), [initial bootstrap evidence](production-bootstrap-owner-evidence-20260928.md). Infrastructure bootstrap is complete by owner report; recurring operations and legal publication are not. The earlier dated audits below are historical. Public brand is Mepamo; existing technical IDs are unchanged. Live deletion completion requires a deployed API; see the explicit phased-release dependency in the questionnaire before scheduling first deployment. No deployment is authorized by this repository checkpoint.
+
 Latest current-code audit: [2026-09-23 TestFlight / Production readiness (日本語)](testflight-production-readiness-20260923.md), based on fetched Dev `52fa552262723b5206e8afcc7b06b600959e48ca`. Use its current statuses and validation results; the checkpoint below is historical.
 
 Readiness checkpoint `d5ef61d` integrated with fetched `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51**, 2026-09-21; Free v1 reliability fixes are preserved. Free v1: Topic/Text/currently supported files → Flashcards/Multiple Choice → History/Review, Streak/Retention. UI/learning integration is complete; deferred features are not gates. [Current A–E audit](release-readiness-audit.md) · [integration validation](testflight-readiness-integration.md).

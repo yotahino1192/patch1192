@@ -1,4 +1,5 @@
 // Public, non-secret publication settings. Null is rendered explicitly, never as a fake contact.
+export const publicService = { name: 'Mepamo', origin: 'https://mepamo.com' } as const;
 export const legalFieldLabels = {
   operatorName: '運営者の正式名称',
   contactEmail: '正式な問い合わせメール',
@@ -32,7 +33,9 @@ export const publicLegalConfig: PublicLegalConfig = {
     serviceCountries: null, processingRegions: null, effectiveDate: null,
     retentionPolicy: null, backupRetention: null, deletionTiming: null,
     rightsProcedure: null, supportResponse: null, eligibility: null,
-    contentRights: null, commercialTerms: null, liability: null,
+    contentRights: null,
+    commercialTerms: '現在のFree v1は無料です。有料プラン、アプリ内購入、定期課金は提供していません。この版には支払い、有料契約の解約、購入代金の返金の対象となる取引はありません。',
+    liability: null,
     governingLaw: null, disputeResolution: null, serviceChanges: null, revisionNotice: null,
   },
 };

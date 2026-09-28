@@ -1,5 +1,7 @@
 # Guarded recovery rehearsal — future manual operations
 
+2026-09-28: [Owner-confirmed initial Production bootstrap/restore](production-bootstrap-owner-evidence-20260928.md) is recorded separately. No remote DB is accessed by this repository update. The incident-cutover procedure below is the `backup.reconciliationPlanRef`; it is a documented plan, not evidence of a live cutover, offsite retrieval or achieved RTO. Remaining operational decisions are consolidated in the [owner questionnaire](release-owner-inputs.md).
+
 No remote DB was accessed in this task. Commands below are not authorization. Run local fixtures now; run staging only after target approval; production requires explicit authorization naming database, action, time and operator. Node 22, clean reviewed commit, matching schema manifest and full environment contract are prerequisites.
 
 ## Local verification

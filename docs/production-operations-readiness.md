@@ -1,5 +1,7 @@
 # Production / TestFlight operations readiness
 
+2026-09-28 update, approved Dev `0e69f2f5fb2d438d14e50a1c1f4f5914ac72a4d8`: Yota reports Production migration/validation, initial encrypted backup and restore-check complete. [Scoped evidence](production-bootstrap-owner-evidence-20260928.md) is now referenced by `backup.restoreEvidenceRef`; `backup.reconciliationPlanRef` points to the existing recovery procedure. These do not prove offsite custody, recurring backup, monitoring, scheduler operation or live cutover. [Current field classification and one owner questionnaire](release-owner-inputs.md) supersede earlier missing-infrastructure status. Remaining external requirements below still apply.
+
 Current integration baseline: fetched `origin/Dev` **8ab9f4847c67c27e322c70366c834f40b2e6ce51** (2026-09-21), including Free v1 reliability fixes. See [integration validation](testflight-readiness-integration.md). Topic input and Free v1 learning/UI are integrated. See the [master go-live runbook](testflight-go-live-runbook.md) and [Free v1 scope](free-v1-release-scope.md); deferred features are not release blockers.
 
 Current evidence: [2026-09-21 validation](release-readiness-validation-20260921.md). Configuration variable/CI mapping and external destination setup are maintained once in the [configuration contract](production-configuration-contract.md). This document owns worker/alert/recovery behavior; [master](testflight-go-live-runbook.md) owns release order.
