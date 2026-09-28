@@ -14,3 +14,7 @@ This is a non-secret record of Yota's completion report in this readiness sessio
 `backup.reconciliationPlanRef` references the existing [incident recovery plan](production-recovery-rehearsal.md): preserve newer deletion/tombstone/consent and AI evidence, restore into an isolated replacement, reconcile before traffic, and keep writes/AI blocked when evidence is missing. This is a documented procedure, not an installed operational service or evidence of a Production cutover. Local restore fixtures cover the relevant application invariants; real custody, evidence retention and replacement tooling still need owner decisions and external preparation.
 
 Keep original logs, encrypted backup/manifest, timestamp/hash and key mapping in restricted owner-controlled custody. The public repository records only the result and its provenance. Do not put keys, tokens, raw manifests or user data here.
+
+## Subsequent owner custody confirmation — 2026-09-29
+
+The owner subsequently confirmed the initial encrypted backup folder was manually copied to private iCloud Drive **Mepamo Production Backups**, the existing encryption key is separately in macOS Passwords under **Mepamo Production Backup Key v1**, and manifest `keyId` is **mepamo-production-v1**. [Exact reference mapping and limits](release-owner-inputs.md#9-暗号化バックアップ保管鍵custody). This supplements the earlier report; no new restore, offsite retrieval, key recovery or recurring schedule was independently tested. The initial copy is accepted as off-device/off-Mac custody, not recurring offsite automation.

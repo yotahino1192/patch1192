@@ -3,7 +3,7 @@ import { contactHref, legalFieldLabels, publicLegalConfig, type LegalField } fro
 type Classes = Partial<Record<'notice' | 'fields' | 'pending' | 'body' | 'section' | 'references', string>>;
 
 export function PublicationNotice({ classes: styles = {} }: { classes?: Classes } = {}) {
-  return <aside style={styles.notice ? undefined : {margin: "20px 0", padding: 12, border: "1px solid currentColor", borderRadius: 8}} className={styles.notice} aria-label="公開状況"><strong>公開準備版</strong><p>運営者情報・保持期間・正式な法的条件には未確定の項目があります。未確定事項は本文中に明示しています。</p></aside>;
+  return <aside style={styles.notice ? undefined : {margin: "20px 0", padding: 12, border: "1px solid currentColor", borderRadius: 8}} className={styles.notice} aria-label="公開状況"><strong>公開準備版</strong><p>公開住所・施行日は未確定です。バックアップの定期運用や削除完了目標など、検証・準備中の事項も本文中に明示しています。</p></aside>;
 }
 function LegalFields({ fields, classes: styles = {} }: { fields: readonly LegalField[]; classes?: Classes }) {
   return <dl className={styles.fields} style={styles.fields ? undefined : {marginBottom: 20}}>{fields.map(key => {

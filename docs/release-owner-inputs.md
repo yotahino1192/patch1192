@@ -1,72 +1,94 @@
-# Mepamo — remaining owner inputs (2026-09-28)
+# Mepamo — owner decisions and remaining release gates (2026-09-29)
 
-Fetched `origin/Dev`: **0e69f2f5fb2d438d14e50a1c1f4f5914ac72a4d8**, matching approved Dev. This document supersedes earlier unconfigured-infrastructure status; historical QA records remain historical. No deployment, external setting or Production DB change is part of this checkpoint.
+This record supersedes the 2026-09-28 unanswered questionnaire. Sections 1–9 have now been answered in this readiness session. No additional owner choice is needed to record this checkpoint. **Public address and the exact effective date remain intentionally deferred**, and operational evidence must come from actual setup/tests. This is a partial readiness checkpoint, not publication or deployment approval.
 
-Confirmed by Yota: Mepamo / `https://mepamo.com`, Vercel `mepamo1192` with Production branch Dev and 13 Production-only variables, AI disabled, verified Clerk Production, migrated/validated Turso Production, initial encrypted backup and successful restore-check. [Evidence and limits](production-bootstrap-owner-evidence-20260928.md). Support/privacy/terms routes are `/support`, `/privacy`, `/terms`; their Production availability is not verified before deployment. Email OTP, Flashcards/MCQ and short Explain are the current scope. No Fill in the Blank, Advanced AI Tutor, Pro billing, sharing or video upload.
+Approved Dev baseline: `0e69f2f5fb2d438d14e50a1c1f4f5914ac72a4d8`. Working branch: `codex/testflight-production-readiness`, following `a0978c1`. This checkpoint does not fetch/push/merge or independently re-attest current remote/service state. [Initial bootstrap report](production-bootstrap-owner-evidence-20260928.md) remains historical owner evidence. [Validation](production-owner-decisions-validation-20260929.md).
 
-Validation for this checkpoint: [results and remaining gates](production-readiness-safe-config-validation-20260928.md).
+## 1. 運営者・住所・問い合わせ窓口・本人確認・回答目安
 
-## Classification of every missing field
+- `operatorName`: 日野 陽太.
+- `legalAddress`: intentionally null; owner will decide a publishable address before final publication.
+- `contactEmail`: support@mepamo.com; owner confirmed inbound delivery through Cloudflare Email Routing. Outbound sending from this address is **not** configured/verified.
+- `rightsProcedure`: data access/deletion inquiries by email; normal deletion via the app's verified flow; never accept authentication codes/passwords by email; individual verification when login is unavailable.
+- `supportResponse`: weekday review, initial reply target within 3 business days, no resolution deadline guarantee. Operator: 日野 陽太.
 
-**a** = confirmed fact; **b** = existing implementation/runbook; **c** = owner decision/verified information required; **d** = actual external operation/evidence required (not established by the supplied report). A c item can additionally need implementation; proposals below are not configuration. Do not fabricate opaque references just to pass validation.
+## 2. 配信対象・年齢・施行日
 
-Public fields live under `publicLegalConfig.fields` in `lib/public-pages/config.ts`:
+- `serviceCountries`: Japan only. `eligibility`: invited adults aged 18 or over. Apply this in invitation/distribution operations; this copy does not implement an age/geolocation gate.
+- `effectiveDate`: first tester use date; exact calendar date intentionally null, not today's date.
 
-| Exact field(s) | Class | Action / dependency |
-| --- | --- | --- |
-| `commercialTerms` | a | Filled: current Free v1 is free; no paid plan, purchase or recurring billing transaction. No future price/refund terms invented |
-| `operatorName`, `legalAddress`, `contactEmail` | c | Actual publishing identity/address and monitored mailbox; domain ownership alone proves none of these |
-| `serviceCountries`, `eligibility`, `effectiveDate` | c | Owner chooses audience, age and effective date; Japanese copy is not evidence of a Japan-only policy |
-| `processingRegions` | c | Tokyo Turso placement confirmed and disclosed in body. All-provider processing/subprocessor/transfer explanation still needs actual contract/settings review; do not infer it from DB region |
-| `retentionPolicy`, `backupRetention`, `deletionTiming` | c | Existing deletion behavior described; final durations and residual-record policy require approval and enforceable disposal/recovery operations (d) |
-| `rightsProcedure`, `supportResponse` | c | Identity-verification procedure and actual staffed contact/response policy |
-| `contentRights`, `liability`, `governingLaw`, `disputeResolution` | c | Approved terms; implementation cannot determine rights, liability or jurisdiction |
-| `serviceChanges`, `revisionNotice` | c | Owner approves suspension/termination and change-notification rules |
+## 3. 処理地域
 
-19 originally missing → **1 filled / 18 remaining**. `publicationStatus` stays `draft`; noindex and missing-contact behavior remain. Brand, canonical Production URLs, current AI-disabled status and Free v1 factual descriptions are also updated (a/b); they are not substitutes for the remaining fields.
+- `processingRegions`: approved actual-configuration disclosure in `lib/public-pages/config.ts`.
+- Turso Production DB stays Tokyo / AWS ap-northeast-1. Owner confirmed Vercel Functions Washington, D.C., USA / us-east-1 / iad1, and OpenAI Project Residency Global; no verified special regional contract/settings.
+- Clerk's US authentication infrastructure and possible overseas processing by providers/support/subprocessors are disclosed; Tokyo DB does not imply Japan-only processing. Provider public-information review was completed during the Section 3 discussion. No contract/region/plan was changed.
+- Production AI remains disabled. Future use requires controlled validation, explicit enablement and required user consent; no inference of Japanese OpenAI processing.
 
-Operations fields are in `config/production-operations.json`:
+## 4. 保持・削除・バックアップ目標
 
-| Exact field(s) | Class | Action / dependency |
-| --- | --- | --- |
-| `backup.restoreEvidenceRef` | a | Filled with `docs/production-bootstrap-owner-evidence-20260928.md`: owner-confirmed initial restore only |
-| `backup.reconciliationPlanRef` | b | Filled with `docs/production-recovery-rehearsal.md`: existing fail-closed deletion/consent/AI reconciliation procedure, not a completed live cutover |
-| `monitoring.providerRef`, `monitoring.destinationRef`, `monitoring.deliveryEvidenceRef` | d | Real collector/receiver and acknowledged synthetic alert; Vercel project/system env alone is insufficient |
-| `monitoring.responderRef` | c | Named incident responder and escalation arrangement |
-| `deletion.schedulerRef`, `deletion.completionEvidenceRef` | d | Actual authenticated POST scheduler plus controlled deletion/outage/closed-app completion evidence; empty DB/idle is not completion |
-| `backup.storageRef`, `backup.keyCustodyRef` | d | Confirm/create offsite ciphertext+manifest storage and separate key custody, with retrieval test; initial local backup does not establish them |
-| `backup.keyId` | c | Non-secret identifier of the **existing** backup encryption key, mapped in private custody; never generate a replacement key to fill this field |
-| `backup.recoveryOwnerRef` | c | Actual recovery operator |
-| `backup.intervalHours`, `backup.maxSuccessAgeHours`, `backup.retentionDays`, `backup.rpoHours`, `backup.rtoHours` | c | Approved schedule/age/retention/data-loss/recovery objectives; real automation and rehearsal required (d) |
+- `retentionPolicy`: approved condition-based policy. Account/profile and learning data are removed by account deletion; ordinary card deletion can be soft deletion. AI result expiry is not a guarantee of immediate physical erasure. AI request/idempotency/budget records have no universal automatic expiry. Consent withdrawal does not itself purge consent events; account deletion removes those events. Minimal deletion tombstones/identity hashes and AI accounting records remain without a fixed implemented expiry; these are not anonymous data. Log retention depends on storage/provider configuration and is not a guaranteed universal TTL.
+- `backupRetention`: 7-day retention policy **to implement/verify**, including expired artifact disposal and deletion-record reconciliation before recovery. No claim of existing automatic expiry.
+- `deletionTiming`: first response target within 1 business day; actual completion target remains dependent on Production deletion testing, not a guessed number.
+- Approved `backup.intervalHours=12`, `maxSuccessAgeHours=24`, `retentionDays=7`, `rpoHours=24`, `rtoHours=48`. These are operating targets, not demonstrated guarantees or installed schedules.
 
-17 originally missing → **2 filled / 15 remaining**. Existing b values retained: monitoring every 5 minutes / missing heartbeat 15 minutes / structured fields only; deletion every 60 seconds / missing heartbeat 5 minutes. These are configuration targets, **not installed schedules**. Root version/environment already correct.
+## 5. 権利・責任・準拠法・紛争
 
-## One owner questionnaire — reply by number
+- `contentRights`: user retains existing content rights; permission limited to storage/display/processing/service delivery, including AI provider transfer only with required consent; user must hold required rights/permissions; no exclusive or complete AI-output IP guarantee.
+- `liability`: AI can be wrong; no accuracy/exam/grade/learning-outcome guarantee; beta downtime/bugs/data loss possible; applicable non-excludable liability preserved; no blanket disclaimer and **no contractual monetary liability cap**.
+- `governingLaw`: Japanese law.
+- `disputeResolution`: good-faith discussion via support@mepamo.com, then statutory jurisdiction; no exclusive court.
 
-Recommendations are proposals for a small invited beta, not legal conclusions or promises already made. Public legal text needs owner approval before publication. Supply non-secret facts/references only; never send token, password or encryption-key values.
+## 6. サービス変更・規約改定通知
 
-| # / exact fields | Plain-language decision | Options, minimum beta recommendation and consequence |
-| --- | --- | --- |
-| 1 — `operatorName`, `legalAddress`, `contactEmail`, `rightsProcedure`, `supportResponse` | 誰が運営し、どの公開住所・実在メールで相談を受け、本人確認と回答をどう行うか | **推奨：実際の運営主体＋既存の受信確認済み窓口を共用**。別案：専用窓口を開設。正式名称・公開する住所・メールを指定し、「メール受付、コードを受け取らず本人確認、平日確認・3営業日を一次回答目標（保証ではない）」案を承認または修正。窓口を定期確認できる担当者が必要 |
-| 2 — `serviceCountries`, `eligibility`, `effectiveDate` | テスターの国・年齢と、この文書を有効にする日 | **推奨案：日本の招待済み18歳以上だけ、初回利用開始日を施行日**。別案：他国／未成年を含める（対象を指定して条件を追加確認）。対象を絞るなら招待・配布運用も合わせる。日付を自動で今日にはしない |
-| 3 — `processingRegions` | 各事業者でデータが処理され得る国・地域、国外処理の説明 | **推奨：現在の契約・設定を確認して実態を記載**。別案：地域制限が必要なら設定／契約変更を別途検討。東京DBだけで国内完結とは書けない。Clerk/Vercel/OpenAI/Tursoの非秘密の地域・再委託先情報の確認担当を指定（秘密値不要） |
-| 4 — `retentionPolicy`, `backupRetention`, `deletionTiming`; `backup.intervalHours`, `backup.maxSuccessAgeHours`, `backup.retentionDays`, `backup.rpoHours`, `backup.rtoHours` | 何をいつまで残すか、削除完了目標、失ってよい時間幅と復旧目標 | **推奨：有限の期間を決め、期限消去・復旧手順を検証してから約束する**。別案：期間確定まで利用開始を保留。たたき台はバックアップ12時間毎／成功から24時間で警報／7日保持／RPO24時間／RTO48時間、削除一次対応1営業日（完了保証ではない）。通常学習データ、AI再送結果、同意証跡、削除tombstone・費用記録、運用ログそれぞれの期間とバックアップ削除反映期限は別途指定。残存記録の一律期限消去は現行実装にないため、期間選択後に安全な消去設計が必要。バックアップ7日だけで削除完了を保証しない |
-| 5 — `contentRights`, `liability`, `governingLaw`, `disputeResolution` | 教材の権利・サービス利用に必要な許諾、責任の範囲、適用法・紛争窓口 | **推奨：権利移転なし・提供に必要な処理だけ許諾する最小案を、実際の運営主体に合わせてレビュー**。別案：既存の承認済み規約を指定。準拠法・裁判所・責任上限は推測しない。承認文面かレビュー担当を指定し、確定まではdraftを維持 |
-| 6 — `serviceChanges`, `revisionNotice` | 変更・停止・終了と重要な規約変更をどう知らせるか | **推奨：公開ページ更新＋招待テスターへの重要変更の個別連絡**。別案：アプリ内告知を追加（追加実装が必要）。通常変更は事前通知、緊急停止は事後通知の案を承認／修正し、通常時の予告期間を指定。現行コードに一斉通知機能があるとは扱わない |
-| 7 — `monitoring.providerRef`, `monitoring.destinationRef`, `monitoring.responderRef`, `monitoring.deliveryEvidenceRef`; `backup.recoveryOwnerRef` | どこで監視し、誰に通知し、誰が事故対応・復元するか | **推奨：既存の監視・通知先を使い、主担当1名と不在時の連絡先を明記**。別案：新規の運用基盤（費用・権限承認後）。実在サービス・受信先の非秘密の参照名と担当を指定。合成アラートを実際に受信確認してから証跡欄を埋める。自分のMacを開いている間だけの監視は不可 |
-| 8 — `deletion.schedulerRef`, `deletion.completionEvidenceRef` | アプリを閉じても削除を進める定期実行をどこで動かすか | **推奨：既存の常時稼働runnerで認証付きPOSTを60秒毎**。別案：新規runnerを別途承認。Node22・秘密の安全な注入・heartbeat監視が必要。GETだけのcronでは代替不可。初回デプロイ前に準備できるが、実APIでの完了証跡はデプロイ後の限定アカウント検証が必要 |
-| 9 — `backup.storageRef`, `backup.keyCustodyRef`, `backup.keyId` | 暗号化ファイルをどこに置き、鍵を別のどこで保管・回収するか | **推奨：既存のアクセス制限付きoffsite保管＋別の鍵保管先**。別案：新規保管サービス（承認後）。初回バックアップの保管先／鍵管理が既に満たすなら、その非秘密の参照名・既存key IDだけを指定。暗号文とmanifestを取得し、その鍵で復元できることを確認。鍵そのものは回答しない |
+- `serviceChanges`: reasonably possible advance notice for material changes/planned suspension/termination; reasonably prompt later notice for emergencies/security/outages/legal requirements preventing advance notice; no fixed 14/30-day service-change deadline or fixed notice for ordinary minor beta iteration.
+- `revisionNotice`: update public Terms/Privacy; material changes affecting invited testers get individual email, normally at least 14 days before effect; legally required/emergency exceptions with prompt reasonable notice; renewed consent where needed, including materially changed AI data sharing.
+- Existing sending mailbox, manual messages, display name **Mepamo**. Do not assume support@mepamo.com is a working From address. Optional Reply-To only if supported. Before beta, test actual outbound delivery and maintain the private invited-tester recipient list; no new paid mail infrastructure required.
 
-## External work still required (not performed here)
+## 7. 監視・通知・対応担当
 
-1. **Deletion runner:** always-on scheduler, service identity, Node 22/reviewed checkout, protected environment injection, 60-second POST, structured outcome capture, 5-minute missing-heartbeat alert. Stage controlled completion/retry/outage/lease testing; after authorized deployment verify a disposable Production account with app closed. Do not invoke the worker during build or against an unreviewed queue.
-2. **Monitoring:** collector with allowlisted structured fields and separate runner/API source labels; protected receiver, responder/escalation, acknowledged synthetic delivery; API/readiness and failure thresholds from [operations](production-operations-readiness.md). Schedule guarded read-only `ops:status` every 5 minutes with a 15-minute missing-success alert. A DB bootstrap showing zero counts is not monitoring. Secure runner credential custody is additional to Vercel's 13 app variables.
-3. **Backup/custody:** owner-approved periodic backup job, restricted offsite ciphertext **and manifest**, separate existing-key custody, restore/retrieval proof, retention/expiry/deletion replay process, failure/stale-backup alerts and a recovery operator. Approve objectives before enabling schedules. Initial backup + RESTORE_VALID do not prove these services.
-4. **Recovery:** retain post-snapshot deletion/consent/AI evidence securely; prepare/review provider-specific isolated replacement import and cutover, key recovery and measured end-to-end recovery rehearsal. Existing restore-check intentionally removes scratch; it is not a replacement DB deployment tool. No new paid resource is inherently mandated; existing suitable infrastructure can be used after confirmation.
-5. **Public operations:** verify the actual contact mailbox and response routine, determine provider processing regions, approve retention/terms and implement any newly promised expiry/notification behavior. The repository cannot establish these facts by inserting text.
+- Approved UptimeRobot Free, configured **after first Production deployment**: Keyword Health `https://mepamo.com/api/health`, expected `"status":"ok"`; Keyword Readiness `https://mepamo.com/api/ready`, expected `"status":"ready"`; both every 5 minutes.
+- Existing frequently checked private email for alerts; address stays outside public pages/repository. `monitoring.destinationRef` remains blank until actual routing is configured/documented privately.
+- `monitoring.responderRef` and `backup.recoveryOwnerRef`: `owners/yota-hino` maps to Yota Hino / 日野 陽太. Single operator; response may be delayed during absence. No 24/7 or immediate-response promise, no invented alternate responder.
+- `monitoring.providerRef` and `monitoring.deliveryEvidenceRef` remain blank: service selection alone is not installed collection or acknowledged synthetic alert delivery. UptimeRobot's two URL checks do not cover aggregate operations, worker heartbeat, structured failure thresholds or backup age.
 
-`check:operations` validates references/numeric relationships only; it cannot verify a provider. Required ordering is `intervalHours <= maxSuccessAgeHours <= rpoHours` and `retentionDays * 24 >= intervalHours`; all values must be positive, ciphertext and key custody references distinct. Reference values must be non-secret opaque IDs or repository paths. Passing with invented references is not acceptance.
+## 8. 削除scheduler
 
-**Deployment/evidence dependency:** live deletion completion, API heartbeat and real readiness require a deployed backend. Configure runners/receivers and verify synthetic delivery beforehand, keep schedules disabled until the intended target exists, then request an explicitly scoped first deployment/controlled validation step. Do not claim `check:operations` is fully satisfied before these results exist; this checkpoint does not change guards or authorize deployment. This dependency needs an explicit phased release decision, not a fake `completionEvidenceRef`.
+**Approved architecture, not implemented/configured:** Cloudflare Workers Free + Cron Triggers, with Healthchecks.io Free for independent heartbeat/missed-run/failure monitoring. Target approximately every minute, independent of the owner's Mac.
 
-Remaining broader TestFlight gates: exact-candidate physical-device QA, signing/archive/App Store Connect and review metadata. They are not reasons to block integration of this honest partial configuration checkpoint; they still block the corresponding release phase. Do not add deferred product features to those gates.
+Preserve the existing POST-only `/api/internal/account-deletions` and Bearer authentication using `ACCOUNT_DELETION_WORKER_SECRET`. Only the scheduler's protected Secret binding receives that credential; no Turso credentials, no secret in URLs/logs/code/monitoring payloads. Preserve Production confirmation/allowlist, redirect rejection, 55-second caller timeout, server duration/retry/backoff/lease behavior and closed `idle/completed/retry/failed` outcomes. HTTP 200 with `retry` is not successful deletion completion. Do not add automatic immediate retries around the current worker.
+
+A reviewed Workers adapter is still needed; the Node 22 CLI/runbook cannot simply be assumed to run unchanged in Workers. Verify equivalent safety and mock outcome/timeout/redirect tests, then Free CPU limits in the hosted environment. Cloudflare's network wait is separate from CPU time; Free suitability must be measured. No paid upgrade is authorized.
+
+Healthchecks must distinguish scheduler liveness from deletion outcome: runner-only outcome reporting, missed heartbeat threshold 5 minutes, failure visibility and recovery notifications. Do not let a later idle tick erase evidence of a retry/backlog. Preserve the runbook's repeated-retry and queue-age checks through structured monitoring/`ops:status`; success ping alone is insufficient. Protect heartbeat identifiers separately and send no account/content/worker-secret data. Test synthetic failure, missed-run and recovery emails before live evidence is claimed.
+
+`deletion.schedulerRef` stays blank until a real scheduler exists. `deletion.completionEvidenceRef` stays blank until an approved test account completes deletion through the deployed Production API, including app-closed and interruption/retry checks. Empty queue/idle and bootstrap validation are not completion evidence.
+
+Official implementation references reviewed during Section 8: [Cloudflare Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/), [Secrets](https://developers.cloudflare.com/workers/configuration/secrets/), [limits](https://developers.cloudflare.com/workers/platform/limits/), [Healthchecks signals](https://healthchecks.io/docs/http_api/), [missed-run settings](https://healthchecks.io/docs/configuring_checks/). Vercel Cron GET and Hobby cadence do not directly satisfy this POST/every-minute contract.
+
+## 9. 暗号化バックアップ保管・鍵custody
+
+Owner-confirmed on 2026-09-29; no private files, keychain or cloud account were accessed for this checkpoint:
+
+| Config field / non-secret reference | Actual owner-confirmed meaning |
+| --- | --- |
+| `backup.storageRef = backup/icloud/mepamo-production-backups` | Existing private iCloud Drive location **Mepamo Production Backups**; initial encrypted Production backup folder manually copied successfully. Accepted as the initial off-device/off-Mac copy |
+| `backup.keyCustodyRef = backup/macos-passwords/mepamo-production-backup-key-v1` | Existing key stored separately in macOS Passwords; management label **Mepamo Production Backup Key v1** |
+| `backup.keyId = mepamo-production-v1` | Owner read this identifier directly from the existing initial `manifest.json`; it is not a new key or guessed default |
+
+References are management labels mapped here, not private paths, share links or credentials. The validator requires ASCII references without spaces, so the confirmed human-readable names remain in this mapping. No key was requested, read, rotated or replaced.
+
+Initial restore-check evidence is still the original owner report. The later iCloud copy does not prove a restore from a newly downloaded offsite copy, independent key recovery after Mac loss, recurring offsite transfer, expiry automation, or measured RPO/RTO. Verify ciphertext **and manifest** retrieval and existing-key recovery without copying keys into artifacts/logs/repository. Cloud sync alone is not immutable backup; protect against accidental propagated deletion and keep the last usable copy until recovery is assured.
+
+## Concrete gates still open
+
+1. **Public finalization:** owner supplies publishable `legalAddress` and first-tester `effectiveDate`; finalize the public document only afterward. Current configuration stays `draft` and noindex. Final deletion completion target follows actual Production flow verification. Log retention and backup disposal wording must stay aligned with actual storage settings/implementation.
+2. **External monitoring:** create/configure UptimeRobot and Healthchecks only in an authorized step; verify real alert receipt, failure/recovery/missing-heartbeat behavior. Establish reviewed structured-event collection and read-only `ops:status` every 5 minutes with 15-minute missing-success alert. Keep DB credentials out of the deletion scheduler; any separate DB-status runner has separate custody/target guards.
+3. **Deletion runner:** implement/review/test Workers adapter, then separately create Worker/Secrets/Cron/heartbeat wiring; preserve all existing API guards. Keep actual completion evidence pending for controlled post-deployment testing.
+4. **Recurring backup and recovery:** externally hosted 12-hour backup execution and offsite transfer, 24-hour stale/failure alerts, 7-day expiry and deletion/consent/AI reconciliation; verify offsite download plus separately recovered existing key, and measure recovery against 24-hour RPO/48-hour RTO. No recurring automation or independent retrieval was proven by the initial manual copy.
+5. **Notice delivery:** test the existing outbound mailbox with display name Mepamo; keep recipients private. support@mepamo.com is inbound-only unless separately verified.
+
+`check:operations` intentionally remains blocked on exactly five fields: `monitoring.providerRef`, `monitoring.destinationRef`, `monitoring.deliveryEvidenceRef`, `deletion.schedulerRef`, `deletion.completionEvidenceRef`. No placeholder references or relaxed validation are used to make the command pass. All other references/numeric targets are supplied and mapped above; passing syntax alone would not prove live services.
+
+**Phased release dependency:** live deletion/health/readiness require a deployed API, while full handoff requires their evidence. Prepare and test adapters/receivers synthetically first, then use a separately scoped first-deployment/controlled-verification decision; never fabricate evidence or bypass guards. UptimeRobot setup is explicitly scheduled after that first deployment. This checkpoint authorizes none of those external actions.
+
+The recorded owner decisions are ready for repository review/integration after checks, even while final publication/operational acceptance remains blocked. Existing physical-device QA, archive/signing/App Store Connect gates remain separate; no native configuration changes are included.

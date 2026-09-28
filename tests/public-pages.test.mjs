@@ -19,14 +19,15 @@ test('public pages render complete content without authentication and share embe
  assert.equal((html.match(/<h2\b/g)||[]).length,legalDocuments[kind].sections.length);assert.equal((inline.match(/<h3\b/g)||[]).length,legalDocuments[kind].sections.length);
  assert.match(html,/本文へスキップ/);assert.match(html,/aria-current="page"/);assert.match(html,/公開準備版/);
  for(const section of legalDocuments[kind].sections){assert.ok(html.includes(`id="${kind}-${section.id}"`));assert.ok(html.includes(`href="#${kind}-${section.id}"`));for(const text of section.paragraphs){assert.ok(html.includes(text));assert.ok(inline.includes(text));}}
- assert.doesNotMatch(html,/<form\b|<input\b|mailto:|sign-in|__clerk/);
+ assert.match(html,/mailto:support@mepamo\.com/);
+ assert.doesNotMatch(html,/<form\b|<input\b|sign-in|__clerk/);
  }
 });
 test('draft metadata explicitly replaces app title/social description and remains non-indexable',()=>{
  for(const kind of legalKinds){const metadata=publicPageMetadata(kind);assert.ok(metadata.title.absolute.includes('Mepamo'));assert.equal(metadata.description,legalDocuments[kind].description);assert.equal(metadata.alternates.canonical,`https://mepamo.com/${kind}`);assert.equal(metadata.openGraph.url,metadata.alternates.canonical);assert.equal(metadata.openGraph.siteName,'Mepamo');assert.deepEqual(metadata.robots,{index:false,follow:false,googleBot:{index:false,follow:false}});assert.equal(metadata.openGraph.title,metadata.title.absolute);assert.equal(metadata.twitter.title,metadata.title.absolute);assert.deepEqual(metadata.openGraph.images,[]);}
 });
-test('all unresolved publication fields are explicit and cannot accidentally enable indexing or contact',()=>{
- assert.equal(publicLegalConfig.publicationStatus,'draft');assert.equal(Object.values(publicLegalConfig.fields).filter(v=>v===null).length,18);assert.match(publicLegalConfig.fields.commercialTerms,/Free v1は無料/);assert.equal(contactHref(),undefined);assert.equal(canIndexPublicPages(),false);
+test('approved contact is available while unresolved publication fields keep indexing disabled',()=>{
+ assert.equal(publicLegalConfig.publicationStatus,'draft');assert.deepEqual(Object.entries(publicLegalConfig.fields).filter(([,v])=>v===null).map(([k])=>k),['legalAddress','effectiveDate']);assert.match(publicLegalConfig.fields.commercialTerms,/Free v1は無料/);assert.equal(contactHref(),'mailto:support@mepamo.com');assert.equal(canIndexPublicPages(),false);
  const covered=new Set(Object.values(legalDocuments).flatMap(doc=>doc.sections.flatMap(s=>s.fields||[])));assert.deepEqual([...covered].sort(),Object.keys(legalFieldLabels).sort());
  assert.equal(canIndexPublicPages({...publicLegalConfig,publicationStatus:'published'}),false);
  for(const email of ['javascript:alert(1)','a@example.com\r\nBcc:private','not-an-email'])assert.equal(contactHref({...publicLegalConfig,fields:{...publicLegalConfig.fields,contactEmail:email}}),undefined);

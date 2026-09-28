@@ -4,7 +4,7 @@
   "monitoring": {
     "providerRef": "",
     "destinationRef": "",
-    "responderRef": "",
+    "responderRef": "owners/yota-hino",
     "deliveryEvidenceRef": "",
     "statusIntervalMinutes": 5,
     "statusHeartbeatMinutes": 15,
@@ -17,15 +17,15 @@
     "completionEvidenceRef": ""
   },
   "backup": {
-    "storageRef": "",
-    "keyCustodyRef": "",
-    "keyId": "",
-    "recoveryOwnerRef": "",
-    "intervalHours": null,
-    "maxSuccessAgeHours": null,
-    "retentionDays": null,
-    "rpoHours": null,
-    "rtoHours": null,
+    "storageRef": "backup/icloud/mepamo-production-backups",
+    "keyCustodyRef": "backup/macos-passwords/mepamo-production-backup-key-v1",
+    "keyId": "mepamo-production-v1",
+    "recoveryOwnerRef": "owners/yota-hino",
+    "intervalHours": 12,
+    "maxSuccessAgeHours": 24,
+    "retentionDays": 7,
+    "rpoHours": 24,
+    "rtoHours": 48,
     "restoreEvidenceRef": "docs/production-bootstrap-owner-evidence-20260928.md",
     "reconciliationPlanRef": "docs/production-recovery-rehearsal.md"
   }
