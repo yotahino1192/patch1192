@@ -7,12 +7,21 @@ const internal = name => name.startsWith('sqlite_') || ['_loop_migrations', '_pa
 const quote = name => '"' + name.replaceAll('"', '""') + '"';
 export async function schema(client) {
     const objects = (await client.execute("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type,name")).rows.filter(r => !internal(String(r.name)) && !internal(String(r.tbl_name)));
+    // Keep object/column/FK order and normalization identical to the original
+    // fingerprint. One read-only batch replaces two remote calls per table.
+    const tables = objects.filter(r => r.type === 'table');
+    const metadata = tables.length ? await client.batch(tables.flatMap(r => [
+        `PRAGMA table_xinfo(${quote(String(r.name))})`,
+        `PRAGMA foreign_key_list(${quote(String(r.name))})`,
+    ]), 'read') : [];
+    if (metadata.length !== tables.length * 2) throw new SchemaNotReady();
+    let index = 0;
     const result = [];
     for (const r of objects) {
         // PRAGMA metadata avoids harmless CREATE/ALTER formatting differences on remote SQLite.
         if (r.type === 'table') {
-            const cols = (await client.execute(`PRAGMA table_xinfo(${quote(String(r.name))})`)).rows;
-            const fks = (await client.execute(`PRAGMA foreign_key_list(${quote(String(r.name))})`)).rows;
+            const cols = metadata[index++].rows;
+            const fks = metadata[index++].rows;
             result.push({ type: r.type, name: r.name, columns: cols.map(x => Object.fromEntries(Object.entries(x))), foreignKeys: fks.map(x => Object.fromEntries(Object.entries(x))), sql: String(r.sql).replace(/\s+/g, ' ').trim() });
         }
         else

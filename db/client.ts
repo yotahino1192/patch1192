@@ -1,5 +1,6 @@
 import { checkSchema, SchemaNotReady } from './runtime-schema.ts';
 import { validateServer } from '../lib/env/server.ts';
+import { readinessMeasure, type ReadinessMeasure } from '../lib/reliability/readiness-diagnostics.ts';
 import { createClient, type Client, type InValue, type Transaction } from "@libsql/client";
 
 import { mkdirSync } from "node:fs";
@@ -15,8 +16,8 @@ export function createDatabase(client: Client) {
     localTail = result.catch(() => undefined);
     return result;
   }
-  function initialize() {
-    return access(() => checkSchema(client)).catch(() => { throw new SchemaNotReady(); });
+  function initialize(measure?: ReadinessMeasure) {
+    return access(() => checkSchema(client, measure)).catch(() => { throw new SchemaNotReady(); });
   }
   function prepare(sql: string, args: InValue[] = []) {
     return {
@@ -65,4 +66,11 @@ export function getClient() {
 export function database() { return db ??= createDatabase(getClient()); }
 export async function initializeDatabase() {
   await database().initialize();
+}
+
+/** Readiness revalidates configuration even when this process already has a client. */
+export async function initializeReadinessDatabase() {
+  const measure = readinessMeasure();
+  await measure('configuration', () => validateServer(process.env));
+  await database().initialize(measure);
 }

@@ -1,4 +1,5 @@
 import {reportDiagnostic,safeId} from './observability.ts';
+import {readinessDiagnostic, type ReadinessReporter} from './readiness-diagnostics.ts';
 export function observeRoute(handler:(request:Request)=>Promise<Response>) {
  return async(request:Request)=>{
   const id=safeId(request.headers.get('x-request-id'))||crypto.randomUUID();const start=Date.now();
@@ -13,14 +14,25 @@ export function observeRoute(handler:(request:Request)=>Promise<Response>) {
   return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
  };
 }
-/** Bounded public probe: at most one DB validation in flight per process; never dispatch AI/Clerk. */
-export function readinessProbe(check:()=>Promise<void>,timeoutMs=2000,ttlMs=5000){
+/** Single flight per process. Only completed checks populate the short cache. */
+export function readinessProbe(check:()=>Promise<void>,timeoutMs=2000,ttlMs=5000,report:ReadinessReporter=readinessDiagnostic){
  let pending:Promise<boolean>|undefined,cached=false,expires=0;
- return async()=>{
+ const record=(outcome:'ok'|'failed'|'timeout',start:number)=>{try{report('total',outcome,performance.now()-start);}catch{/* Logging cannot change the result. */}};
+ return async(keepAlive?:(work:Promise<boolean>)=>void)=>{
   if(Date.now()<expires)return cached;
-  if(!pending)pending=Promise.resolve().then(check).then(()=>true,()=>false).finally(()=>{pending=undefined;});
+  if(!pending){
+   const start=performance.now();
+   pending=Promise.resolve().then(check).then(()=>true,()=>false).then(ok=>{
+    cached=ok;expires=Date.now()+ttlMs;record(ok?'ok':'failed',start);return ok;
+   }).finally(()=>{pending=undefined;});
+  }
+  // Register the existing work with the hosting lifecycle before returning.
+  // No second check is started by after()/waitUntil or by concurrent callers.
+  const work=pending;
+  keepAlive?.(work);
+  const start=performance.now();
   let timer:ReturnType<typeof setTimeout>|undefined;
-  try{cached=await Promise.race([pending,new Promise<boolean>(resolve=>{timer=setTimeout(()=>resolve(false),timeoutMs);})]);expires=Date.now()+ttlMs;return cached;}
+  try{return await Promise.race([work,new Promise<boolean>(resolve=>{timer=setTimeout(()=>{record('timeout',start);resolve(false);},timeoutMs);})]);}
   finally{clearTimeout(timer);}
  };
 }
