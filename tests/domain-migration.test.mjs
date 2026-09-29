@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {createClient} from '@libsql/client';
 import {migrate,loadMigrations,validateDatabase} from '../scripts/infra/migrations.mjs';
@@ -8,7 +10,7 @@ import {createDomainUnitOfWork} from '../db/domain-repository.ts';
 import {createDomainService} from '../lib/domain/service.ts';
 
 test('0011 upgrade is additive: existing CardSet, Source, review evidence and session survive byte-for-byte',async()=>{
- const directory=await mkdtemp('/private/tmp/patch-domain-upgrade-'),c=createClient({url:':memory:'});
+ const directory=await mkdtemp(join(tmpdir(),'patch-domain-upgrade-')),c=createClient({url:':memory:'});
  try {
   const migrations=await loadMigrations(),old=migrations.filter(m=>m.name<'0011_');for(const m of old)await writeFile(directory+'/'+m.name,m.sql);
   await migrate(c,{directory});

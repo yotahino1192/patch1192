@@ -1,5 +1,7 @@
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {registerHooks} from 'node:module';
 import {existsSync} from 'node:fs';
 import {createClient} from '@libsql/client';
@@ -140,7 +142,7 @@ test('encrypted backup restores new domain, ordered evidence and deletion retry;
  const auth={issuer,subject,sessionId:'sess_domain_delete',claims:{reverification_id:'before'}};
  const challenge=await createDeletionChallenge(user,auth);await requestDeletion({...auth,claims:{reverification_id:'after',fva:[0,-1]}},{challengeId:challenge.challengeId,operationId:crypto.randomUUID(),receipt:'ce'.repeat(32)});
  await assert.rejects(run(user,'recordAttempt',input),/ACCOUNT_INACTIVE/);
- const dir=await mkdtemp('/private/tmp/patch-domain-backup-'),key=randomBytes(32);
+ const dir=await mkdtemp(join(tmpdir(),'patch-domain-backup-')),key=randomBytes(32);
  try {
   await backup(c,{directory:dir+'/backup',key,dbIdentifier:'isolated-domain',releaseSha:'test'});
   await restoreCheck(dir+'/backup',key,{verify:async restored=>{

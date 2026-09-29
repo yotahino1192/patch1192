@@ -1,6 +1,8 @@
 import { materialDataHandlers } from './material-api-fixture.mjs';
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {registerHooks} from 'node:module';
 import {createClient} from '@libsql/client';
 import {createDatabase} from '../db/client.ts';
@@ -135,7 +137,7 @@ test('legacy padded MCQ loads and grades; unusable legacy MCQ is a safe flashcar
 test('encrypted restore preserves MCQ receipt, replay and topic provenance; account deletion erases new evidence and keeps another account',async()=>{
  const {backup,restoreCheck}=await import('../scripts/infra/backup.mjs');
  const {mkdtemp,rm}=await import('node:fs/promises');const {randomBytes}=await import('node:crypto');
- const dir=await mkdtemp('/private/tmp/patch-free-restore-'),key=randomBytes(32),u=await user(),b=await user();
+ const dir=await mkdtemp(join(tmpdir(),'patch-free-restore-')),key=randomBytes(32),u=await user(),b=await user();
  const s=await setup(u,[mcq]);const p=answer(s,s.cards[0],{selectedChoice:'C'});const receipt=await (await send(u,p)).json();
  const other=await setup(b,[qa]);await send(b,answer(other,other.cards[0]));
  await c.execute({sql:"UPDATE sources SET input_kind='topic' WHERE user_id=?",args:[u.id]});

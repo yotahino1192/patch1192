@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {createClient} from '@libsql/client';
 import {migrate,loadMigrations,validateDatabase} from '../scripts/infra/migrations.mjs';
 test('0012 preserves old content/evidence/session timestamps and defaults provenance without guessing old MCQ selections',async()=>{
- const directory=await mkdtemp('/private/tmp/patch-free-upgrade-'),c=createClient({url:':memory:'});
+ const directory=await mkdtemp(join(tmpdir(),'patch-free-upgrade-')),c=createClient({url:':memory:'});
  try{
   const migrations=await loadMigrations();for(const m of migrations.filter(m=>m.name<'0012_'))await writeFile(directory+'/'+m.name,m.sql);
   await migrate(c,{directory});await c.execute("INSERT INTO users(id,created_at) VALUES('owner','now')");
