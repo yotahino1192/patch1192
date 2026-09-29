@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "status": "planned-not-installed",
+  "uptimeRobot": {
+    "plan": "Free",
+    "intervalSeconds": 300,
+    "destination": "owner-private-email-not-in-repository",
+    "monitors": [
+      { "name": "Mepamo Health", "url": "https://mepamo.com/api/health", "type": "keyword", "expectedStatus": 200, "keyword": "\"status\":\"ok\"" },
+      { "name": "Mepamo Readiness", "url": "https://mepamo.com/api/ready", "type": "keyword", "expectedStatus": 200, "keyword": "\"status\":\"ready\"" }
+    ]
+  },
+  "healthchecks": {
+    "plan": "Free",
+    "destination": "owner-private-email-not-in-repository",
+    "checks": [
+      { "name": "deletion-scheduler-invocation", "periodSeconds": 60, "graceSeconds": 240 },
+      { "name": "operations-status", "periodSeconds": 300, "graceSeconds": 600 },
+      { "name": "verified-offsite-backup", "periodSeconds": 43200, "graceSeconds": 43200 }
+    ]
+  },
+  "recurring": {
+    "operationsCronUtc": "*/5 * * * *",
+    "backupCronUtc": "0 */12 * * *",
+    "backupMaxAgeHours": 24,
+    "backupRetentionDays": 7,
+    "runnerStatus": "not-provisioned",
+    "offsiteStatus": "initial-manual-copy-only",
+    "keyId": "mepamo-production-v1"
+  }
+}

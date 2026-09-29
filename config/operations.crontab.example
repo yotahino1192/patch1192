@@ -7,5 +7,7 @@
 # operations-status, and monitor process exit plus missing success >15 minutes.
 # Replace executable/checkout paths with actual runner paths. Do not enable in CI.
 # */5 * * * * cd /opt/patch && /usr/local/bin/node scripts/operations-status.mjs --allow-remote --confirm-db "$DB_ID"
-# Backup scheduling intentionally awaits Yota's interval/retention/RPO/RTO and
-# provider-specific offsite copy/key custody decisions. See recovery runbook.
+# Approved backup cadence: 0 */12 * * * (UTC); max usable snapshot age 24h; retention 7d.
+# Do not schedule db:backup alone as the full success path: restore-check, offsite
+# copy/retrieval verification and expiry/reconciliation are required. Runner and
+# durable iCloud transfer are not installed. See docs/phase-a-final-operator-checklist.md.

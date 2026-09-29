@@ -1,0 +1,19 @@
+// INERT TEMPLATE: not a deployed Worker. Copy/review only during separately approved A2 setup.
+{
+  "name": "mepamo-deletion-scheduler",
+  "main": "index.mjs",
+  "compatibility_date": "2026-09-29",
+  "workers_dev": false,
+  "preview_urls": false,
+  "triggers": { "crons": [] }, // Approved future schedule: ["* * * * *"] (UTC).
+  "vars": {
+    "SCHEDULER_ENABLED": "false",
+    "PATCH_ENV": "production",
+    "PATCH_API_ORIGIN": "https://mepamo.com",
+    "VERCEL_PROTECTION_REQUIRED": "true"
+  }
+  // Secret bindings, separately injected later (never values here):
+  // ACCOUNT_DELETION_WORKER_SECRET, HEALTHCHECKS_PING_URL,
+  // VERCEL_AUTOMATION_BYPASS_SECRET (hosting access; distinct from worker authentication).
+  // No DB bindings, Turso credentials, routes, or public HTTP trigger.
+}
