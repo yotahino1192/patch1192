@@ -14,14 +14,18 @@ try {
  server=await createServer({configFile:false,root:process.cwd(),plugins:[react()],define:{'process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY':'""'},server:{host:'127.0.0.1',port:5196,strictPort:true}});await server.listen();
  chrome=spawn(process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',['--headless=new','--no-first-run','--no-default-browser-check',`--remote-debugging-port=${debugPort}`,`--user-data-dir=${dir}/chrome`,'about:blank'],{stdio:'ignore'});chrome.on('error',e=>startupError=e);
  await until(async()=>(await fetch(`http://127.0.0.1:${debugPort}/json/version`)).ok);
- const tabs=await (await fetch(`http://127.0.0.1:${debugPort}/json`)).json();ws=new WebSocket(tabs[0].webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);
+ // The target list also contains browser UI/extension pages; own a fresh page target.
+ const tab=await (await fetch(`http://127.0.0.1:${debugPort}/json/new?about:blank`,{method:'PUT'})).json();
+ assert.equal(tab.type,'page');ws=new WebSocket(tab.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);
  let seq=0;const pending=new Map(),errors=[];
  ws.onmessage=event=>{const m=JSON.parse(event.data);if(m.method==='Runtime.exceptionThrown')errors.push(m.params);if(m.id&&pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);if(m.error)reject(Error(JSON.stringify(m.error)));else resolve(m.result);}};
  const cdp=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}));});
  const evaluate=async expression=>{const result=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw Error(JSON.stringify(result.exceptionDetails));return result.result.value;};
  const click=id=>evaluate(`document.getElementById(${JSON.stringify(id)}).click()`);
  const privateReady=user=>until(()=>evaluate(`document.querySelector('[data-private="user_${user}"]')?.textContent.includes('workspace ready')`));
- await cdp('Runtime.enable');await cdp('Page.enable');await cdp('Page.navigate',{url:'http://127.0.0.1:5196/tests/fixtures/auth.html'});
+ await cdp('Runtime.enable');await cdp('Page.enable');
+ const navigation=await cdp('Page.navigate',{url:'http://127.0.0.1:5196/tests/fixtures/auth.html'});
+ assert.equal(navigation.errorText,undefined,'Privacy fixture navigation must succeed');
  await until(()=>evaluate('!!window.fixture'));
  assert.equal(await evaluate('document.querySelector("[data-private]")'),null);
  await evaluate('fixture.change("A");fixture.ready()');await privateReady('A');
