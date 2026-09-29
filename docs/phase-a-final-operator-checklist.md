@@ -81,16 +81,22 @@ await command(async () => {
   const {client} = target();
   try {
     const integrity = await client.execute('PRAGMA integrity_check');
-    if (integrity.rows.some(row => row.integrity_check !== 'ok')) throw Error('INTEGRITY_INVALID');
-    const lock = await client.execute('SELECT owner,lease_until FROM _patch_migration_lock');
-    if (lock.rows.length !== 1 || lock.rows[0].owner !== null || Number(lock.rows[0].lease_until) !== 0) throw Error('MIGRATION_LOCK_NOT_RELEASED');
+    if (integrity.rows.length !== 1 || integrity.rows[0].integrity_check !== 'ok') throw Error('INTEGRITY_INVALID');
+    if ((await client.execute('PRAGMA foreign_key_check')).rows.length) throw Error('FOREIGN_KEY_INVALID');
+    const lock = await client.execute('SELECT id,owner,lease_until FROM _patch_migration_lock');
+    if (lock.rows.length !== 1 || Number(lock.rows[0].id) !== 1 || lock.rows[0].owner !== null || Number(lock.rows[0].lease_until) !== 0) throw Error('MIGRATION_LOCK_NOT_RELEASED');
     const tables = await client.execute("SELECT name FROM sqlite_master WHERE type='table'");
-    for (const {name} of tables.rows) {
-      if (String(name).startsWith('sqlite_') || ['_patch_migrations','_patch_migration_lock','_patch_migration_runs'].includes(name)) continue;
+    const business = tables.rows.filter(({name}) => !String(name).startsWith('sqlite_') &&
+      !['_patch_migrations','_patch_migration_lock','_patch_migration_runs'].includes(name));
+    if (business.length !== 26 || !business.some(({name}) => name === 'ai_control')) throw Error('PRODUCTION_TABLE_INVENTORY_INVALID');
+    const control = (await client.execute('SELECT id,enabled FROM ai_control')).rows;
+    if (control.length !== 1 || Number(control[0].id) !== 1 || Number(control[0].enabled) !== 1) throw Error('AI_CONTROL_INITIAL_STATE_INVALID');
+    for (const {name} of business) {
+      if (name === 'ai_control') continue; // The exact migration-created singleton was checked above.
       const quoted = '"' + String(name).replaceAll('"', '""') + '"';
       if (Number((await client.execute('SELECT count(*) n FROM ' + quoted)).rows[0].n) !== 0) throw Error('UNEXPECTED_PRODUCTION_DATA');
     }
-    console.log('PRODUCTION_BASELINE_EMPTY_VALIDATED');
+    console.log('PRODUCTION_BASELINE_INITIALIZED_VALIDATED');
   } finally {client.close();}
 });
 BASELINE
@@ -124,7 +130,11 @@ AGE
 date -u '+PHASE_A_CHECKS_END %Y-%m-%dT%H:%M:%SZ' 
 ```
 
-Before acceptance, verify guarded read-only baseline: 13 applied migrations, integrity/FK valid, migration lock owner null/lease released, no unexpected users/content or AI/deletion rows; `ops:status` alone does not prove all of these. The aggregate-only block above checks the post-migration first-deployment baseline; never rerun migration or the pre-migration empty-DB preflight on the migrated DB. Record counts privately without user/content output. Verify manifest DB identity, schema, exact SHA, key ID, timestamp and ciphertext hash. Both Production artifact inventories/SHA are checked by unchanged `check:release`; no synthetic artifacts or stale Development build may substitute.
+Before acceptance, verify guarded read-only baseline: 13 applied migrations, integrity/FK valid, migration lock owner null/lease released, 26 business tables: exactly one `ai_control(id=1, enabled=1)` row and zero rows in the other 25 tables; `ops:status` alone does not prove all of these. The aggregate-only block above checks the post-migration first-deployment baseline; never rerun migration or the pre-migration empty-DB preflight on the migrated DB. Record counts privately without user/content output. Verify manifest DB identity, schema, exact SHA, key ID, timestamp and ciphertext hash. Both Production artifact inventories/SHA are checked by unchanged `check:release`; no synthetic artifacts or stale Development build may substitute.
+
+The singleton is created by `drizzle/0009_talented_shockwave.sql` and remains required after migrations 0000–0012. It is **not** an AI request or user record. `AI_ENABLED=false` still blocks AI dispatch independently of the database control value; never update/delete the singleton to make this baseline pass. Missing/changed control, unexpected data, integrity/FK failure or an unreleased lock must stop validation. Only the three named migration bookkeeping tables (whose history/lock rows are expected) and SQLite internals are excluded; there is no blanket `_patch_*` exemption. The preceding `db:validate` remains mandatory for exact schema, migration checksums and table identities.
+
+Checklist consistency review: `ops:status` counts AI requests/deletion jobs, so its zero counts are compatible with this singleton. Backup/restore must preserve the singleton, not discard it. Initial migration history may retain its original release SHA; do not remigrate it to the candidate SHA. The **new backup** and freshly built web/mobile artifacts must use the approved candidate SHA, as already checked below/above. `tests/infra-phase-a-checklist.test.mjs` executes the actual documented BASELINE and AGE blocks against local fixtures, including the freshly migrated database and encrypted backup/offsite-copy restore; no Production credentials or remote DB are used.
 
 **Pause within the same operator session** for actual iCloud sync/off-device retrieval confirmation; `cmp` only proves local bytes. Verify `now - backupTimestamp <= 24h`, timestamp not future, enough remaining age for the attended A1 window, successful restore and offsite retrieval. Preserve sanitized timestamps/results; no raw manifests, keys or private data in chat/Git. If the window expires, do not waive freshness: repeat only the now-stale checks when rescheduled. “Once” avoids premature work, not the existing fail-closed expiry guard.
 
