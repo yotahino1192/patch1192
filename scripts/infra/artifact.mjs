@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { releaseSha } from './source.mjs';
+export { releaseSha } from './source.mjs';
 import { hash } from './schema.mjs';
 import { filesUnder, scanFiles } from './scan.mjs';
 import { safeOrigin, validatePublic } from '../../lib/env/public.ts';
@@ -29,13 +30,6 @@ export function checkArtifactEndpoints(text) {
     }
 }
 export const GUARD_VERSION = 1;
-export function releaseSha() {
-    let sha;
-    try { sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
-    catch { sha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA; }
-    if (!/^[a-f0-9]{40}$/.test(sha || '')) throw new Error('RELEASE_SHA_REQUIRED');
-    return sha;
-}
 export async function inventory(root) { const out = {}; for (const file of (await filesUnder(root)).sort()) {
     if (file === join(root, 'patch-build.json'))
         continue;

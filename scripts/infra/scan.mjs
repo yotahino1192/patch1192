@@ -1,6 +1,6 @@
 import { readFile, readdir, lstat } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
 import { join, relative, resolve } from 'node:path';
+import { repositoryFiles } from './source.mjs';
 const rules = [/sk_(?:test|live)_[A-Za-z0-9]{16,}/, /sk-(?:proj-)?[A-Za-z0-9_-]{30,}/, /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, /\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}/, /Authorization["']?\s*[:=]\s*["']Bearer\s+[A-Za-z0-9._-]{16,}/i];
 export function detectSecrets(text, secrets = []) { return rules.some(r => r.test(text)) || secrets.some(s => s && s.length >= 12 && [s, encodeURIComponent(s), Buffer.from(s).toString('base64')].some(v => text.includes(v))); }
 export async function filesUnder(root) {
@@ -30,13 +30,13 @@ export async function scanFiles(files, { secrets = [], artifact = false } = {}) 
     }
 }
 export async function scanRepository() {
-    const names = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+    const names = await repositoryFiles();
     await scanFiles(names);
 }
 export async function scanClientGraph() {
     // Resolve local imports transitively from every client entry; no server/env or fixture imports permitted.
     const ts = (await import('typescript')).default;
-    const names = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0').filter(n => /\.[cm]?[jt]sx?$/.test(n));
+    const names = (await repositoryFiles()).filter(n => /\.[cm]?[jt]sx?$/.test(n));
     const text = new Map(await Promise.all(names.map(async (n) => [n, await readFile(n, 'utf8')])));
     const config = { moduleResolution: ts.ModuleResolutionKind.Bundler, allowJs: true, resolveJsonModule: true, baseUrl: process.cwd(), paths: { '@/*': ['./*'] } };
     const visited = new Set();

@@ -147,8 +147,11 @@ After B succeeds and evidence is accepted, request explicit approval naming exac
 Only after that approval, from the exact clean candidate:
 
 ```sh
-vercel deploy --prod --skip-domain --scope campus-ring-3f45e625
+npx --yes vercel@latest deploy --prod --skip-domain --project mepamo1192 \
+  --scope campus-ring-3f45e625 --build-env PATCH_RELEASE_SHA="$APPROVED_SHA" --yes
 ```
+
+CLI source builds do not contain `.git`. The non-secret `PATCH_RELEASE_SHA` build input must be the exact approved clean checkout SHA; it is recorded in the sealed artifact. The local Git SHA and any supplied provider SHA must agree with an explicit value. In a Git-absent Vercel build, both source/secret and client-graph scans enumerate all uploaded files (including dotfiles and gitignored files), excluding only root `node_modules`, `.next`, `dist` and `.vercel` dependency/platform/generated trees. Environment files and source symlinks still fail. A broken Git checkout or a missing/malformed explicit SHA fails closed; do not initialize a fake repository or skip the scan. This input does not replace the operator's clean/exact-SHA upload review, Production environment validation or post-deployment artifact verification.
 
 No deployment now; no bare `vercel`, `--public`, reconnect, domain alias, automatic promotion or new project. Keep real canonical app origins; check actual provider `VERCEL_ENV=production` and `VERCEL_PROJECT_PRODUCTION_URL=mepamo.com`. A fallback hostname must fail closed, not be spoofed/allowlisted. Never use a Preview deployment with Production credentials. This step is not A2 promotion authorization.
 

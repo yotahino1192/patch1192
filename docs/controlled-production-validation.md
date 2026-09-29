@@ -59,7 +59,8 @@ Read-only metadata inspection on 2026-09-29: workspace display `mepamo` (CLI sco
 The recommended first action after **all A entry gates and separate deployment authorization** is a source deployment from a clean, exact-SHA checkout linked to the existing project:
 
 ```sh
-vercel deploy --prod --skip-domain --scope campus-ring-3f45e625
+npx --yes vercel@latest deploy --prod --skip-domain --project mepamo1192 \
+  --scope campus-ring-3f45e625 --build-env PATCH_RELEASE_SHA="$APPROVED_SHA" --yes
 ```
 
 Do not run bare `vercel`, omit `--skip-domain`, use `--public`, or manually alias afterward. Do not auto-create/link a new project. Verify project identity first, and inspect what will be uploaded; exclude env/backup/untracked private artifacts. Prefer the remote source build with already-configured Production environment over a `vercel pull` flow that downloads secrets. A separate protected offline validation environment is still necessary for the full preflight above. The remote deployment build alone does not run `check:release` or `check:operations` and cannot replace them.
