@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { validateServer } from '../lib/env/server.ts';
 import { validatePublic } from '../lib/env/public.ts';
 import { detectSecrets, scanFiles } from '../scripts/infra/scan.mjs';
-import { sealArtifact, validateArtifact } from '../scripts/infra/artifact.mjs';
+import { sealArtifact, validateArtifact, checkArtifactEndpoints } from '../scripts/infra/artifact.mjs';
 const host = 'clerk.patch-release.dev', origin = 'https://app.patch-release.dev';
 const pk = 'pk_' + 'live_' + Buffer.from(host + '$').toString('base64').replace(/=+$/, '');
 const target = { apiOrigins: [origin], webOrigins: [origin], clerkIssuers: ['https://' + host], databaseUrls: ['libsql://patch-release.turso.io'], databaseId: 'patch-release', models: ['gpt-5-nano'] };
@@ -84,6 +84,42 @@ test('production artifact rejects literal local/dummy/dev issuer endpoints', asy
  const { checkArtifactEndpoints } = await import('../scripts/infra/artifact.mjs');
  for (const url of ['http://localhost:3001/api/data','https://example.invalid','https://dummy.patch.tld','https://instance.clerk.accounts.dev','http://127.0.0.1/api']) assert.throws(() => checkArtifactEndpoints(JSON.stringify({ url })));
  assert.doesNotThrow(() => checkArtifactEndpoints('https://api.patch-app.tld/api/data'));
+});
+
+test('only the reviewed complete PDF.js parsing-base file is exempt, never application endpoints or lookalikes', async () => {
+ const pdf = await readFile('node_modules/pdfjs-dist/legacy/build/pdf.mjs', 'utf8');
+ assert.equal(pdf.split('http://example.com').length - 1, 1);
+ assert.ok(pdf.includes('createValidAbsoluteUrl(url, "http://example.com")'));
+ assert.doesNotThrow(() => checkArtifactEndpoints(pdf));
+ for (const text of [
+  'const api = "http://example.com";',
+  'fetch("http://example.com")',
+  'createValidAbsoluteUrl(url, "http://example.com")',
+  pdf + '\nconst api = "http://example.com";',
+  pdf.replace('return _isValidProtocol(absoluteUrl)', 'return fetch(baseUrl) && _isValidProtocol(absoluteUrl)'),
+  pdf + '\n// vendor or bundler changed: review required',
+ ]) assert.throws(() => checkArtifactEndpoints(text), /ARTIFACT_ENDPOINT/);
+ for (const url of ['http://example.com', 'https://example.com', 'http://localhost:3001', 'https://127.0.0.1', 'https://[::1]', 'https://app.local', 'https://app.internal', 'https://app.test', 'https://app.invalid', 'https://dummy.patch.tld', 'https://fixture.patch.tld', 'https://instance.clerk.accounts.dev']) {
+  assert.throws(() => checkArtifactEndpoints(JSON.stringify({api: url})));
+  assert.throws(() => validateServer({...valid(), PATCH_API_ORIGIN: url}, policy));
+ }
+});
+
+test('web and mobile artifact scans keep PDF exemption per file and reject a separate real endpoint', async () => {
+ const dir = await mkdtemp(join(tmpdir(), 'patch-pdf-artifact-'));
+ try {
+  const pdf = await readFile('node_modules/pdfjs-dist/legacy/build/pdf.mjs', 'utf8');
+  const config = validateServer(valid(), policy);
+  await writeFile(join(dir, 'pdf.js'), pdf);
+  for (const kind of ['web', 'mobile']) {
+   await writeFile(join(dir, 'app.js'), JSON.stringify({key: pk, api: origin}));
+   await sealArtifact(dir, config, {kind, mode: 'production'});
+   await validateArtifact(dir, policy, 'production', {kind});
+   await writeFile(join(dir, 'app.js'), JSON.stringify({key: pk, api: 'http://example.com'}));
+   await sealArtifact(dir, config, {kind, mode: 'production'});
+   await assert.rejects(validateArtifact(dir, policy, 'production', {kind}), /ARTIFACT_ENDPOINT/);
+  }
+ } finally { await rm(dir, {recursive: true, force: true}); }
 });
 
 test('hosted contract requires explicit AI decision, canonical origin and independent worker credential', () => {

@@ -4,9 +4,21 @@ import { execFileSync } from 'node:child_process';
 import { hash } from './schema.mjs';
 import { filesUnder, scanFiles } from './scan.mjs';
 import { safeOrigin, validatePublic } from '../../lib/env/public.ts';
+// Reviewed pdfjs-dist 6.3.289: the sole example.com literal in each complete
+// file is updateUrlHash's non-network URL parsing base. Pin the entire source /
+// webpack / Vite file, not its name or a matchable call-site fragment. Any vendor,
+// bundler or payload change fails closed and requires review of these fingerprints.
+const pdfParsingBaseFiles = new Set([
+    '91e29f812c593904e8d48d022db5ddf93e3443575d4765ac9bfbb42494cfbd8d', // legacy/build/pdf.mjs
+    '612315a73afbea09211db2de11e5430607056115f1171f14207a7719dcf37f73', // webpack PDF chunk
+    '4a3feb336ede0ebcd00c60dd1d9933e59591aa072b19efd971e2eba956fdaf80', // isolated worktree webpack chunk
+    'c3a89651ab8ceffbf00ce860229d0a359e550210408a90ff55f6b59559775663', // Vite PDF chunk
+]);
 export function checkArtifactEndpoints(text) {
+    const reviewedPdfFile = pdfParsingBaseFiles.has(hash(text));
     // Actual URL literals only; words in validator regexes are not environment configuration.
     for (const match of text.replaceAll('\\/', '/').matchAll(/https?:\/\/[^\s\x22\x27\x60<>\\]+/g)) {
+        if (reviewedPdfFile && match[0] === 'http://example.com') continue;
         let url;
         try { url = new URL(match[0]); } catch { continue; }
         const host = url.hostname;
@@ -44,8 +56,9 @@ export async function validateArtifact(root, policy, expectedEnv, { kind, sha = 
     if (JSON.stringify(await inventory(root)) !== JSON.stringify(m.files))
         throw new Error('ARTIFACT_HASH_MISMATCH');
     const payloadFiles = (await filesUnder(root)).filter(p => p !== join(root, 'patch-build.json'));
-    const text = (await Promise.all(payloadFiles.filter(p => /\.(js|html|json)$/.test(p)).map(p => readFile(p, 'utf8')))).join('\n');
-    if (expectedEnv === 'production') checkArtifactEndpoints(text);
+    const payloadTexts = await Promise.all(payloadFiles.filter(p => /\.(js|html|json)$/.test(p)).map(p => readFile(p, 'utf8')));
+    if (expectedEnv === 'production') for (const text of payloadTexts) checkArtifactEndpoints(text);
+    const text = payloadTexts.join('\n');
     if (expectedEnv === 'production' && /pk_test_[A-Za-z0-9_-]{12,}/.test(text))
         throw new Error('DEVELOPMENT_CLERK_IN_ARTIFACT');
     if (expectedEnv !== 'development' && !text.includes(m.publishableKey))
