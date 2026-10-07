@@ -1,10 +1,3 @@
-> Canonical repository requirements document
-> - Version: 3.0
-> - Source: finalized DOCX — Mepamo_Patch_統合要件定義書_開発実行計画_v3.0_2026-10-06.docx
-> - Converted date: 2026-10-07 (Asia/Tokyo)
-> - Public product name: Mepamo
-> - Internal Patch identifiers may remain where technically required.
-
 MEPAMO / PATCH
 
 # 統合要件定義書・開発実行計画
