@@ -9,7 +9,7 @@ This is a frequently updated operational snapshot, **not a Product requirements 
 ## Sources and reference locator
 
 - Longer-lived Product / Domain / Release authority: [v3.0 unified requirements](mepamo-unified-requirements-v3.0.md), faithfully converted from the finalized DOCX. Current implementation/tests establish actual technical behavior; this file records frequently changing operational state. The requirements document's dated operational snapshot is not fresh live evidence.
-- Technical state below: inspected local `Dev` and files at that commit on 2026-10-06. Local `Dev` and cached `origin/Dev` SHAs were rechecked on 2026-10-07; no remote fetch or live-service verification was performed.
+- Technical/application baseline below: implementation and tests at `aa1c7f48357d59604d307b6f488125632fe4e9b4` were inspected on 2026-10-06. Local `Dev` and cached `origin/Dev` refs were rechecked on 2026-10-07 before the documentation-only commits. Dev HEAD may advance when documentation is integrated without changing this application baseline. No remote fetch or live-service verification was performed.
 - Live service/TestFlight facts below: **owner-reported current state**, including the completed monitoring/scheduler validation. No external service or DB was queried during this documentation task. These facts are not fresh release/backup evidence.
 - [STATUS.md](../STATUS.md) and dated checkpoint documents retain historical evidence; their older “current” labels are not this snapshot. Existing release guards and runbooks still apply; this file does not waive them.
 
@@ -18,8 +18,8 @@ This is a frequently updated operational snapshot, **not a Product requirements 
 | Item | Recorded state / evidence boundary |
 | --- | --- |
 | Public brand | Mepamo |
-| Local Dev SHA | `aa1c7f48357d59604d307b6f488125632fe4e9b4` — locally verified |
-| Remote-tracking origin/Dev | `aa1c7f48357d59604d307b6f488125632fe4e9b4` — cached local ref; no fetch or GitHub verification in this task |
+| Application/code baseline SHA | `aa1c7f48357d59604d307b6f488125632fe4e9b4` — last verified application baseline; documentation-only commits may advance Dev HEAD without changing this application baseline |
+| Git branch HEAD | Read from Git when needed and intentionally not embedded here; verify the current branch, `Dev` and remote refs from the repository before integration or release work |
 | Production app SHA | `aa1c7f48357d59604d307b6f488125632fe4e9b4` — owner-confirmed; independently versioned from Worker |
 | Production deployment | Serving `https://mepamo.com`; healthy per latest confirmed operational state. Vercel Git integration last confirmed disconnected; verify before any future push that could deploy |
 | Active Internal TestFlight | **1.0 (1)** installs and launches on a physical iPhone; Production OTP and AI material generation work (owner report) |
